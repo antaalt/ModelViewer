@@ -1,0 +1,3 @@
+[submodule "lib/Aka"]
+	path = lib/Aka
+	url = git@github.com:antaalt/Aka.git
