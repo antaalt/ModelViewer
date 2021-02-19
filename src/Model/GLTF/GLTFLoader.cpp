@@ -162,10 +162,11 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 		material.colorTexture = aka::Texture::create(
 			tinyImage.width,
 			tinyImage.height,
-			tinyImage.component == 4 ? aka::Texture::Format::Rgba : aka::Texture::Format::Rgb,
-			tinyImage.image.data(),
+			tinyImage.component == 4 ? aka::Texture::Format::UnsignedByte : aka::Texture::Format::UnsignedByte,
+			aka::Texture::Component::RGBA,
 			sampler
 		);
+		material.colorTexture->upload(tinyImage.image.data());
 	}
 	else
 	{
@@ -175,7 +176,8 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 		sampler.filterMin = aka::Sampler::Filter::Nearest;
 		sampler.wrapS = aka::Sampler::Wrap::Repeat;
 		sampler.wrapT = aka::Sampler::Wrap::Repeat;
-		material.colorTexture = aka::Texture::create(1U, 1U, aka::Texture::Format::Rgba, data, sampler);
+		material.colorTexture = aka::Texture::create(1U, 1U, aka::Texture::Format::UnsignedByte, aka::Texture::Component::RGBA, sampler);
+		material.colorTexture->upload(data);
 	}
 	// Culling
 	if (tinyMat.doubleSided)
@@ -212,10 +214,11 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 		material.normalTexture = aka::Texture::create(
 			tinyImage.width,
 			tinyImage.height,
-			tinyImage.component == 4 ? aka::Texture::Format::Rgba : aka::Texture::Format::Rgb,
-			tinyImage.image.data(),
+			tinyImage.component == 4 ? aka::Texture::Format::UnsignedByte : aka::Texture::Format::UnsignedByte,
+			aka::Texture::Component::RGBA,
 			sampler
 		);
+		material.normalTexture->upload(tinyImage.image.data());
 	}
 	else
 	{
@@ -225,7 +228,8 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 		sampler.filterMin = aka::Sampler::Filter::Nearest;
 		sampler.wrapS = aka::Sampler::Wrap::Repeat;
 		sampler.wrapT = aka::Sampler::Wrap::Repeat;
-		material.normalTexture = aka::Texture::create(1U, 1U, aka::Texture::Format::Rgba, data, sampler);
+		material.normalTexture = aka::Texture::create(1U, 1U, aka::Texture::Format::UnsignedByte, aka::Texture::Component::RGBA, sampler);
+		material.normalTexture->upload(data);
 	}
 	return material;
 }

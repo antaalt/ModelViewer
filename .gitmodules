@@ -1,3 +1,6 @@
 [submodule "lib/Aka"]
 	path = lib/Aka
 	url = git@github.com:antaalt/Aka.git
+[submodule "asset/glTF-Sample-Models"]
+	path = asset/glTF-Sample-Models
+	url = git@github.com:KhronosGroup/glTF-Sample-Models.git
