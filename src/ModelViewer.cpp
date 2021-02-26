@@ -8,8 +8,8 @@ void Viewer::loadShader()
 {
 #if defined(AKA_USE_OPENGL)
 	
-	aka::ShaderID vert = aka::Shader::compile(TextFile::load(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
-	aka::ShaderID frag = aka::Shader::compile(TextFile::load(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
+	aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
+	aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
 	std::vector<aka::Attributes> attributes;
 #else
 	std::string str = TextFile::load(Asset::path("shaders/D3D/shader.hlsl"));
