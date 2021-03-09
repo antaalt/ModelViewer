@@ -14,7 +14,7 @@ add_executable(AkaViewer
 	"src/ModelViewer.cpp"
 
 	"src/Model/Model.cpp"
-	"src/Model/ModelLoader.cpp"
+	
 
 	"src/Model/GLTF/GLTFLoader.cpp"
 )

@@ -6,14 +6,14 @@
 
 namespace viewer {
 
-class Viewer : public aka::Application
+class Viewer : public aka::View
 {
 	void loadShader();
 public:
-	void initialize() override;
-	void destroy() override;
-	void update(Time::Unit deltaTime) override;
-	void render() override;
+	void onCreate() override;
+	void onDestroy() override;
+	void onUpdate(Time::Unit deltaTime) override;
+	void onRender() override;
 private:
 	aka::ShaderMaterial::Ptr m_material;
 	aka::Shader::Ptr m_shader;

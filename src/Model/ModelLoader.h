@@ -4,8 +4,6 @@
 
 namespace viewer {
 
-std::string readString(const aka::Path& path);
-
 class ModelLoader
 {
 public:

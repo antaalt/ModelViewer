@@ -36,14 +36,14 @@ void Viewer::loadShader()
 	}
 }
 
-void Viewer::initialize()
+void Viewer::onCreate()
 {
 	GLTFLoader loader;
 	// TODO use args
-	//m_model = loader.load(Asset::path("glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf"));
-	//m_model = loader.load(Asset::path("glTF-Sample-Models-master/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
-	//m_model = loader.load(Asset::path("glTF-Sample-Models-master/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
-	m_model = loader.load(Asset::path("glTF-Sample-Models-master/2.0/Lantern/glTF/Lantern.gltf"));
+	//m_model = loader.load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"));
+	//m_model = loader.load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
+	//m_model = loader.load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
+	m_model = loader.load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"));
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
 	aka::Logger::info("Scene Bounding box : ", m_model->bbox.min, " - ", m_model->bbox.max);
@@ -54,11 +54,11 @@ void Viewer::initialize()
 	//aka::Logger::info("Camera : ", m_camera.transform);
 }
 
-void Viewer::destroy()
+void Viewer::onDestroy()
 {
 }
 
-void Viewer::update(aka::Time::Unit deltaTime)
+void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
 	using namespace aka;
 
@@ -70,14 +70,14 @@ void Viewer::update(aka::Time::Unit deltaTime)
 			const input::Position& delta = input::delta();
 			radianf pitch = radianf(-delta.y * deltaTime.seconds());
 			radianf yaw = radianf(-delta.x * deltaTime.seconds());
-			m_camera.position = mat4f::rotate(vec3f(1, 0, 0), pitch).multiplyPoint(m_camera.position - m_camera.target) + m_camera.target;
-			m_camera.position = mat4f::rotate(vec3f(0, 1, 0), yaw).multiplyPoint(m_camera.position - m_camera.target) + m_camera.target;
+			m_camera.position = mat4f::rotate(vec3f(1, 0, 0), pitch).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
+			m_camera.position = mat4f::rotate(vec3f(0, 1, 0), yaw).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
 		}
 		const input::Position& scroll = input::scroll();
 		if (scroll.y != 0.f)
 		{
 			vec3f dir = vec3f::normalize(vec3f(m_camera.target - m_camera.position));
-			m_camera.position = m_camera.position + point3f(dir * (scroll.y * m_camera.speed * deltaTime.seconds()));
+			m_camera.position = m_camera.position + dir * (scroll.y * m_camera.speed * deltaTime.seconds());
 		}
 		m_camera.transform = mat4f::lookAt(m_camera.position, m_camera.target, m_camera.up);
 	}
@@ -96,11 +96,11 @@ void Viewer::update(aka::Time::Unit deltaTime)
 	// Quit the app if requested
 	if (aka::input::pressed(aka::input::Key::Escape))
 	{
-		quit();
+		EventDispatcher<QuitEvent>::emit();
 	}
 }
 
-void Viewer::render()
+void Viewer::onRender()
 {
 	static aka::RenderPass renderPass{};
 	static Culling doubleSide = Culling{ CullMode::None, CullOrder::CounterClockWise };

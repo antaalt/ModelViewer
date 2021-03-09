@@ -333,7 +333,7 @@ std::vector<norm3f> generateNormal(const vec3f *vertices, size_t vertexCount, co
 	return normals;
 }
 
-Mesh::Ptr convertMesh(const tinygltf::Model& tinyModel, const tinygltf::Primitive& primitive, BoundingBox &bbox, const mat4f &t)
+Mesh::Ptr convertMesh(const tinygltf::Model& tinyModel, const tinygltf::Primitive& primitive, aabbox<> &bbox, const mat4f &t)
 {
 	Mesh::Ptr mesh = Mesh::create();
 	// Vertex
@@ -507,7 +507,9 @@ Model::Ptr viewer::GLTFLoader::load(const Path& path)
 		tinyImage->image = std::move(image.bytes);
 		return true;
 	}, nullptr);*/
-	bool ret = loader.LoadASCIIFromFile(&tinyModel, &err, &warn, path.str());
+	std::string str = File::readString(path);
+	std::string dir = path.up().str();
+	bool ret = loader.LoadASCIIFromString(&tinyModel, &err, &warn, str.c_str(), str.size(), dir);
 	if (!warn.empty())
 		aka::Logger::warn(warn);
 	if (!err.empty())

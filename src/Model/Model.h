@@ -6,22 +6,6 @@ namespace viewer {
 
 using namespace aka;
 
-struct BoundingBox
-{
-	BoundingBox();
-
-	void include(const point3f& point);
-	void include(const BoundingBox& bbox);
-	bool contains(const point3f& point) const;
-	bool contains(const BoundingBox& aabbox) const;
-	point3f center() const;
-	vec3f extent() const;
-	bool valid() const;
-
-	point3f min;
-	point3f max;
-};
-
 struct Material {
 	using Ptr = std::shared_ptr<Material>;
 	bool doubleSided;
@@ -59,7 +43,7 @@ struct Model
 {
 	using Ptr = std::shared_ptr<Model>;
 
-	BoundingBox bbox;
+	aabbox<> bbox;
 	std::vector<Material> materials;
 	//std::vector<Primitive> primitives;
 	std::vector<mat4f> transforms;
@@ -75,7 +59,7 @@ struct ArcballCamera
 	point3f target;
 	norm3f up;
 
-	void set(const BoundingBox& bbox);
+	void set(const aabbox<>& bbox);
 	void update();
 };
 
