@@ -75,19 +75,36 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	// Arcball
 	{
 		// https://gamedev.stackexchange.com/questions/53333/how-to-implement-a-basic-arcball-camera-in-opengl-with-glm
-		if (input::pressed(input::Button::Button1))
+		if (input::pressed(input::Button::ButtonLeft))
 		{
 			const input::Position& delta = input::delta();
 			radianf pitch = radianf(-delta.y * deltaTime.seconds());
-			radianf yaw = radianf(-delta.x * deltaTime.seconds());
-			m_camera.position = mat4f::rotate(vec3f(1, 0, 0), pitch).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
-			m_camera.position = mat4f::rotate(vec3f(0, 1, 0), yaw).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
+			radianf yaw = radianf(delta.x * deltaTime.seconds());
+			vec3f upCamera = vec3f(0, 1, 0);
+			vec3f forwardCamera = vec3f::normalize(m_camera.target - m_camera.position);
+			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
+			m_camera.position = mat4f::rotate(rightCamera, pitch).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
+			m_camera.position = mat4f::rotate(upCamera, yaw).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
+		}
+		if (input::pressed(input::Button::ButtonRight))
+		{
+			// PAN
+			const input::Position& delta = input::delta();
+			vec3f upCamera = vec3f(0, 1, 0);
+			vec3f forwardCamera = vec3f::normalize(m_camera.target - m_camera.position);
+			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
+			vec3f move = rightCamera * delta.x * 10.f * deltaTime.seconds() + upCamera * delta.y * 10.f * deltaTime.seconds();
+			m_camera.target += move;
+			m_camera.position += move;
 		}
 		const input::Position& scroll = input::scroll();
 		if (scroll.y != 0.f)
 		{
-			vec3f dir = vec3f::normalize(vec3f(m_camera.target - m_camera.position));
-			m_camera.position = m_camera.position + dir * (scroll.y * m_camera.speed * deltaTime.seconds());
+			vec3f dir = vec3f::normalize(m_camera.target - m_camera.position);
+			float dist = point3f::distance(m_camera.target, m_camera.position);
+			float coeff = scroll.y * m_camera.speed * deltaTime.seconds();
+			if (dist - coeff > 1.5f)
+				m_camera.position = m_camera.position + dir * coeff;
 		}
 		m_camera.transform = mat4f::lookAt(m_camera.position, m_camera.target, m_camera.up);
 	}
