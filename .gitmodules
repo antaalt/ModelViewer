@@ -4,3 +4,6 @@
 [submodule "asset/glTF-Sample-Models"]
 	path = asset/glTF-Sample-Models
 	url = git@github.com:KhronosGroup/glTF-Sample-Models.git
+[submodule "asset/Sponza"]
+	path = asset/Sponza
+	url = git@github.com:jimmiebergmann/Sponza.git

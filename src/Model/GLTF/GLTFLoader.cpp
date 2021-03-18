@@ -138,11 +138,11 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 	if (itTexture != tinyMat.values.end())
 	{
 		auto itIndex = itTexture->second.json_double_value.find("index");
-		ASSERT(itIndex != itTexture->second.json_double_value.end(), "Index not defined");
+		AKA_ASSERT(itIndex != itTexture->second.json_double_value.end(), "Index not defined");
 		const unsigned int index = static_cast<unsigned int>(itIndex->second);
 		const tinygltf::Texture& tinyTexture = tinyModel.textures[index];
 		const tinygltf::Image& tinyImage = tinyModel.images[tinyTexture.source];
-		ASSERT(tinyImage.bits == 8, "");
+		AKA_ASSERT(tinyImage.bits == 8, "");
 		aka::Sampler sampler{};
 		if (tinyTexture.sampler > -1)
 		{
@@ -194,7 +194,7 @@ Material convertMaterial(const tinygltf::Model& tinyModel, const tinygltf::Mater
 	{
 		const tinygltf::Texture& tinyTexture = tinyModel.textures[tinyMat.normalTexture.index];
 		const tinygltf::Image& tinyImage = tinyModel.images[tinyTexture.source];
-		ASSERT(tinyImage.bits == 8, "");
+		AKA_ASSERT(tinyImage.bits == 8, "");
 		aka::Sampler sampler{};
 		if (tinyTexture.sampler > -1)
 		{
@@ -250,8 +250,8 @@ StridedData convertAttribute(const std::string & name, const VertexData::Attribu
 		return StridedData();
 	}
 	const tinygltf::Accessor& accessor = tinyModel.accessors[it->second];
-	ASSERT(attribute.type == vertexType(accessor.type), "Incorrect type");
-	ASSERT(attribute.format == vertexFormat(accessor.componentType), "Incorrect format");
+	AKA_ASSERT(attribute.type == vertexType(accessor.type), "Incorrect type");
+	AKA_ASSERT(attribute.format == vertexFormat(accessor.componentType), "Incorrect format");
 	const tinygltf::BufferView& bufferView = tinyModel.bufferViews[accessor.bufferView];
 	const tinygltf::Buffer& buffer = tinyModel.buffers[bufferView.buffer];
 	StridedData stridedData;
@@ -266,7 +266,7 @@ std::vector<norm3f> generateNormal(const vec3f *vertices, size_t vertexCount, co
 	std::vector<norm3f> normals(vertexCount);
 	if (voidIndices != nullptr)
 	{
-		ASSERT(indexCount % 3 == 0, "Incomplete triangles");
+		AKA_ASSERT(indexCount % 3 == 0, "Incomplete triangles");
 		switch (index)
 		{
 		case IndexFormat::UnsignedByte: {
@@ -318,7 +318,7 @@ std::vector<norm3f> generateNormal(const vec3f *vertices, size_t vertexCount, co
 	}
 	else
 	{
-		ASSERT(vertexCount % 3 == 0, "Incomplete triangles");
+		AKA_ASSERT(vertexCount % 3 == 0, "Incomplete triangles");
 		for (size_t i = 0; i < vertexCount / 3; i++)
 		{
 			const vec3f& v0 = vertices[i * 3 + 0];
@@ -352,7 +352,7 @@ Mesh::Ptr convertMesh(const tinygltf::Model& tinyModel, const tinygltf::Primitiv
 		if (primitive.indices >= 0)
 		{
 			const tinygltf::Accessor& accessor = tinyModel.accessors[primitive.indices];
-			ASSERT(accessor.type == TINYGLTF_TYPE_SCALAR, "Only scalar supported for index");
+			AKA_ASSERT(accessor.type == TINYGLTF_TYPE_SCALAR, "Only scalar supported for index");
 			const tinygltf::BufferView& bufferView = tinyModel.bufferViews[accessor.bufferView];
 			const tinygltf::Buffer& buffer = tinyModel.buffers[bufferView.buffer];
 			const unsigned char *data = &buffer.data[bufferView.byteOffset + accessor.byteOffset];
@@ -370,7 +370,7 @@ Mesh::Ptr convertMesh(const tinygltf::Model& tinyModel, const tinygltf::Primitiv
 		stridedData[3] = convertAttribute("COLOR_0", vertData.attributes[3], tinyModel, primitive);
 		size_t count = stridedData[0].count;
 		// --- Fill empty data
-		ASSERT(stridedData[0].data != nullptr, "No position set !");
+		AKA_ASSERT(stridedData[0].data != nullptr, "No position set !");
 		std::vector<norm3f> normals;
 		std::vector<uv2f> uvs;
 		std::vector<color4f> colors;
@@ -453,7 +453,7 @@ void convertNode(Model::Ptr model, const tinygltf::Model& tinyModel, const tinyg
 		for (const tinygltf::Primitive& primitive : tinyMesh.primitives)
 		{
 			const tinygltf::Material& tinyMat = tinyModel.materials[primitive.material];
-			ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES, "Not supported");
+			AKA_ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES, "Not supported");
 			aka::Mesh::Ptr mesh = convertMesh(tinyModel, primitive, model->bbox, t);
 			Material material = convertMaterial(tinyModel, tinyMat);
 

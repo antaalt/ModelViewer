@@ -7,19 +7,24 @@ layout (location = 3) in vec4 a_color;
 uniform mat4 u_model;
 uniform mat4 u_view;
 uniform mat4 u_projection;
+uniform mat4 u_depthMVP;
 uniform mat3 u_normalMatrix;
 uniform vec4 u_color;
+uniform vec3 u_lightDir;
 
 out vec3 v_position;
+out vec3 v_shadow;
 out vec3 v_normal;
 out vec2 v_uv;
 out vec4 v_color;
 out mat3 v_normalMatrix;
 
-void main(void) {
+void main(void)
+{
 	gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
 
 	v_position = gl_Position.xyz;
+	v_shadow = (u_depthMVP * vec4(a_position, 1.0)).xyz;
 	v_normal = normalize(u_normalMatrix * a_normal);
 	v_normalMatrix = u_normalMatrix;
 	v_uv = a_uv;
