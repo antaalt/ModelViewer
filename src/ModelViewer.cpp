@@ -39,6 +39,7 @@ void Viewer::loadShader()
 
 void Viewer::onCreate()
 {
+	StopWatch<> stopWatch;
 	GLTFLoader gltfLloader;
 	OBJLoader objLoader;
 	// TODO use args
@@ -47,8 +48,10 @@ void Viewer::onCreate()
 	//m_model = gltfLloader.load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
 	//m_model = gltfLloader.load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"));
 	m_model = objLoader.load(Asset::path("Sponza/Sponza.obj"));
+	//m_model = objLoader.load(Asset::path("Dragon/dragon.obj"));
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
+	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
 	aka::Logger::info("Scene Bounding box : ", m_model->bbox.min, " - ", m_model->bbox.max);
 
 	loadShader();
@@ -61,7 +64,6 @@ void Viewer::onCreate()
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
 	m_camera.set(m_model->bbox);
-	//aka::Logger::info("Camera : ", m_camera.transform);
 }
 
 void Viewer::onDestroy()
@@ -73,63 +75,29 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	using namespace aka;
 
 	// Arcball
-	{
-		// https://gamedev.stackexchange.com/questions/53333/how-to-implement-a-basic-arcball-camera-in-opengl-with-glm
-		if (input::pressed(input::Button::ButtonLeft))
-		{
-			const input::Position& delta = input::delta();
-			radianf pitch = radianf(-delta.y * deltaTime.seconds());
-			radianf yaw = radianf(delta.x * deltaTime.seconds());
-			vec3f upCamera = vec3f(0, 1, 0);
-			vec3f forwardCamera = vec3f::normalize(m_camera.target - m_camera.position);
-			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
-			m_camera.position = mat4f::rotate(rightCamera, pitch).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
-			m_camera.position = mat4f::rotate(upCamera, yaw).multiplyPoint(point3f(m_camera.position - m_camera.target)) + vec3f(m_camera.target);
-		}
-		if (input::pressed(input::Button::ButtonRight))
-		{
-			// PAN
-			const input::Position& delta = input::delta();
-			vec3f upCamera = vec3f(0, 1, 0);
-			vec3f forwardCamera = vec3f::normalize(m_camera.target - m_camera.position);
-			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
-			vec3f move = rightCamera * delta.x * 10.f * deltaTime.seconds() + upCamera * delta.y * 10.f * deltaTime.seconds();
-			m_camera.target += move;
-			m_camera.position += move;
-		}
-		const input::Position& scroll = input::scroll();
-		if (scroll.y != 0.f)
-		{
-			vec3f dir = vec3f::normalize(m_camera.target - m_camera.position);
-			float dist = point3f::distance(m_camera.target, m_camera.position);
-			float coeff = scroll.y * m_camera.speed * deltaTime.seconds();
-			if (dist - coeff > 1.5f)
-				m_camera.position = m_camera.position + dir * coeff;
-		}
-		m_camera.transform = mat4f::lookAt(m_camera.position, m_camera.target, m_camera.up);
-	}
+	m_camera.update(deltaTime);
 
 	// TOD
-	if (input::pressed(input::Button::ButtonMiddle))
+	if (Mouse::pressed(MouseButton::ButtonMiddle))
 	{
-		const input::Position& pos = input::mouse();
+		const Position& pos = Mouse::position();
 		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
 		m_lightDir = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
 	}
 
 	// Reset
-	if (input::down(input::Key::R))
+	if (Keyboard::down(KeyboardKey::R))
 	{
 		m_camera.set(m_model->bbox);
 	}
 	// Hot reload
-	if (input::down(input::Key::Space))
+	if (Keyboard::down(KeyboardKey::Space))
 	{
 		Logger::info("Reloading shaders...");
 		loadShader();
 	}
 	// Quit the app if requested
-	if (aka::input::pressed(aka::input::Key::Escape))
+	if (Keyboard::pressed(KeyboardKey::Escape))
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
@@ -176,7 +144,7 @@ void Viewer::onRender()
 			"layout(location = 0) out float fragmentdepth;\n"
 			"void main() {\n"
 			"	// Not really needed, OpenGL does it anyway\n"
-			"	gl_FragDepth = gl_FragCoord.z;\n"
+			"	//gl_FragDepth = gl_FragCoord.z;\n"
 			"}\n";
 		std::vector<Attributes> attributes;
 		ShaderID vert = Shader::compile(vertShader, ShaderType::Vertex);
@@ -186,7 +154,7 @@ void Viewer::onRender()
 	}
 	static RenderPass shadowPass;
 	m_shadowMaterial->set<mat4f>("u_depthMVP", depthMVP);
-	m_shadowFramebuffer->clear(0.f, 0.f, 0.f, 1.f);
+	m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 	for (size_t i = 0; i < m_model->meshes.size(); i++)
 	{
 		shadowPass.framebuffer = m_shadowFramebuffer;
@@ -194,6 +162,7 @@ void Viewer::onRender()
 		shadowPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
 		shadowPass.indexOffset = 0;
 		shadowPass.material = m_shadowMaterial;
+		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		shadowPass.blend = Blending::none();
 		shadowPass.cull = m_model->materials[i].doubleSided ? doubleSide : singleSide;
 		shadowPass.depth = Depth{ DepthCompare::LessOrEqual, true };
@@ -208,8 +177,8 @@ void Viewer::onRender()
 	img.save("shadow.hdr");*/
 
 	aka::Framebuffer::Ptr backbuffer = aka::GraphicBackend::backbuffer();
-	backbuffer->clear(0.f, 0.f, 0.f, 1.f);
-	if (input::pressed(input::Key::Space))
+	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
+	if (Keyboard::pressed(KeyboardKey::Space))
 	{
 		static Batch b;
 		b.draw(mat3f::scale(vec2f(backbuffer->width(), backbuffer->height())), Batch::Rect(vec2f(0.f), vec2f(1.f), m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth), 0));
@@ -218,7 +187,7 @@ void Viewer::onRender()
 	}
 	else
 	{
-		aka::mat4f view = aka::mat4f::inverse(m_camera.transform);
+		aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
 		aka::mat4f perspective = aka::mat4f::perspective(aka::degreef(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
 		for (size_t i = 0; i < m_model->meshes.size(); i++)
 		{
@@ -240,6 +209,7 @@ void Viewer::onRender()
 			renderPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
 			renderPass.indexOffset = 0;
 			renderPass.material = m_material;
+			renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 			renderPass.blend = blending;
 			renderPass.cull = m_model->materials[i].doubleSided ? doubleSide : singleSide;
 			renderPass.depth = depth;
