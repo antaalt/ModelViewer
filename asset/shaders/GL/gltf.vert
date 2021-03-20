@@ -20,11 +20,11 @@ out vec4 v_color; // color space
 
 void main(void)
 {
-	gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
-
-	v_position = (u_model * vec4(a_position, 1.0)).xyz;
-	v_shadow = (u_light * u_model * vec4(a_position, 1.0)).xyz;
+	v_position = vec3(u_model * vec4(a_position, 1.0));
+	v_shadow = vec3(u_light * vec4(v_position, 1.0));
 	v_normal = normalize(u_normalMatrix * a_normal);
 	v_uv = a_uv;
 	v_color = u_color * a_color;
+
+	gl_Position = u_projection * u_view * vec4(v_position, 1.0);
 }

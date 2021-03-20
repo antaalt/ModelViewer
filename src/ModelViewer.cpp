@@ -301,14 +301,14 @@ void Viewer::onRender()
 	// Compute transform.
 	mat4f depthProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x , bbox.min.z, bbox.max.z);
 	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() - m_lightDir, norm3f(0, 0, 1)));
-	mat4f depthVP = depthProjectionMatrix * depthViewMatrix;
-	mat4f biasMatrix(
+	mat4f worldToDepthMatrix = depthProjectionMatrix * depthViewMatrix;
+	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
-	mat4f depthBiasVP = biasMatrix * depthVP;
+	mat4f worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthMatrix;
 
 	if (m_shadowShader == nullptr)
 	{
@@ -336,11 +336,11 @@ void Viewer::onRender()
 	for (size_t i = 0; i < m_model->meshes.size(); i++)
 	{
 		aka::mat4f model = m_model->transforms[i];
-		m_shadowMaterial->set<mat4f>("u_light", depthVP);
+		m_shadowMaterial->set<mat4f>("u_light", worldToDepthMatrix);
 		m_shadowMaterial->set<mat4f>("u_model", model);
 		shadowPass.framebuffer = m_shadowFramebuffer;
 		shadowPass.mesh = m_model->meshes[i];
-		shadowPass.primitive = PrimitiveType::Triangle;
+		shadowPass.primitive = PrimitiveType::Triangles;
 		shadowPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
 		shadowPass.indexOffset = 0;
 		shadowPass.material = m_shadowMaterial;
@@ -379,7 +379,7 @@ void Viewer::onRender()
 			m_material->set<mat4f>("u_projection", perspective);
 			m_material->set<mat4f>("u_model", model);
 			m_material->set<mat4f>("u_view", view);
-			m_material->set<mat4f>("u_light", depthBiasVP);
+			m_material->set<mat4f>("u_light", worldToDepthTextureMatrix);
 			m_material->set<mat3f>("u_normalMatrix", normal);
 			m_material->set<vec3f>("u_lightDir", m_lightDir);
 			m_material->set<color4f>("u_color", color);
@@ -388,7 +388,7 @@ void Viewer::onRender()
 			m_material->set<Texture::Ptr>("u_shadowTexture", m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth));
 			renderPass.framebuffer = backbuffer;
 			renderPass.mesh = m_model->meshes[i];
-			shadowPass.primitive = PrimitiveType::Triangle;
+			renderPass.primitive = PrimitiveType::Triangles;
 			renderPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
 			renderPass.indexOffset = 0;
 			renderPass.material = m_material;
@@ -425,7 +425,7 @@ void Viewer::onRender()
 				boxMesh = cube(m_model->bbox, color4f(0.f, 0.f, 1.f, 0.1f));
 				boxMeshSphere = cube(squaredBbox, color4f(0.f, 1.f, 0.f, 0.1f));
 				boxMeshboxSphere = cube(bbox, color4f(1.f, 0.f, 0.f, 0.1f));
-				meshShadow = cube(depthVP, color4f(1.f, 1.f, 1.f, 0.1f));
+				meshShadow = cube(worldToDepthMatrix, color4f(1.f, 1.f, 1.f, 0.1f));
 				origin = referential(point3f(0));
 				originbbox = referential(bbox.center());
 			}
@@ -438,7 +438,7 @@ void Viewer::onRender()
 
 			pass.framebuffer = backbuffer;
 			pass.mesh = boxMesh;
-			shadowPass.primitive = PrimitiveType::Triangle;
+			shadowPass.primitive = PrimitiveType::Triangles;
 			pass.indexCount = boxMesh->getIndexCount();
 			pass.indexOffset = 0;
 			pass.material = material;
@@ -464,7 +464,7 @@ void Viewer::onRender()
 			pass.execute();
 
 			pass.depth = Depth{ DepthCompare::None, false };
-			pass.primitive = PrimitiveType::Line;
+			pass.primitive = PrimitiveType::Lines;
 			pass.mesh = origin;
 			pass.indexCount = origin->getIndexCount();
 			pass.execute();
@@ -473,7 +473,7 @@ void Viewer::onRender()
 			material->set<>("u_model", mat4f::inverse(depthViewMatrix));
 			pass.execute();
 			pass.depth = depth;
-			pass.primitive = PrimitiveType::Triangle;
+			pass.primitive = PrimitiveType::Triangles;
 		}
 	}
 }
