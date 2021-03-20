@@ -104,19 +104,12 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 }
 
 /*
-	FRONT
-	2______3
-	|      |
-	|      |
-	|      |
-	0______1
-
-	BACK
-	4______5
-	|      |
-	|      |
-	|      |
-	6______7
+	FRONT     BACK
+	2______3__4______5
+	|      |  |      |
+	|      |  |      |
+	|      |  |      |
+	0______1__6______7
 */
 Mesh::Ptr cube(
 	const point3f& p0,
@@ -131,7 +124,7 @@ Mesh::Ptr cube(
 )
 {
 	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
+	std::vector<uint8_t> indices;
 
 	uv2f u[4] = { uv2f(0.f, 0.f), uv2f(1.f, 0.f), uv2f(0.f, 1.f), uv2f(1.f, 1.f) };
 	norm3f normal;
@@ -228,14 +221,13 @@ Mesh::Ptr cube(
 
 	Mesh::Ptr mesh = Mesh::create();
 	mesh->vertices(data, vertices.data(), vertices.size());
-	mesh->indices(IndexFormat::UnsignedInt, indices.data(), indices.size());
+	mesh->indices(IndexFormat::UnsignedByte, indices.data(), indices.size());
 	return mesh;
 }
 
 Mesh::Ptr referential(const point3f& origin)
 {
 	std::vector<Vertex> vertices;
-	//std::vector<uint32_t> indices;
 
 	vertices.push_back(Vertex{ origin + vec3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
 	vertices.push_back(Vertex{ origin + vec3f(1, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(1,0,0,1) });
@@ -243,13 +235,6 @@ Mesh::Ptr referential(const point3f& origin)
 	vertices.push_back(Vertex{ origin + vec3f(0, 1, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,1,0,1) });
 	vertices.push_back(Vertex{ origin + vec3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
 	vertices.push_back(Vertex{ origin + vec3f(0, 0, 1), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,1,1) });
-
-	/*indices.push_back(0);
-	indices.push_back(1);
-	indices.push_back(0);
-	indices.push_back(2);
-	indices.push_back(0);
-	indices.push_back(3);*/
 
 	VertexData data;
 	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
@@ -259,7 +244,6 @@ Mesh::Ptr referential(const point3f& origin)
 
 	Mesh::Ptr mesh = Mesh::create();
 	mesh->vertices(data, vertices.data(), vertices.size());
-	//mesh->indices(IndexFormat::UnsignedInt, indices.data(), indices.size());
 	return mesh;
 }
 
@@ -313,36 +297,32 @@ void Viewer::onRender()
 	float maxHalfExtent = max(halfExtent.x, max(halfExtent.y, halfExtent.z));
 	aabbox<> squaredBbox(m_model->bbox.center() - vec3f(maxHalfExtent), m_model->bbox.center() + vec3f(maxHalfExtent));
 	float radius = (squaredBbox.extent() / 2.f).norm();
-	//aabbox<> bbox(squaredBbox.center() - vec3f(radius), squaredBbox.center() + vec3f(radius));
 	aabbox<> bbox(point3f(-radius), point3f(radius));
 	// Compute transform.
 	mat4f depthProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x , bbox.min.z, bbox.max.z);
-	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() + m_lightDir, norm3f(0, 0, 1)));
-	//mat4f depthModelMatrix = mat4f::identity();
-	//mat4f depthMVP = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
+	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() - m_lightDir, norm3f(0, 0, 1)));
+	mat4f depthVP = depthProjectionMatrix * depthViewMatrix;
 	mat4f biasMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
-	//mat4f depthBiasMVP = biasMatrix * depthMVP;
+	mat4f depthBiasVP = biasMatrix * depthVP;
 
 	if (m_shadowShader == nullptr)
 	{
 		const char* vertShader = ""
 			"#version 330 core\n"
-			"// Input vertex data, different for all executions of this shader.\n"
 			"layout(location = 0) in vec3 a_position;\n"
-			"// Values that stay constant for the whole mesh.\n"
-			"uniform mat4 u_depthMVP;\n"
+			"uniform mat4 u_light;\n"
+			"uniform mat4 u_model;\n"
 			"void main() {\n"
-			"	gl_Position = u_depthMVP * vec4(a_position, 1);\n"
+			"	gl_Position = u_light * u_model * vec4(a_position, 1.0);\n"
 			"}\n";
 		const char* fragShader = ""
 			"#version 330 core\n"
 			"void main() {\n"
-			"	// Not really needed, OpenGL does it anyway\n"
 			"	//gl_FragDepth = gl_FragCoord.z;\n"
 			"}\n";
 		std::vector<Attributes> attributes;
@@ -356,7 +336,8 @@ void Viewer::onRender()
 	for (size_t i = 0; i < m_model->meshes.size(); i++)
 	{
 		aka::mat4f model = m_model->transforms[i];
-		m_shadowMaterial->set<mat4f>("u_depthMVP", depthProjectionMatrix * depthViewMatrix * model);
+		m_shadowMaterial->set<mat4f>("u_light", depthVP);
+		m_shadowMaterial->set<mat4f>("u_model", model);
 		shadowPass.framebuffer = m_shadowFramebuffer;
 		shadowPass.mesh = m_model->meshes[i];
 		shadowPass.primitive = PrimitiveType::Triangle;
@@ -398,7 +379,7 @@ void Viewer::onRender()
 			m_material->set<mat4f>("u_projection", perspective);
 			m_material->set<mat4f>("u_model", model);
 			m_material->set<mat4f>("u_view", view);
-			m_material->set<mat4f>("u_depthMVP", biasMatrix * depthProjectionMatrix * depthViewMatrix * model);
+			m_material->set<mat4f>("u_light", depthBiasVP);
 			m_material->set<mat3f>("u_normalMatrix", normal);
 			m_material->set<vec3f>("u_lightDir", m_lightDir);
 			m_material->set<color4f>("u_color", color);
@@ -444,7 +425,7 @@ void Viewer::onRender()
 				boxMesh = cube(m_model->bbox, color4f(0.f, 0.f, 1.f, 0.1f));
 				boxMeshSphere = cube(squaredBbox, color4f(0.f, 1.f, 0.f, 0.1f));
 				boxMeshboxSphere = cube(bbox, color4f(1.f, 0.f, 0.f, 0.1f));
-				meshShadow = cube(depthProjectionMatrix * depthViewMatrix * mat4f::identity(), color4f(1.f, 1.f, 1.f, 0.1f));
+				meshShadow = cube(depthVP, color4f(1.f, 1.f, 1.f, 0.1f));
 				origin = referential(point3f(0));
 				originbbox = referential(bbox.center());
 			}
