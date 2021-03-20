@@ -312,8 +312,10 @@ Model::Ptr OBJLoader::load(const Path& fileName)
 			}
 			else
 			{
-				currentMaterial = std::make_shared<Material>();
-				group.materials.push_back(currentMaterial);
+				OBJMaterial m;
+				m.Kd = vec3f(1.f);
+				group.materials.push_back(convert("", &m));
+				currentMaterial = group.materials.back();
 			}
 			OBJFace &face = group.faces.back();
 			while (ss.peek() != std::char_traits<char>::eof())

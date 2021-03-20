@@ -65,8 +65,7 @@ void main(void) {
 		visibility = 0.1;
 	}
 
-	float cosTheta = clamp(dot(normalMap, normalize(u_lightDir)), 0.2, 1);
+	float cosTheta = clamp(dot(normalMap, normalize(u_lightDir)), 0.0, 1.0);
 	vec4 color = v_color * textureLod(u_colorTexture, v_uv, mipmaplevel);
-	o_color = vec4(visibility, visibility, visibility, 1);
 	o_color = vec4(visibility * color.rgb * cosTheta, color.a);
 }
