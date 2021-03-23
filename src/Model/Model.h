@@ -28,26 +28,15 @@ struct Vertex {
 struct Node {
 	mat4f transform;
 	Mesh::Ptr mesh;
-	Material::Ptr material;
-
+	Material material;
 };
-
-/*struct Primitive
-{
-	uint32_t indexOffset;
-	uint32_t indexCount;
-	Mesh::Ptr mesh;
-};*/
 
 struct Model
 {
 	using Ptr = std::shared_ptr<Model>;
 
 	aabbox<> bbox;
-	std::vector<Material> materials;
-	//std::vector<Primitive> primitives;
-	std::vector<mat4f> transforms;
-	std::vector<Mesh::Ptr> meshes;
+	std::vector<Node> nodes;
 };
 
 class ArcballCamera

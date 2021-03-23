@@ -454,12 +454,11 @@ void convertNode(Model::Ptr model, const tinygltf::Model& tinyModel, const tinyg
 		{
 			const tinygltf::Material& tinyMat = tinyModel.materials[primitive.material];
 			AKA_ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES, "Not supported");
-			aka::Mesh::Ptr mesh = convertMesh(tinyModel, primitive, model->bbox, t);
-			Material material = convertMaterial(tinyModel, tinyMat);
-
-			model->materials.push_back(material);
-			model->meshes.push_back(mesh);
-			model->transforms.push_back(t);
+			model->nodes.emplace_back();
+			Node& node = model->nodes.back();
+			node.mesh = convertMesh(tinyModel, primitive, model->bbox, t);
+			node.material = convertMaterial(tinyModel, tinyMat);
+			node.transform = t;
 		}
 	}
 	for (const int& childNodeID : node.children)

@@ -2,9 +2,6 @@
 
 project(AkaViewer)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 # Include Aka
 add_subdirectory(lib/Aka)
 
@@ -17,9 +14,22 @@ add_executable(AkaViewer
 	
 	"src/Model/OBJ/OBJLoader.cpp"
 	"src/Model/GLTF/GLTFLoader.cpp"
+	"src/Model/ModelLoader.cpp"
 )
 
 target_link_libraries(AkaViewer Aka)
+
+# ASSIMP
+set(ZLIB_LIBRARIES zlibstatic)
+set(ENABLE_BOOST_WORKAROUND ON)
+set(BUILD_STATIC_LIB ON)
+set(BUILD_ASSIMP_TOOLS OFF)
+set(BUILD_ASSIMP_VIEW OFF)
+set(ASSIMP_BUILD_STATIC_LIB ON)
+set(ASSIMP_BUILD_TESTS OFF)
+add_subdirectory(lib/assimp)
+target_include_directories(AkaViewer PUBLIC lib/assimp)
+target_link_libraries(AkaViewer assimp)
 
 add_custom_command(
 	TARGET AkaViewer POST_BUILD

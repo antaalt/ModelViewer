@@ -46,7 +46,7 @@ void Viewer::onCreate()
 	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"));
 	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
 	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
-	m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"));
+	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
 	//m_model = objLoader.load(Asset::path("Sponza/Sponza.obj"));
 	//m_model = objLoader.load(Asset::path("Dragon/dragon.obj"));
 	if (m_model == nullptr)
@@ -128,7 +128,7 @@ Mesh::Ptr cube(
 
 	uv2f u[4] = { uv2f(0.f, 0.f), uv2f(1.f, 0.f), uv2f(0.f, 1.f), uv2f(1.f, 1.f) };
 	norm3f normal;
-	size_t offset = 0;
+	uint8_t offset = 0;
 	// Face 1
 	normal = norm3f(vec3f::normalize(vec3f::cross(p1 - p0, p2 - p0)));
 	vertices.push_back(Vertex{ p0, normal, u[0], color });
@@ -333,20 +333,20 @@ void Viewer::onRender()
 	}
 	static RenderPass shadowPass;
 	m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-	for (size_t i = 0; i < m_model->meshes.size(); i++)
+	for (size_t i = 0; i < m_model->nodes.size(); i++)
 	{
-		aka::mat4f model = m_model->transforms[i];
+		aka::mat4f model = m_model->nodes[i].transform;
 		m_shadowMaterial->set<mat4f>("u_light", worldToDepthMatrix);
 		m_shadowMaterial->set<mat4f>("u_model", model);
 		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.mesh = m_model->meshes[i];
+		shadowPass.mesh = m_model->nodes[i].mesh;
 		shadowPass.primitive = PrimitiveType::Triangles;
-		shadowPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
+		shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
 		shadowPass.indexOffset = 0;
 		shadowPass.material = m_shadowMaterial;
 		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		shadowPass.blend = Blending::none();
-		shadowPass.cull = m_model->materials[i].doubleSided ? doubleSide : singleSide;
+		shadowPass.cull = m_model->nodes[i].material.doubleSided ? doubleSide : singleSide;
 		shadowPass.depth = Depth{ DepthCompare::LessOrEqual, true };
 		shadowPass.stencil = Stencil::none();
 		shadowPass.viewport = aka::Rect{ 0 };
@@ -370,12 +370,12 @@ void Viewer::onRender()
 	else
 	{
 		aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
-		aka::mat4f perspective = aka::mat4f::perspective(aka::degreef(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
-		for (size_t i = 0; i < m_model->meshes.size(); i++)
+		aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
+		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
-			aka::mat4f model = m_model->transforms[i];
+			aka::mat4f model = m_model->nodes[i].transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = m_model->materials[i].color;
+			aka::color4f color = m_model->nodes[i].material.color;
 			m_material->set<mat4f>("u_projection", perspective);
 			m_material->set<mat4f>("u_model", model);
 			m_material->set<mat4f>("u_view", view);
@@ -383,18 +383,18 @@ void Viewer::onRender()
 			m_material->set<mat3f>("u_normalMatrix", normal);
 			m_material->set<vec3f>("u_lightDir", m_lightDir);
 			m_material->set<color4f>("u_color", color);
-			m_material->set<Texture::Ptr>("u_colorTexture", m_model->materials[i].colorTexture);
-			m_material->set<Texture::Ptr>("u_normalTexture", m_model->materials[i].normalTexture);
+			m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
+			m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
 			m_material->set<Texture::Ptr>("u_shadowTexture", m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth));
 			renderPass.framebuffer = backbuffer;
-			renderPass.mesh = m_model->meshes[i];
+			renderPass.mesh = m_model->nodes[i].mesh;
 			renderPass.primitive = PrimitiveType::Triangles;
-			renderPass.indexCount = m_model->meshes[i]->getIndexCount(); // TODO set zero means all ?
+			renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
 			renderPass.indexOffset = 0;
 			renderPass.material = m_material;
 			renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 			renderPass.blend = blending;
-			renderPass.cull = m_model->materials[i].doubleSided ? doubleSide : singleSide;
+			renderPass.cull = m_model->nodes[i].material.doubleSided ? doubleSide : singleSide;
 			renderPass.depth = depth;
 			renderPass.stencil = stencil;
 			renderPass.viewport = aka::Rect{ 0 };
@@ -412,7 +412,7 @@ void Viewer::onRender()
 			static ShaderMaterial::Ptr material;
 			aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
 			aka::mat4f model = mat4f::identity();
-			aka::mat4f perspective = aka::mat4f::perspective(aka::degreef(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
+			aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
 			if (material == nullptr)
 			{
 				std::vector<Attributes> att;

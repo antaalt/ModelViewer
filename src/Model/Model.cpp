@@ -14,8 +14,8 @@ ArcballCamera::ArcballCamera(const aabbox<>& bbox)
 
 void ArcballCamera::rotate(float x, float y)
 {
-	radianf pitch = radianf(y);
-	radianf yaw = radianf(x);
+	anglef pitch = anglef::radian(y);
+	anglef yaw = anglef::radian(x);
 	vec3f upCamera = vec3f(0, 1, 0);
 	vec3f forwardCamera = vec3f::normalize(m_target - m_position);
 	vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));

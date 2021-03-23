@@ -383,12 +383,12 @@ Model::Ptr OBJLoader::load(const Path& fileName)
 		uint32_t iVert = 0;
 		for (const OBJGroup &group : object.groups)
 		{
-			Mesh::Ptr mesh = Mesh::create();
-			Material material = *group.materials[0]; // TODO check materials to avoid duplicate
-			mat4f transform = mat4f::identity();
-			model->meshes.push_back(mesh);
-			model->materials.push_back(material);
-			model->transforms.push_back(transform);
+			model->nodes.emplace_back();
+			Node& node = model->nodes.back();
+			node.mesh = Mesh::create();
+			node.material = *group.materials[0]; // TODO check materials to avoid duplicate
+			node.transform = mat4f::identity();
+
 			std::vector<Vertex> vertices;
 			// One node per group
 			for (size_t iFace = 0; iFace < group.faces.size(); iFace++)
@@ -455,7 +455,7 @@ Model::Ptr OBJLoader::load(const Path& fileName)
 			data.attributes.push_back(VertexData::Attribute{ 1, VertexFormat::Float, VertexType::Vec3 });
 			data.attributes.push_back(VertexData::Attribute{ 2, VertexFormat::Float, VertexType::Vec2 });
 			data.attributes.push_back(VertexData::Attribute{ 3, VertexFormat::Float, VertexType::Vec4 });
-			mesh->vertices(data, vertices.data(), vertices.size());
+			node.mesh->vertices(data, vertices.data(), vertices.size());
 		}
 	}
 	return model;

@@ -7,3 +7,6 @@
 [submodule "asset/Sponza"]
 	path = asset/Sponza
 	url = git@github.com:jimmiebergmann/Sponza.git
+[submodule "lib/assimp"]
+	path = lib/assimp
+	url = git@github.com:assimp/assimp.git
