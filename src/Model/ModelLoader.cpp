@@ -3,10 +3,11 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/pbrmaterial.h>
 
 namespace viewer {
 
-Node processMesh(aiMesh* mesh, const aiScene* scene, aabbox<>& bbox)
+Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat4f& transform, aabbox<>& bbox)
 {
 	std::vector<Vertex> vertices(mesh->mNumVertices);
 	std::vector<unsigned int> indices;
@@ -18,7 +19,7 @@ Node processMesh(aiMesh* mesh, const aiScene* scene, aabbox<>& bbox)
 		vertex.position.x = mesh->mVertices[i].x;
 		vertex.position.y = mesh->mVertices[i].y;
 		vertex.position.z = mesh->mVertices[i].z;
-		bbox.include(vertex.position);
+		bbox.include(transform.multiplyPoint(vertex.position));
 
 		vertex.normal.x = mesh->mNormals[i].x;
 		vertex.normal.y = mesh->mNormals[i].y;
@@ -65,15 +66,27 @@ Node processMesh(aiMesh* mesh, const aiScene* scene, aabbox<>& bbox)
 		node.material.doubleSided = true;
 		node.material.metallic = 1.f;
 		node.material.roughness = 1.f;
-		std::string directory = "./";
-		aiTextureType type = aiTextureType_BASE_COLOR;
-		if (material->GetTextureCount(type) > 0)
+		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
+			aiTextureType type = aiTextureType_BASE_COLOR;
 			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(directory + str.C_Str()));
+				Image image = Image::load(Path(path + str.C_Str()));
+				node.material.colorTexture = Texture::create(image.width, image.height, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
+				node.material.colorTexture->upload(image.bytes.data());
+				break; // Ignore others textures for now.
+			}
+		}
+		else if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
+		{
+			aiTextureType type = aiTextureType_DIFFUSE;
+			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
+			{
+				aiString str;
+				material->GetTexture(type, i, &str);
+				Image image = Image::load(Path(path + str.C_Str()));
 				node.material.colorTexture = Texture::create(image.width, image.height, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
 				node.material.colorTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -86,14 +99,27 @@ Node processMesh(aiMesh* mesh, const aiScene* scene, aabbox<>& bbox)
 			node.material.colorTexture = Texture::create(1, 1, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
 			node.material.colorTexture->upload(data);
 		}
-		type = aiTextureType_NORMAL_CAMERA;
-		if (material->GetTextureCount(type) > 0)
+		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
+			aiTextureType type = aiTextureType_NORMAL_CAMERA;
 			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(directory + str.C_Str()));
+				Image image = Image::load(Path(path + str.C_Str()));
+				node.material.normalTexture = Texture::create(image.width, image.height, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
+				node.material.normalTexture->upload(image.bytes.data());
+				break; // Ignore others textures for now.
+			}
+		}
+		if (material->GetTextureCount(aiTextureType_NORMALS) > 0)
+		{
+			aiTextureType type = aiTextureType_NORMALS;
+			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
+			{
+				aiString str;
+				material->GetTexture(type, i, &str);
+				Image image = Image::load(Path(path + str.C_Str()));
 				node.material.normalTexture = Texture::create(image.width, image.height, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
 				node.material.normalTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -119,24 +145,29 @@ Node processMesh(aiMesh* mesh, const aiScene* scene, aabbox<>& bbox)
 	data.attributes.push_back(VertexData::Attribute{ 3, VertexFormat::Float, VertexType::Vec4 });
 	node.mesh->vertices(data, vertices.data(), vertices.size());
 	node.mesh->indices(IndexFormat::UnsignedInt, indices.data(), indices.size());
-	node.transform = mat4f::identity();
+	node.transform = transform;
 	return node;
 }
 
-void processNode(Model::Ptr model, aiNode* node, const aiScene* scene)
+void processNode(const Path& path, Model::Ptr model, aiNode* node, const aiScene* scene)
 {
 	// process all the node's meshes (if any)
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
-		node->mTransformation;
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+		mat4f transform = mat4f(
+			col4f(node->mTransformation[0][0], node->mTransformation[1][0], node->mTransformation[2][0], node->mTransformation[3][0]),
+			col4f(node->mTransformation[0][1], node->mTransformation[1][1], node->mTransformation[2][1], node->mTransformation[3][1]),
+			col4f(node->mTransformation[0][2], node->mTransformation[1][2], node->mTransformation[2][2], node->mTransformation[3][2]),
+			col4f(node->mTransformation[0][3], node->mTransformation[1][3], node->mTransformation[2][3], node->mTransformation[3][3])
+		);
 
-		model->nodes.push_back(processMesh(mesh, scene, model->bbox));
+		model->nodes.push_back(processMesh(path, mesh, scene, transform, model->bbox));
 	}
 	// then do the same for each of its children
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
-		processNode(model, node->mChildren[i], scene);
+		processNode(path, model, node->mChildren[i], scene);
 	}
 }
 
@@ -157,7 +188,7 @@ Model::Ptr ModelLoader::load(const Path& path, const point3f& origin, float scal
 	String directory = path.str().substr(0, path.str().findLast('/'));
 
 	Model::Ptr model = std::make_shared<Model>();
-	processNode(model, scene->mRootNode, scene);
+	processNode(directory, model, scene->mRootNode, scene);
 	return model;
 }
 

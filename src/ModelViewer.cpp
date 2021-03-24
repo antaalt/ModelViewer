@@ -1,8 +1,5 @@
 #include "ModelViewer.h"
 
-#include "Model/GLTF/GLTFLoader.h"
-#include "Model/OBJ/OBJLoader.h"
-
 namespace viewer {
 
 void Viewer::loadShader()
@@ -40,15 +37,13 @@ void Viewer::loadShader()
 void Viewer::onCreate()
 {
 	StopWatch<> stopWatch;
-	GLTFLoader gltfLoader;
-	OBJLoader objLoader;
 	// TODO use args
-	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"));
-	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
-	//m_model = gltfLoader.load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
 	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
-	//m_model = objLoader.load(Asset::path("Sponza/Sponza.obj"));
-	//m_model = objLoader.load(Asset::path("Dragon/dragon.obj"));
+	//m_model = ModelLoader::load(Asset::path("Sponza/Sponza.obj"));
+	//m_model = ModelLoader::load(Asset::path("Dragon/dragon.obj"), point3f(0.f), 1.f);
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
@@ -300,7 +295,7 @@ void Viewer::onRender()
 	aabbox<> bbox(point3f(-radius), point3f(radius));
 	// Compute transform.
 	mat4f depthProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x , bbox.min.z, bbox.max.z);
-	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() - m_lightDir, norm3f(0, 0, 1)));
+	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(squaredBbox.center(), squaredBbox.center() - m_lightDir, norm3f(0, 0, 1)));
 	mat4f worldToDepthMatrix = depthProjectionMatrix * depthViewMatrix;
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
