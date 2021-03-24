@@ -220,16 +220,16 @@ Mesh::Ptr cube(
 	return mesh;
 }
 
-Mesh::Ptr referential(const point3f& origin)
+Mesh::Ptr referential()
 {
 	std::vector<Vertex> vertices;
 
-	vertices.push_back(Vertex{ origin + vec3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ origin + vec3f(1, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(1,0,0,1) });
-	vertices.push_back(Vertex{ origin + vec3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ origin + vec3f(0, 1, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,1,0,1) });
-	vertices.push_back(Vertex{ origin + vec3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ origin + vec3f(0, 0, 1), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,1,1) });
+	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
+	vertices.push_back(Vertex{ point3f(1, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(1,0,0,1) });
+	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
+	vertices.push_back(Vertex{ point3f(0, 1, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,1,0,1) });
+	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
+	vertices.push_back(Vertex{ point3f(0, 0, 1), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,1,1) });
 
 	VertexData data;
 	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
@@ -349,9 +349,6 @@ void Viewer::onRender()
 
 		shadowPass.execute();
 	}
-	/*ImageHDR img(1024, 1024, 1);
-	m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth)->download(img.bytes.data());
-	img.save("shadow.hdr");*/
 
 	aka::Framebuffer::Ptr backbuffer = aka::GraphicBackend::backbuffer();
 	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
@@ -397,17 +394,12 @@ void Viewer::onRender()
 
 			renderPass.execute();
 		}
-		//if (Keyboard::pressed(KeyboardKey::ControlLeft))
+		// Debug pass
 		{
-			// BBOx debug
-			static Mesh::Ptr boxMeshboxSphere, boxMeshSphere, boxMesh;
-			static Mesh::Ptr meshShadow;
-			static Mesh::Ptr origin, originbbox;
+			// Display origin, model center, depth frustum transform
+			static Mesh::Ptr origin;
 			static Shader::Ptr shader;
 			static ShaderMaterial::Ptr material;
-			aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
-			aka::mat4f model = mat4f::identity();
-			aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
 			if (material == nullptr)
 			{
 				std::vector<Attributes> att;
@@ -415,16 +407,13 @@ void Viewer::onRender()
 				ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/draw.frag")).c_str(), ShaderType::Fragment);
 				shader = Shader::create(vert, frag, ShaderID(0), att);
 				material = ShaderMaterial::create(shader);
+				origin = referential();
 			}
-			{
-				boxMesh = cube(m_model->bbox, color4f(0.f, 0.f, 1.f, 0.1f));
-				boxMeshSphere = cube(squaredBbox, color4f(0.f, 1.f, 0.f, 0.1f));
-				boxMeshboxSphere = cube(bbox, color4f(1.f, 0.f, 0.f, 0.1f));
-				meshShadow = cube(worldToDepthMatrix, color4f(1.f, 1.f, 1.f, 0.1f));
-				origin = referential(point3f(0));
-				originbbox = referential(bbox.center());
-			}
+			// TODO instancing
 			static RenderPass pass;
+			aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
+			aka::mat4f model = mat4f::identity();
+			aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
 			material->set<mat4f>("u_projection", perspective);
 			material->set<mat4f>("u_model", model);
@@ -432,43 +421,23 @@ void Viewer::onRender()
 			material->set<mat3f>("u_normalMatrix", normal);
 
 			pass.framebuffer = backbuffer;
-			pass.mesh = boxMesh;
-			shadowPass.primitive = PrimitiveType::Triangles;
-			pass.indexCount = boxMesh->getIndexCount();
+			pass.mesh = origin;
+			pass.primitive = PrimitiveType::Lines;
+			pass.indexCount = origin->getIndexCount();
 			pass.indexOffset = 0;
 			pass.material = material;
 			pass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 			pass.blend = blending;
 			pass.cull = doubleSide;
-			pass.depth = depth;
+			pass.depth = Depth{ DepthCompare::None, false };
 			pass.stencil = stencil;
 			pass.viewport = aka::Rect{ 0 };
 			pass.scissor = aka::Rect{ 0 };
-			//pass.execute();
-
-			pass.mesh = boxMeshSphere;
-			pass.indexCount = boxMeshSphere->getIndexCount();
-			pass.execute();
-
-			pass.mesh = boxMeshboxSphere;
-			pass.indexCount = boxMeshboxSphere->getIndexCount();
-			pass.execute();
-
-			pass.mesh = meshShadow;
-			pass.indexCount = meshShadow->getIndexCount();
-			pass.execute();
-
-			pass.depth = Depth{ DepthCompare::None, false };
-			pass.primitive = PrimitiveType::Lines;
-			pass.mesh = origin;
-			pass.indexCount = origin->getIndexCount();
 			pass.execute();
 			material->set<>("u_model", mat4f::translate(vec3f(bbox.center())));
 			pass.execute();
 			material->set<>("u_model", mat4f::inverse(depthViewMatrix));
 			pass.execute();
-			pass.depth = depth;
-			pass.primitive = PrimitiveType::Triangles;
 		}
 	}
 }

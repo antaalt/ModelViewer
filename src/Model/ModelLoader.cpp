@@ -12,6 +12,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 	std::vector<Vertex> vertices(mesh->mNumVertices);
 	std::vector<unsigned int> indices;
 
+	AKA_ASSERT(mesh->HasPositions(), "Mesh need positions");
+	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
 	for (unsigned int i = 0; i < mesh->mNumVertices; i++)
 	{
 		Vertex& vertex = vertices[i];
@@ -24,14 +26,14 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		vertex.normal.x = mesh->mNormals[i].x;
 		vertex.normal.y = mesh->mNormals[i].y;
 		vertex.normal.z = mesh->mNormals[i].z;
-		if (mesh->mTextureCoords[0]) // does the mesh contain texture coordinates?
+		if (mesh->HasTextureCoords(0))
 		{
 			vertex.uv.u = mesh->mTextureCoords[0][i].x;
 			vertex.uv.v = mesh->mTextureCoords[0][i].y;
 		}
 		else
 			vertex.uv = uv2f(0.f);
-		if (mesh->mColors[0])
+		if (mesh->HasVertexColors(0))
 		{
 			vertex.color.r = mesh->mColors[0][i].r;
 			vertex.color.g = mesh->mColors[0][i].g;
@@ -40,6 +42,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		}
 		else
 			vertex.color = color4f(1.f);
+		mesh->mTangents;
+		mesh->mBitangents;
 	}
 	// process indices
 	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
@@ -136,6 +140,21 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 	else
 	{
 		// No material !
+		Sampler defaultSampler{};
+		defaultSampler.filterMag = Sampler::Filter::Linear;
+		defaultSampler.filterMin = Sampler::Filter::MipMapLinear;
+		defaultSampler.wrapS = Sampler::Wrap::Repeat;
+		defaultSampler.wrapT = Sampler::Wrap::Repeat;
+		node.material.color = color4f(1.f);
+		node.material.doubleSided = true;
+		node.material.metallic = 1.f;
+		node.material.roughness = 1.f;
+		uint8_t colorData[4] = { 255,255,255,255 };
+		node.material.colorTexture = Texture::create(1, 1, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
+		node.material.colorTexture->upload(colorData);
+		uint8_t normalData[4] = { 128,255,128,255 };
+		node.material.normalTexture = Texture::create(1, 1, Texture::Format::UnsignedByte, Texture::Component::RGBA, defaultSampler);
+		node.material.normalTexture->upload(normalData);
 	}
 	node.mesh = Mesh::create();
 	VertexData data;
@@ -149,25 +168,24 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 	return node;
 }
 
-void processNode(const Path& path, Model::Ptr model, aiNode* node, const aiScene* scene)
+void processNode(const Path& path, const mat4f& parentTransform, Model::Ptr model, aiNode* node, const aiScene* scene)
 {
+	mat4f transform = parentTransform * mat4f(
+		col4f(node->mTransformation[0][0], node->mTransformation[1][0], node->mTransformation[2][0], node->mTransformation[3][0]),
+		col4f(node->mTransformation[0][1], node->mTransformation[1][1], node->mTransformation[2][1], node->mTransformation[3][1]),
+		col4f(node->mTransformation[0][2], node->mTransformation[1][2], node->mTransformation[2][2], node->mTransformation[3][2]),
+		col4f(node->mTransformation[0][3], node->mTransformation[1][3], node->mTransformation[2][3], node->mTransformation[3][3])
+	);
 	// process all the node's meshes (if any)
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		mat4f transform = mat4f(
-			col4f(node->mTransformation[0][0], node->mTransformation[1][0], node->mTransformation[2][0], node->mTransformation[3][0]),
-			col4f(node->mTransformation[0][1], node->mTransformation[1][1], node->mTransformation[2][1], node->mTransformation[3][1]),
-			col4f(node->mTransformation[0][2], node->mTransformation[1][2], node->mTransformation[2][2], node->mTransformation[3][2]),
-			col4f(node->mTransformation[0][3], node->mTransformation[1][3], node->mTransformation[2][3], node->mTransformation[3][3])
-		);
-
 		model->nodes.push_back(processMesh(path, mesh, scene, transform, model->bbox));
 	}
 	// then do the same for each of its children
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
-		processNode(path, model, node->mChildren[i], scene);
+		processNode(path, transform, model, node->mChildren[i], scene);
 	}
 }
 
@@ -188,7 +206,7 @@ Model::Ptr ModelLoader::load(const Path& path, const point3f& origin, float scal
 	String directory = path.str().substr(0, path.str().findLast('/'));
 
 	Model::Ptr model = std::make_shared<Model>();
-	processNode(directory, model, scene->mRootNode, scene);
+	processNode(directory, mat4f::identity(), model, scene->mRootNode, scene);
 	return model;
 }
 
