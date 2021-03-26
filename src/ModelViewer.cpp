@@ -54,7 +54,10 @@ void Viewer::onCreate()
 	Framebuffer::AttachmentType attachments[] = {
 		Framebuffer::AttachmentType::Depth
 	};
-	m_shadowFramebuffer = Framebuffer::create(1024, 1024, attachments, sizeof(attachments) / sizeof(Framebuffer::AttachmentType), Sampler{});
+	Sampler shadowSampler{};
+	shadowSampler.filterMag = Sampler::Filter::Nearest;
+	shadowSampler.filterMin = Sampler::Filter::Nearest;
+	m_shadowFramebuffer = Framebuffer::create(1024, 1024, attachments, sizeof(attachments) / sizeof(Framebuffer::AttachmentType), shadowSampler);
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
@@ -98,205 +101,90 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	}
 }
 
-/*
-	FRONT     BACK
-	2______3__4______5
-	|      |  |      |
-	|      |  |      |
-	|      |  |      |
-	0______1__6______7
-*/
-Mesh::Ptr cube(
-	const point3f& p0,
-	const point3f& p1,
-	const point3f& p2,
-	const point3f& p3,
-	const point3f& p4,
-	const point3f& p5,
-	const point3f& p6,
-	const point3f& p7,
-	const color4f& color
-)
+// TODO move in geometry
+struct Frustum {
+	float left;
+	float right;
+	float bottom;
+	float top;
+	float near;
+	float far;
+
+	//bool contain(const mat4f& view, const point3f& point) const;
+};
+
+// --- Shadows
+// TODO mix the two algorithms ? Or just dynamically adapt projection matrix
+// Compute the shadow projection around the object.
+mat4f computeShadowViewProjectionMatrix(const aabbox<>& bbox, const vec3f& lightDir)
 {
-	std::vector<Vertex> vertices;
-	std::vector<uint8_t> indices;
-
-	uv2f u[4] = { uv2f(0.f, 0.f), uv2f(1.f, 0.f), uv2f(0.f, 1.f), uv2f(1.f, 1.f) };
-	norm3f normal;
-	uint8_t offset = 0;
-	// Face 1
-	normal = norm3f(vec3f::normalize(vec3f::cross(p1 - p0, p2 - p0)));
-	vertices.push_back(Vertex{ p0, normal, u[0], color });
-	vertices.push_back(Vertex{ p1, normal, u[1], color });
-	vertices.push_back(Vertex{ p2, normal, u[2], color });
-	vertices.push_back(Vertex{ p3, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	// Face 2
-	normal = norm3f(vec3f::normalize(vec3f::cross(p3 - p2, p4 - p2)));
-	vertices.push_back(Vertex{ p2, normal, u[0], color });
-	vertices.push_back(Vertex{ p3, normal, u[1], color });
-	vertices.push_back(Vertex{ p4, normal, u[2], color });
-	vertices.push_back(Vertex{ p5, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	// Face 3
-	normal = norm3f(vec3f::normalize(vec3f::cross(p5 - p4, p6 - p4)));
-	vertices.push_back(Vertex{ p4, normal, u[0], color });
-	vertices.push_back(Vertex{ p5, normal, u[1], color });
-	vertices.push_back(Vertex{ p6, normal, u[2], color });
-	vertices.push_back(Vertex{ p7, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	// Face 4
-	normal = norm3f(vec3f::normalize(vec3f::cross(p7 - p6, p0 - p6)));
-	vertices.push_back(Vertex{ p6, normal, u[0], color });
-	vertices.push_back(Vertex{ p7, normal, u[1], color });
-	vertices.push_back(Vertex{ p0, normal, u[2], color });
-	vertices.push_back(Vertex{ p1, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	// Face 5
-	normal = norm3f(vec3f::normalize(vec3f::cross(p7 - p1, p3 - p1)));
-	vertices.push_back(Vertex{ p1, normal, u[0], color });
-	vertices.push_back(Vertex{ p7, normal, u[1], color });
-	vertices.push_back(Vertex{ p3, normal, u[2], color });
-	vertices.push_back(Vertex{ p5, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	// Face 6
-	normal = norm3f(vec3f::normalize(vec3f::cross(p0 - p6, p4 - p6)));
-	vertices.push_back(Vertex{ p6, normal, u[0], color });
-	vertices.push_back(Vertex{ p0, normal, u[1], color });
-	vertices.push_back(Vertex{ p4, normal, u[2], color });
-	vertices.push_back(Vertex{ p2, normal, u[3], color });
-	indices.push_back(offset + 0);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 2);
-	indices.push_back(offset + 1);
-	indices.push_back(offset + 3);
-	offset += 4;
-
-	VertexData data;
-	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 1, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 2, VertexFormat::Float, VertexType::Vec2 });
-	data.attributes.push_back(VertexData::Attribute{ 3, VertexFormat::Float, VertexType::Vec4 });
-
-	Mesh::Ptr mesh = Mesh::create();
-	mesh->vertices(data, vertices.data(), vertices.size());
-	mesh->indices(IndexFormat::UnsignedByte, indices.data(), indices.size());
-	return mesh;
+	vec3f halfExtent = bbox.extent() / 2.f;
+	float maxHalfExtent = max(halfExtent.x, max(halfExtent.y, halfExtent.z));
+	aabbox<> squaredBbox(bbox.center() - vec3f(maxHalfExtent), bbox.center() + vec3f(maxHalfExtent));
+	float radius = (squaredBbox.extent() / 2.f).norm();
+	aabbox<> frustumBbox(point3f(-radius), point3f(radius));
+	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() - lightDir, norm3f(0, 0, 1)));
+	mat4f lightProjectionMatrix = mat4f::orthographic(frustumBbox.min.y, frustumBbox.max.y, frustumBbox.min.x, frustumBbox.max.x, frustumBbox.min.z, frustumBbox.max.z);
+	return lightProjectionMatrix * lightViewMatrix;
 }
 
-Mesh::Ptr referential()
+// Compute the shadow projection around the view projection.
+mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, float near, float far, const vec3f& lightDirWorld)
 {
-	std::vector<Vertex> vertices;
-
-	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ point3f(1, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(1,0,0,1) });
-	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ point3f(0, 1, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,1,0,1) });
-	vertices.push_back(Vertex{ point3f(0, 0, 0), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,0,1) });
-	vertices.push_back(Vertex{ point3f(0, 0, 1), norm3f(0, 1, 0), uv2f(0, 1), color4f(0,0,1,1) });
-
-	VertexData data;
-	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 1, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 2, VertexFormat::Float, VertexType::Vec2 });
-	data.attributes.push_back(VertexData::Attribute{ 3, VertexFormat::Float, VertexType::Vec4 });
-
-	Mesh::Ptr mesh = Mesh::create();
-	mesh->vertices(data, vertices.data(), vertices.size());
-	return mesh;
-}
-
-// Draw an aabbox
-Mesh::Ptr cube(const aabbox<>& bbox, const color4f& color)
-{
-	return cube(
-		point3f(bbox.min.x, bbox.min.y, bbox.max.z),
-		point3f(bbox.max.x, bbox.min.y, bbox.max.z),
-		point3f(bbox.min.x, bbox.max.y, bbox.max.z),
-		point3f(bbox.max),
-		point3f(bbox.min.x, bbox.max.y, bbox.min.z),
-		point3f(bbox.max.x, bbox.max.y, bbox.min.z),
-		point3f(bbox.min),
-		point3f(bbox.max.x, bbox.min.y, bbox.min.z),
-		color
-	);
-}
-// Draw a mvp frustum
-Mesh::Ptr cube(const mat4f& mvp, const color4f& color)
-{
-	mat4f mvpInverse = mat4f::inverse(mvp);
-	float min = -1.f;
+	mat4f viewProjectionInverseMatrix = mat4f::inverse(projection * view);
+#if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
+	float min = -1.f; // Maybe zero still ?
+#else
+	float min = 0.f;
+#endif
 	float max = 1.f;
-	return cube(
-		mvpInverse.multiplyPoint(point3f(min, min, max)),
-		mvpInverse.multiplyPoint(point3f(max, min, max)),
-		mvpInverse.multiplyPoint(point3f(min, max, max)),
-		mvpInverse.multiplyPoint(point3f(max, max, max)),
-		mvpInverse.multiplyPoint(point3f(min, max, min)),
-		mvpInverse.multiplyPoint(point3f(max, max, min)),
-		mvpInverse.multiplyPoint(point3f(min, min, min)),
-		mvpInverse.multiplyPoint(point3f(max, min, min)),
-		color
-	);
+	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
+	vec4f corners[8] = {
+		viewProjectionInverseMatrix * vec4f(min, min, min, 1),
+		viewProjectionInverseMatrix * vec4f(min, min, max, 1),
+		viewProjectionInverseMatrix * vec4f(max, min, min, 1),
+		viewProjectionInverseMatrix * vec4f(min, max, min, 1),
+		viewProjectionInverseMatrix * vec4f(max, min, max, 1),
+		viewProjectionInverseMatrix * vec4f(min, max, max, 1),
+		viewProjectionInverseMatrix * vec4f(max, max, min, 1),
+		viewProjectionInverseMatrix * vec4f(max, max, max, 1),
+	};
+	point3f centerWorld = point3f(0.f);
+	for (size_t i = 0; i < 8; i++)
+	{
+		centerWorld.x += corners[i].x / corners[i].w;
+		centerWorld.y += corners[i].y / corners[i].w;
+		centerWorld.z += corners[i].z / corners[i].w;
+	}
+	centerWorld /= 8.f;
+	//float distance = far - near;
+	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(centerWorld, centerWorld - lightDirWorld, norm3f(0, 0, 1)));
+	// Set to light space.
+	aabbox<> bbox;
+	for (size_t i = 0; i < 8; i++)
+	{
+		corners[i] = lightViewMatrix * corners[i];
+		bbox.include(point3f(corners[i] / corners[i].w));
+	}
+	mat4f lightProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x, bbox.min.z, bbox.max.z);
+	return lightProjectionMatrix * lightViewMatrix;
 }
 
 void Viewer::onRender()
 {
 	static aka::RenderPass renderPass{};
-	static Culling doubleSide = Culling{ CullMode::None, CullOrder::CounterClockWise };
-	static Culling singleSide = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-	static Blending blending = Blending::nonPremultiplied();
-	static Depth depth = Depth{ DepthCompare::LessOrEqual, true };
-	static Stencil stencil = Stencil::none();
+	aka::Framebuffer::Ptr backbuffer = aka::GraphicBackend::backbuffer();
+	aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
+	// TODO use camera (Arcball inherit camera ?
+	float near = 0.01f;
+	float far = 100.f;
+	aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
-	// Shadows
-	// Compute the MVP matrix from the light's point of view
-	// Get the bbox of the sphere containing the bbox. It is the ortho depth
-	vec3f halfExtent = m_model->bbox.extent() / 2.f;
-	float maxHalfExtent = max(halfExtent.x, max(halfExtent.y, halfExtent.z));
-	aabbox<> squaredBbox(m_model->bbox.center() - vec3f(maxHalfExtent), m_model->bbox.center() + vec3f(maxHalfExtent));
-	float radius = (squaredBbox.extent() / 2.f).norm();
-	aabbox<> bbox(point3f(-radius), point3f(radius));
-	// Compute transform.
-	mat4f depthProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x , bbox.min.z, bbox.max.z);
-	mat4f depthViewMatrix = mat4f::inverse(mat4f::lookAt(squaredBbox.center(), squaredBbox.center() - m_lightDir, norm3f(0, 0, 1)));
-	mat4f worldToDepthMatrix = depthProjectionMatrix * depthViewMatrix;
+#if 0
+	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(m_model->bbox, m_lightDir);
+#else
+	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(view, perspective, near, far, m_lightDir);
+#endif
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
@@ -341,7 +229,7 @@ void Viewer::onRender()
 		shadowPass.material = m_shadowMaterial;
 		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		shadowPass.blend = Blending::none();
-		shadowPass.cull = m_model->nodes[i].material.doubleSided ? doubleSide : singleSide;
+		shadowPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 		shadowPass.depth = Depth{ DepthCompare::LessOrEqual, true };
 		shadowPass.stencil = Stencil::none();
 		shadowPass.viewport = aka::Rect{ 0 };
@@ -350,19 +238,15 @@ void Viewer::onRender()
 		shadowPass.execute();
 	}
 
-	aka::Framebuffer::Ptr backbuffer = aka::GraphicBackend::backbuffer();
 	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
 	if (Keyboard::pressed(KeyboardKey::Space))
 	{
-		static Batch b;
-		b.draw(mat3f::scale(vec2f(backbuffer->width(), backbuffer->height())), Batch::Rect(vec2f(0.f), vec2f(1.f), m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth), 0));
-		b.render();
-		b.clear();
+		Renderer2D::draw(mat3f::scale(vec2f(backbuffer->width(), backbuffer->height())), Batch2D::Rect(vec2f(0.f), vec2f(1.f), m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth), 0));
+		Renderer2D::render();
+		Renderer2D::clear();
 	}
 	else
 	{
-		aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
-		aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
 		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
 			aka::mat4f model = m_model->nodes[i].transform;
@@ -385,59 +269,26 @@ void Viewer::onRender()
 			renderPass.indexOffset = 0;
 			renderPass.material = m_material;
 			renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-			renderPass.blend = blending;
-			renderPass.cull = m_model->nodes[i].material.doubleSided ? doubleSide : singleSide;
-			renderPass.depth = depth;
-			renderPass.stencil = stencil;
+			renderPass.blend = Blending::nonPremultiplied();
+			renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+			renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+			renderPass.stencil = Stencil::none();
 			renderPass.viewport = aka::Rect{ 0 };
 			renderPass.scissor = aka::Rect{ 0 };
 
 			renderPass.execute();
 		}
 		// Debug pass
+		// TODO add pipeline (default pipeline, debug pipeline...)
+		// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
 		{
-			// Display origin, model center, depth frustum transform
-			static Mesh::Ptr origin;
-			static Shader::Ptr shader;
-			static ShaderMaterial::Ptr material;
-			if (material == nullptr)
-			{
-				std::vector<Attributes> att;
-				ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/draw.vert")).c_str(), ShaderType::Vertex);
-				ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/draw.frag")).c_str(), ShaderType::Fragment);
-				shader = Shader::create(vert, frag, ShaderID(0), att);
-				material = ShaderMaterial::create(shader);
-				origin = referential();
-			}
-			// TODO instancing
-			static RenderPass pass;
-			aka::mat4f view = aka::mat4f::inverse(m_camera.transform());
-			aka::mat4f model = mat4f::identity();
-			aka::mat4f perspective = aka::mat4f::perspective(aka::anglef::degree(90.f), (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 10000.f);
-			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			material->set<mat4f>("u_projection", perspective);
-			material->set<mat4f>("u_model", model);
-			material->set<mat4f>("u_view", view);
-			material->set<mat3f>("u_normalMatrix", normal);
-
-			pass.framebuffer = backbuffer;
-			pass.mesh = origin;
-			pass.primitive = PrimitiveType::Lines;
-			pass.indexCount = origin->getIndexCount();
-			pass.indexOffset = 0;
-			pass.material = material;
-			pass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-			pass.blend = blending;
-			pass.cull = doubleSide;
-			pass.depth = Depth{ DepthCompare::None, false };
-			pass.stencil = stencil;
-			pass.viewport = aka::Rect{ 0 };
-			pass.scissor = aka::Rect{ 0 };
-			pass.execute();
-			material->set<>("u_model", mat4f::translate(vec3f(bbox.center())));
-			pass.execute();
-			material->set<>("u_model", mat4f::inverse(depthViewMatrix));
-			pass.execute();
+			Renderer3D::drawAxis(mat4f::identity());
+			Renderer3D::drawAxis(mat4f::inverse(worldToDepthMatrix));
+			Renderer3D::drawAxis(mat4f::translate(vec3f(m_model->bbox.center())));
+			Renderer3D::drawFrustum(worldToDepthMatrix);
+			Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
+			Renderer3D::render(GraphicBackend::backbuffer(), view, perspective);
+			Renderer3D::clear();
 		}
 	}
 }
