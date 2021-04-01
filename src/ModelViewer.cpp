@@ -88,13 +88,22 @@ void Viewer::onCreate()
 
 	loadShader();
 
-	Framebuffer::AttachmentType attachments[] = {
-		Framebuffer::AttachmentType::Depth
-	};
+	uint32_t shadowMapWidth = 1024;
+	uint32_t shadowMapHeight = 1024;
 	Sampler shadowSampler{};
 	shadowSampler.filterMag = Sampler::Filter::Nearest;
 	shadowSampler.filterMin = Sampler::Filter::Nearest;
-	m_shadowFramebuffer = Framebuffer::create(1024, 1024, attachments, sizeof(attachments) / sizeof(Framebuffer::AttachmentType), shadowSampler);
+	m_shadowTexture = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	FramebufferAttachment attachments[] = {
+		FramebufferAttachment{
+			FramebufferAttachmentType::Depth,
+			m_shadowTexture
+		}
+	};
+	m_shadowCascadeTexture[0] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowCascadeTexture[1] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowCascadeTexture[2] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowFramebuffer = Framebuffer::create(1024, 1024, attachments, sizeof(attachments) / sizeof(FramebufferAttachment));
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
@@ -104,6 +113,7 @@ void Viewer::onCreate()
 void Viewer::onDestroy()
 {
 }
+static int debugCascadeID = -1;
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
@@ -136,6 +146,14 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
+	if (Keyboard::down(KeyboardKey::Num0))
+		debugCascadeID = -1;
+	else if (Keyboard::down(KeyboardKey::Num1))
+		debugCascadeID = 0;
+	else if (Keyboard::down(KeyboardKey::Num2))
+		debugCascadeID = 1;
+	else if (Keyboard::down(KeyboardKey::Num3))
+		debugCascadeID = 2;
 }
 
 // TODO move in geometry
@@ -218,6 +236,7 @@ void Viewer::onRender()
 	mat4f worldToDepthCascadeMatrix[3];
 	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(view, perspective, near, far, m_lightDir);
 	
+
 	// Generate shadow cascades
 	const uint32_t cascadeCount = 3;
 	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
@@ -238,12 +257,20 @@ void Viewer::onRender()
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
-	mat4f worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthMatrix;
 
 	// --- Shadow pass
 	static RenderPass shadowPass;
+	if (debugCascadeID < 0)
+	{
+		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowTexture);
+		m_shadowMaterial->set<mat4f>("u_light", worldToDepthMatrix);
+	}
+	else
+	{
+		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[debugCascadeID]);
+		m_shadowMaterial->set<mat4f>("u_light", worldToDepthCascadeMatrix[debugCascadeID]);
+	}
 	m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-	m_shadowMaterial->set<mat4f>("u_light", worldToDepthMatrix);
 	shadowPass.framebuffer = m_shadowFramebuffer;
 	shadowPass.primitive = PrimitiveType::Triangles;
 	shadowPass.indexOffset = 0;
@@ -269,11 +296,16 @@ void Viewer::onRender()
 	if (Keyboard::pressed(KeyboardKey::Space))
 	{
 		// --- Display shadow map
+		Texture::Ptr map;
+		if (debugCascadeID < 0)
+			map = m_shadowTexture;
+		else
+			map = m_shadowCascadeTexture[debugCascadeID];
 		Renderer2D::drawRect(
 			mat3f::scale(vec2f(backbuffer->width(), backbuffer->height())), 
 			vec2f(0.f), vec2f(1.f), 
 			uv2f(0.f), uv2f(1.f),
-			m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth), 
+			map,
 			color4f(1.f),
 			0
 		);
@@ -284,13 +316,18 @@ void Viewer::onRender()
 	{
 		// --- Normal pass
 		mat4f renderView = view;
+		mat4f worldToDepthTextureMatrix;
+		if (debugCascadeID < 0)
+			worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthMatrix;
+		else
+			worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthCascadeMatrix[debugCascadeID];
 		if (Keyboard::pressed(KeyboardKey::ControlLeft))
 			renderView = debugView;
 		m_material->set<mat4f>("u_view", renderView);
 		m_material->set<mat4f>("u_projection", perspective);
 		m_material->set<mat4f>("u_light", worldToDepthTextureMatrix);
 		m_material->set<vec3f>("u_lightDir", m_lightDir);
-		m_material->set<Texture::Ptr>("u_shadowTexture", m_shadowFramebuffer->attachment(Framebuffer::AttachmentType::Depth));
+		m_material->set<Texture::Ptr>("u_shadowTexture", m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth));
 		renderPass.framebuffer = backbuffer;
 		renderPass.primitive = PrimitiveType::Triangles;
 		renderPass.indexOffset = 0;
@@ -324,10 +361,15 @@ void Viewer::onRender()
 			Renderer3D::drawAxis(mat4f::identity());
 			Renderer3D::drawAxis(mat4f::inverse(view));
 			Renderer3D::drawAxis(mat4f::translate(vec3f(m_model->bbox.center())));
-			for (size_t i = 0; i < cascadeCount; i++)
+			if (debugCascadeID < 0)
 			{
-				Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[i], offset[i + 1]) * view);
-				Renderer3D::drawFrustum(worldToDepthCascadeMatrix[i]);
+				Renderer3D::drawFrustum(perspective * view);
+				Renderer3D::drawFrustum(worldToDepthMatrix);
+			}
+			else
+			{
+				Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[debugCascadeID], offset[debugCascadeID + 1]) * view);
+				Renderer3D::drawFrustum(worldToDepthCascadeMatrix[debugCascadeID]);
 			}
 			Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
 			Renderer3D::render(GraphicBackend::backbuffer(), renderView, perspective);

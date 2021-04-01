@@ -15,6 +15,8 @@ public:
 	void onUpdate(Time::Unit deltaTime) override;
 	void onRender() override;
 private:
+	aka::Texture::Ptr m_shadowTexture;
+	aka::Texture::Ptr m_shadowCascadeTexture[3];
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;
 	aka::Shader::Ptr m_shadowShader;
