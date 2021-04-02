@@ -10,7 +10,7 @@ void Viewer::loadShader()
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
 		std::vector<aka::Attributes> attributes;
 #else
-		std::string str = TextFile::load(Asset::path("shaders/D3D/shader.hlsl"));
+		std::string str = File::readString(Asset::path("shaders/D3D/shader.hlsl"));
 		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
 		std::vector<aka::Attributes> attributes;
@@ -53,7 +53,42 @@ void Viewer::loadShader()
 		ShaderID vert = Shader::compile(vertShader, ShaderType::Vertex);
 		ShaderID frag = Shader::compile(fragShader, ShaderType::Fragment);
 #else
-#error "Not implemented"
+		// shadow shader
+		const char* shader = ""
+			"cbuffer constants : register(b0)\n"
+			"{\n"
+			"	row_major float4x4 u_light;\n"
+			"	row_major float4x4 u_model;\n"
+			"}\n"
+			"struct vs_in\n"
+			"{\n"
+			"	float3 position : POS;\n"
+			"	float3 normal : NORM;\n"
+			"	float2 tex : TEX;\n"
+			"	float4 color : COL;\n"
+			"};\n"
+			"struct vs_out\n"
+			"{\n"
+			"	float4 position : SV_POSITION;\n"
+			"};\n"
+			"vs_out vs_main(vs_in input)\n"
+			"{\n"
+			"	vs_out output;\n"
+			"	output.position = mul(mul(float4(input.position, 1.0f), u_model), u_light);\n"
+			"	return output;\n"
+			"}\n"
+			"float4 ps_main(vs_out input) : SV_TARGET\n"
+			"{\n"
+			"	return float4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+			"}\n";
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
+		};
+		ShaderID vert = Shader::compile(shader, ShaderType::Vertex);
+		ShaderID frag = Shader::compile(shader, ShaderType::Fragment);
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
