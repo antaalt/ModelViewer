@@ -61,11 +61,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		//aiTextureType_DIFFUSE_ROUGHNESS = 16,
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-		Sampler defaultSampler{};
-		defaultSampler.filterMag = Sampler::Filter::Linear;
-		defaultSampler.filterMin = Sampler::Filter::MipMapLinear;
-		defaultSampler.wrapS = Sampler::Wrap::Repeat;
-		defaultSampler.wrapT = Sampler::Wrap::Repeat;
+		Sampler defaultSampler = Sampler::bilinear();
 		node.material.color = color4f(1.f);
 		node.material.doubleSided = true;
 		node.material.metallic = 1.f;
@@ -140,11 +136,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 	else
 	{
 		// No material !
-		Sampler defaultSampler{};
-		defaultSampler.filterMag = Sampler::Filter::Linear;
-		defaultSampler.filterMin = Sampler::Filter::MipMapLinear;
-		defaultSampler.wrapS = Sampler::Wrap::Repeat;
-		defaultSampler.wrapT = Sampler::Wrap::Repeat;
+		Sampler defaultSampler = Sampler::bilinear();
 		node.material.color = color4f(1.f);
 		node.material.doubleSided = true;
 		node.material.metallic = 1.f;
