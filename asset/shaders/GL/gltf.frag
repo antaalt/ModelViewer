@@ -1,16 +1,19 @@
 #version 330
 
+const int SHADOW_CASCADE_COUNT = 3;
+
 in vec3 v_position;
-in vec3 v_shadow;
+in vec3 v_shadow[SHADOW_CASCADE_COUNT];
 in vec3 v_normal;
 in vec2 v_uv;
 in vec4 v_color;
+in float v_clipSpaceDepth;
 
 uniform vec3 u_lightDir;
-
+uniform float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
 uniform sampler2D u_colorTexture;
 uniform sampler2D u_normalTexture;
-uniform sampler2D u_shadowTexture;
+uniform sampler2D u_shadowTexture[SHADOW_CASCADE_COUNT];
 
 out vec4 o_color;
 
@@ -31,8 +34,8 @@ float mipMapLevel(in vec2 texture_coordinate) // in texel units
 mat3 computeTBN()
 {
 	// derivations of the fragment position
-	vec3 p_dx = dFdx(gl_FragCoord.xyz);
-	vec3 p_dy = dFdy(gl_FragCoord.xyz);
+	vec3 p_dx = dFdx(v_position);
+	vec3 p_dy = dFdy(v_position);
 	// derivations of the texture coordinate
 	vec2 t_dx = dFdx(v_uv);
 	vec2 t_dy = dFdy(v_uv);
@@ -63,14 +66,36 @@ void main(void)
 	normalMap = normalize(tbn * normalMap);
 
 	// Shadow
-	float bias = 0.005;
-	float visibility = 1.0;
-	if (texture(u_shadowTexture, v_shadow.xy).z < v_shadow.z - bias)
-		visibility = 0.1;
+	const float bias = 0.005;
+	// TODO move out of shader
+	const float near = 0.01f;
+	const float far = 100.f;
+	vec3 visibility = vec3(1);
+	float cascadeEndClipSpace[SHADOW_CASCADE_COUNT] = float[](far / 20.f, far / 5.f, far );
+	for (int i = 0; i < SHADOW_CASCADE_COUNT; i++)
+	{
+		if (v_clipSpaceDepth <= u_cascadeEndClipSpace[i])
+		{
+			if (texture(u_shadowTexture[i], v_shadow[i].xy).x < v_shadow[i].z - bias)
+			{
+#if 0 // Debug cascades
+				visibility = vec3(
+					(i == 0) ? 1.0 : 0.0,
+					(i == 1) ? 1.0 : 0.0,
+					(i == 2) ? 1.0 : 0.0
+				);
+#else
+				visibility *= 0.1;
+#endif
+			}
+			break;
+		}
+	}
 
 	// Shading
 	float cosTheta = clamp(dot(normalMap, normalize(u_lightDir)), 0.0, 1.0);
 	vec4 color = v_color * textureLod(u_colorTexture, v_uv, mipmaplevel);
-	o_color = vec4(v_normal, 1.0);
-	o_color = vec4(visibility * color.rgb * cosTheta, color.a);
+	vec3 indirect = 0.1 * color.rgb;
+	vec3 direct = visibility * color.rgb * cosTheta;
+	o_color = vec4(indirect + direct, color.a);
 }

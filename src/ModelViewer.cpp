@@ -110,12 +110,10 @@ void Viewer::onCreate()
 {
 	StopWatch<> stopWatch;
 	// TODO use args
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
+	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
-	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
-	//m_model = ModelLoader::load(Asset::path("Sponza/Sponza.obj"));
-	//m_model = ModelLoader::load(Asset::path("Dragon/dragon.obj"), point3f(0.f), 1.f);
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
@@ -123,11 +121,14 @@ void Viewer::onCreate()
 
 	loadShader();
 
-	uint32_t shadowMapWidth = 1024;
-	uint32_t shadowMapHeight = 1024;
+	uint32_t shadowMapWidth = 2048;
+	uint32_t shadowMapHeight = 2048;
 	Sampler shadowSampler{};
-	shadowSampler.filterMag = Sampler::Filter::Nearest;
-	shadowSampler.filterMin = Sampler::Filter::Nearest;
+	shadowSampler.filterMag = Sampler::Filter::Linear;
+	shadowSampler.filterMin = Sampler::Filter::Linear;
+	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
+	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
+	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
 	m_shadowTexture = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	FramebufferAttachment attachments[] = {
 		FramebufferAttachment{
@@ -138,7 +139,7 @@ void Viewer::onCreate()
 	m_shadowCascadeTexture[0] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[1] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[2] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	m_shadowFramebuffer = Framebuffer::create(1024, 1024, attachments, sizeof(attachments) / sizeof(FramebufferAttachment));
+	m_shadowFramebuffer = Framebuffer::create(shadowMapWidth, shadowMapHeight, attachments, sizeof(attachments) / sizeof(FramebufferAttachment));
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
@@ -148,7 +149,6 @@ void Viewer::onCreate()
 void Viewer::onDestroy()
 {
 }
-static int debugCascadeID = -1;
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
@@ -181,14 +181,6 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
-	if (Keyboard::down(KeyboardKey::Num0))
-		debugCascadeID = -1;
-	else if (Keyboard::down(KeyboardKey::Num1))
-		debugCascadeID = 0;
-	else if (Keyboard::down(KeyboardKey::Num2))
-		debugCascadeID = 1;
-	else if (Keyboard::down(KeyboardKey::Num3))
-		debugCascadeID = 2;
 }
 
 // TODO move in geometry
@@ -223,33 +215,48 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 {
 	mat4f viewProjectionInverseMatrix = mat4f::inverse(projection * view);
 #if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
-	float min = -1.f; // Maybe zero still ?
+	const float clipMinZ = -1.f;
 #else
-	float min = 0.f;
+	const float clipMinZ = 0.f;
 #endif
-	float max = 1.f;
+	const float clipMaxZ = 1.f;
 	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
 	point3f corners[8] = {
-		viewProjectionInverseMatrix.multiplyPoint(point3f(min, min, min)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(min, min, max)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(max, min, min)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(min, max, min)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(max, min, max)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(min, max, max)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(max, max, min)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(max, max, max)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f, -1.f, clipMinZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f, -1.f, clipMaxZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f, -1.f, clipMinZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f,  1.f, clipMinZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f, -1.f, clipMaxZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f,  1.f, clipMaxZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f,  1.f, clipMinZ)),
+		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f,  1.f, clipMaxZ)),
 	};
 	point3f centerWorld = point3f(0.f);
 	for (size_t i = 0; i < 8; i++)
 		for (size_t id = 0; id < 3; id++)
 			centerWorld.data[id] += corners[i].data[id];
 	centerWorld /= 8.f;
-	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(centerWorld, centerWorld - lightDirWorld, norm3f(0, 0, 1)));
+	// http://alextardif.com/shadowmapping.html
+	// We need to snap position to avoid flickering
+	centerWorld = point3f(
+		floor(centerWorld.x),
+		floor(centerWorld.y),
+		floor(centerWorld.z)
+	);
+	// TODO handle up.
+	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(centerWorld, centerWorld - lightDirWorld, norm3f(0, 1, 0)));
 	// Set to light space.
 	aabbox bbox;
 	for (size_t i = 0; i < 8; i++)
 		bbox.include(lightViewMatrix.multiplyPoint(corners[i]));
-	mat4f lightProjectionMatrix = mat4f::orthographic(bbox.min.y, bbox.max.y, bbox.min.x, bbox.max.x, bbox.min.z, bbox.max.z);
+	Logger::info(bbox.center());
+	// snap bbox to upper bounds
+	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
+	mat4f lightProjectionMatrix = mat4f::orthographic(
+		floor(bbox.min.y), ceil(bbox.max.y),
+		floor(bbox.min.x), ceil(bbox.max.x),
+		floor(bbox.min.z) * scale, ceil(bbox.max.z) * scale
+	);
 	return lightProjectionMatrix * lightViewMatrix;
 }
 
@@ -263,9 +270,11 @@ void Viewer::onRender()
 	static float near = 0.01f;
 	static float far = 100.f;
 	static anglef angle = anglef::degree(90.f);
+	mat4f debugPerspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
 #if 0
+	const size_t cascadeCount = 1;
 	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(m_model->bbox, m_lightDir);
 #else
 	mat4f worldToDepthCascadeMatrix[3];
@@ -273,8 +282,9 @@ void Viewer::onRender()
 	
 
 	// Generate shadow cascades
-	const uint32_t cascadeCount = 3;
+	const size_t cascadeCount = 3;
 	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
+	float cascadeEndClipSpace[cascadeCount];
 	for (size_t i = 0; i < cascadeCount; i++)
 	{
 		float w = (float)backbuffer->width();
@@ -283,8 +293,9 @@ void Viewer::onRender()
 		float f = offset[i + 1];
 		mat4f p = mat4f::perspective(angle, w / h, n, f);
 		worldToDepthCascadeMatrix[i] = computeShadowViewProjectionMatrix(view, p, n, f, m_lightDir);
+		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
+		cascadeEndClipSpace[i] = clipSpace.z;
 	}
-	
 #endif
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
@@ -295,17 +306,6 @@ void Viewer::onRender()
 
 	// --- Shadow pass
 	static RenderPass shadowPass;
-	if (debugCascadeID < 0)
-	{
-		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowTexture);
-		m_shadowMaterial->set<mat4f>("u_light", worldToDepthMatrix);
-	}
-	else
-	{
-		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[debugCascadeID]);
-		m_shadowMaterial->set<mat4f>("u_light", worldToDepthCascadeMatrix[debugCascadeID]);
-	}
-	m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 	shadowPass.framebuffer = m_shadowFramebuffer;
 	shadowPass.primitive = PrimitiveType::Triangles;
 	shadowPass.indexOffset = 0;
@@ -316,100 +316,117 @@ void Viewer::onRender()
 	shadowPass.stencil = Stencil::none();
 	shadowPass.viewport = aka::Rect{ 0 };
 	shadowPass.scissor = aka::Rect{ 0 };
-	for (size_t i = 0; i < m_model->nodes.size(); i++)
+	for (size_t i = 0; i < cascadeCount; i++)
 	{
-		aka::mat4f model = m_model->nodes[i].transform;
-		m_shadowMaterial->set<mat4f>("u_model", model);
-		shadowPass.mesh = m_model->nodes[i].mesh;
-		shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-		shadowPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		
-		shadowPass.execute();
-	}
-
-	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
-	if (Keyboard::pressed(KeyboardKey::Space))
-	{
-		// --- Display shadow map
-		Texture::Ptr map;
-		if (debugCascadeID < 0)
-			map = m_shadowTexture;
-		else
-			map = m_shadowCascadeTexture[debugCascadeID];
-		Renderer2D::drawRect(
-			mat3f::scale(vec2f(backbuffer->width(), backbuffer->height())), 
-			vec2f(0.f), vec2f(1.f), 
-			uv2f(0.f), uv2f(1.f),
-			map,
-			color4f(1.f),
-			0
-		);
-		Renderer2D::render();
-		Renderer2D::clear();
-	}
-	else
-	{
-		// --- Normal pass
-		mat4f renderView = view;
-		mat4f worldToDepthTextureMatrix;
-		if (debugCascadeID < 0)
-			worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthMatrix;
-		else
-			worldToDepthTextureMatrix = projectionToTextureCoordinateMatrix * worldToDepthCascadeMatrix[debugCascadeID];
-		if (Keyboard::pressed(KeyboardKey::ControlLeft))
-			renderView = debugView;
-		m_material->set<mat4f>("u_view", renderView);
-		m_material->set<mat4f>("u_projection", perspective);
-		m_material->set<mat4f>("u_light", worldToDepthTextureMatrix);
-		m_material->set<vec3f>("u_lightDir", m_lightDir);
-		m_material->set<Texture::Ptr>("u_shadowTexture", m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth));
-		renderPass.framebuffer = backbuffer;
-		renderPass.primitive = PrimitiveType::Triangles;
-		renderPass.indexOffset = 0;
-		renderPass.material = m_material;
-		renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		renderPass.blend = Blending::nonPremultiplied();
-		renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
-		renderPass.stencil = Stencil::none();
-		renderPass.viewport = aka::Rect{ 0 };
-		renderPass.scissor = aka::Rect{ 0 };
+		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
+		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
+		m_shadowMaterial->set<mat4f>("u_light", worldToDepthCascadeMatrix[i]);
 		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
 			aka::mat4f model = m_model->nodes[i].transform;
-			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = m_model->nodes[i].material.color;
-			m_material->set<mat4f>("u_model", model);
-			m_material->set<mat3f>("u_normalMatrix", normal);
-			m_material->set<color4f>("u_color", color);
-			m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
-			m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
-			renderPass.mesh = m_model->nodes[i].mesh;
-			renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-			renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+			m_shadowMaterial->set<mat4f>("u_model", model);
+			shadowPass.mesh = m_model->nodes[i].mesh;
+			shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+			shadowPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+			shadowPass.execute();
+		}
+	}
+	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
+	
+	// --- Normal pass
+	mat4f renderView = view;
+	mat4f renderPerspective = perspective;
+	mat4f worldToDepthTextureMatrix[cascadeCount];
+	for (size_t i = 0; i < cascadeCount; i++)
+		worldToDepthTextureMatrix[i] = projectionToTextureCoordinateMatrix * worldToDepthCascadeMatrix[i];
+		
+	if (Keyboard::pressed(KeyboardKey::ControlLeft))
+	{
+		renderView = debugView;
+		renderPerspective = debugPerspective;
+	}
+	m_material->set<mat4f>("u_view", renderView);
+	m_material->set<mat4f>("u_projection", renderPerspective);
+	m_material->set<mat4f>("u_light[0]", worldToDepthTextureMatrix, cascadeCount);
+	m_material->set<vec3f>("u_lightDir", m_lightDir);
+	m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
+	m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+	renderPass.framebuffer = backbuffer;
+	renderPass.primitive = PrimitiveType::Triangles;
+	renderPass.indexOffset = 0;
+	renderPass.material = m_material;
+	renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+	renderPass.blend = Blending::nonPremultiplied();
+	renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+	renderPass.stencil = Stencil::none();
+	renderPass.viewport = aka::Rect{ 0 };
+	renderPass.scissor = aka::Rect{ 0 };
+	for (size_t i = 0; i < m_model->nodes.size(); i++)
+	{
+		aka::mat4f model = m_model->nodes[i].transform;
+		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
+		aka::color4f color = m_model->nodes[i].material.color;
+		m_material->set<mat4f>("u_model", model);
+		m_material->set<mat3f>("u_normalMatrix", normal);
+		m_material->set<color4f>("u_color", color);
+		m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
+		m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+		renderPass.mesh = m_model->nodes[i].mesh;
+		renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+		renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 			
-			renderPass.execute();
-		}
-		// --- Debug pass
-		// TODO add pipeline (default pipeline, debug pipeline...)
-		// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
+		renderPass.execute();
+	}
+	// --- Debug pass
+	// TODO add pipeline (default pipeline, debug pipeline...)
+	// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
+	vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
+	vec2f pos[3];
+	vec2f size = windowSize / 8.f;
+	for (size_t i = 0; i < cascadeCount; i++)
+		pos[i] = vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f);
+	{
+		int hovered = -1;
+		const Position& p = Mouse::position();
+		for (size_t i = 0; i < cascadeCount; i++)
 		{
-			Renderer3D::drawAxis(mat4f::identity());
-			Renderer3D::drawAxis(mat4f::inverse(view));
-			Renderer3D::drawAxis(mat4f::translate(vec3f(m_model->bbox.center())));
-			if (debugCascadeID < 0)
+			if (p.x > pos[i].x && p.x < pos[i].x + size.x && p.y > pos[i].y && p.y < pos[i].y + size.y)
 			{
-				Renderer3D::drawFrustum(perspective * view);
-				Renderer3D::drawFrustum(worldToDepthMatrix);
+				hovered = i;
+				break;
 			}
-			else
-			{
-				Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[debugCascadeID], offset[debugCascadeID + 1]) * view);
-				Renderer3D::drawFrustum(worldToDepthCascadeMatrix[debugCascadeID]);
-			}
-			Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
-			Renderer3D::render(GraphicBackend::backbuffer(), renderView, perspective);
-			Renderer3D::clear();
 		}
+
+		Renderer3D::drawAxis(mat4f::identity());
+		Renderer3D::drawAxis(mat4f::inverse(view));
+		Renderer3D::drawAxis(mat4f::translate(vec3f(m_model->bbox.center())));
+		if (hovered < 0)
+		{
+			Renderer3D::drawFrustum(perspective * view);
+			Renderer3D::drawFrustum(worldToDepthMatrix);
+		}
+		else
+		{
+			Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
+			Renderer3D::drawFrustum(worldToDepthCascadeMatrix[hovered]);
+		}
+		Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
+		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
+		Renderer3D::clear();
+	}
+	{
+		for (size_t i = 0; i < cascadeCount; i++)
+			Renderer2D::drawRect(
+				mat3f::identity(),
+				vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f), 
+				size,
+				m_shadowCascadeTexture[i],
+				color4f(1.f),
+				10
+			);
+		Renderer2D::render();
+		Renderer2D::clear();
 	}
 }
 
