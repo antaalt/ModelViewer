@@ -66,28 +66,36 @@ void main(void)
 	normalMap = normalize(tbn * normalMap);
 
 	// Shadow
-	const float bias = 0.005;
-	// TODO move out of shader
-	const float near = 0.01f;
-	const float far = 100.f;
+	const float bias = 0.001; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
-	float cascadeEndClipSpace[SHADOW_CASCADE_COUNT] = float[](far / 20.f, far / 5.f, far );
-	for (int i = 0; i < SHADOW_CASCADE_COUNT; i++)
+	for (int iCascade = 0; iCascade < SHADOW_CASCADE_COUNT; iCascade++)
 	{
-		if (v_clipSpaceDepth <= u_cascadeEndClipSpace[i])
+		if (v_clipSpaceDepth <= u_cascadeEndClipSpace[iCascade])
 		{
-			if (texture(u_shadowTexture[i], v_shadow[i].xy).x < v_shadow[i].z - bias)
-			{
 #if 0 // Debug cascades
-				visibility = vec3(
-					(i == 0) ? 1.0 : 0.0,
-					(i == 1) ? 1.0 : 0.0,
-					(i == 2) ? 1.0 : 0.0
-				);
+			visibility = vec3(
+				(i == 0) ? 1.0 : 0.0,
+				(i == 1) ? 1.0 : 0.0,
+				(i == 2) ? 1.0 : 0.0
+			);
 #else
-				visibility *= 0.1;
-#endif
+			// PCF
+			const float diffusion = 900.f;
+			vec2 poissonDisk[4] = vec2[](
+				vec2( -0.94201624, -0.39906216 ),
+				vec2( 0.94558609, -0.76890725 ),
+				vec2( -0.094184101, -0.92938870 ),
+				vec2( 0.34495938, 0.29387760 )
+			);
+			for (int iPoisson = 0; iPoisson < 4; iPoisson++)
+			{
+				vec2 uv = v_shadow[iCascade].xy + poissonDisk[iPoisson] / diffusion;
+				if (texture(u_shadowTexture[iCascade], uv).z < v_shadow[iCascade].z - bias)
+				{
+					visibility -= 0.2;
+				}
 			}
+#endif
 			break;
 		}
 	}

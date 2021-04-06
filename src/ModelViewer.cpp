@@ -129,16 +129,15 @@ void Viewer::onCreate()
 	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
-	m_shadowTexture = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	FramebufferAttachment attachments[] = {
-		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
-			m_shadowTexture
-		}
-	};
 	m_shadowCascadeTexture[0] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[1] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[2] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	FramebufferAttachment attachments[] = {
+		FramebufferAttachment{
+			FramebufferAttachmentType::Depth,
+			m_shadowCascadeTexture[0]
+		}
+	}; 
 	m_shadowFramebuffer = Framebuffer::create(shadowMapWidth, shadowMapHeight, attachments, sizeof(attachments) / sizeof(FramebufferAttachment));
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
@@ -194,6 +193,26 @@ struct Frustum {
 
 	//bool contain(const mat4f& view, const point3f& point) const;
 };
+
+void getCorners(const mat4f& frustum, point3f* corners)
+{
+	mat4f frustumInverse = mat4f::inverse(frustum);
+#if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
+	const float clipMinZ = -1.f;
+#else
+	const float clipMinZ = 0.f;
+#endif
+	const float clipMaxZ = 1.f;
+	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
+	corners[0] = frustumInverse.multiplyPoint(point3f(-1.f, -1.f, clipMinZ));
+	corners[1] = frustumInverse.multiplyPoint(point3f(-1.f, -1.f, clipMaxZ));
+	corners[2] = frustumInverse.multiplyPoint(point3f(1.f, -1.f, clipMinZ));
+	corners[3] = frustumInverse.multiplyPoint(point3f(-1.f, 1.f, clipMinZ));
+	corners[4] = frustumInverse.multiplyPoint(point3f(1.f, -1.f, clipMaxZ));
+	corners[5] = frustumInverse.multiplyPoint(point3f(-1.f, 1.f, clipMaxZ));
+	corners[6] = frustumInverse.multiplyPoint(point3f(1.f, 1.f, clipMinZ));
+	corners[7] = frustumInverse.multiplyPoint(point3f(1.f, 1.f, clipMaxZ));
+}
 
 // --- Shadows
 // TODO mix the two algorithms ? Or just dynamically adapt projection matrix
@@ -273,15 +292,8 @@ void Viewer::onRender()
 	mat4f debugPerspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
-#if 0
-	const size_t cascadeCount = 1;
-	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(m_model->bbox, m_lightDir);
-#else
-	mat4f worldToDepthCascadeMatrix[3];
-	mat4f worldToDepthMatrix = computeShadowViewProjectionMatrix(view, perspective, near, far, m_lightDir);
-	
-
 	// Generate shadow cascades
+	mat4f worldToDepthCascadeMatrix[3];
 	const size_t cascadeCount = 3;
 	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
 	float cascadeEndClipSpace[cascadeCount];
@@ -296,7 +308,6 @@ void Viewer::onRender()
 		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 		cascadeEndClipSpace[i] = clipSpace.z;
 	}
-#endif
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
@@ -327,7 +338,7 @@ void Viewer::onRender()
 			m_shadowMaterial->set<mat4f>("u_model", model);
 			shadowPass.mesh = m_model->nodes[i].mesh;
 			shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-			shadowPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+			shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 			shadowPass.execute();
 		}
@@ -404,7 +415,6 @@ void Viewer::onRender()
 		if (hovered < 0)
 		{
 			Renderer3D::drawFrustum(perspective * view);
-			Renderer3D::drawFrustum(worldToDepthMatrix);
 		}
 		else
 		{
