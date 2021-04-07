@@ -55,9 +55,11 @@ int main(int argc, char* argv[])
 	settings.height = 720;
 
 	parse(argc, argv, settings);
+
+	viewer::Viewer viewer;
 	
 	aka::Config cfg{};
-	cfg.view = aka::View::create<viewer::Viewer>();
+	cfg.app = &viewer;
 	cfg.width = settings.width;
 	cfg.height = settings.height;
 	cfg.name = "Model Viewer";

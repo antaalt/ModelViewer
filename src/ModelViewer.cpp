@@ -110,10 +110,10 @@ void Viewer::onCreate()
 {
 	StopWatch<> stopWatch;
 	// TODO use args
-	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
+	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
@@ -151,8 +151,6 @@ void Viewer::onDestroy()
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
-	using namespace aka;
-
 	// Arcball
 	m_camera.update(deltaTime);
 
@@ -182,79 +180,62 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	}
 }
 
-// TODO move in geometry
-struct Frustum {
-	float left;
-	float right;
-	float bottom;
-	float top;
-	float near;
-	float far;
+template <typename T = real_t>
+struct Frustum
+{
+	Frustum(const mat4<T>& projection);
+	Frustum(float left, float right, float bottom, float top, float near, float far);
 
-	//bool contain(const mat4f& view, const point3f& point) const;
+	point3<T> center() const;
+
+	point3<T>& operator[](size_t index) { return m_corners[index]; }
+	const point3<T>& operator[](size_t index) const { return m_corners[index]; }
+	point3<T>* data() { return m_corners; }
+	const point3<T>* data() const { return m_corners; }
+
+	bool operator==(const Frustum<T>& rhs) const;
+	bool operator!=(const Frustum<T>& rhs) const;
+private:
+	point3<T> m_corners[8];
 };
 
-void getCorners(const mat4f& frustum, point3f* corners)
+template <typename T>
+Frustum<T>::Frustum(const mat4<T>& frustum)
 {
-	mat4f frustumInverse = mat4f::inverse(frustum);
+	mat4<T> frustumInverse = mat4<T>::inverse(frustum);
 #if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
-	const float clipMinZ = -1.f;
+	const T clipMinZ = static_cast<T>(-1);
 #else
-	const float clipMinZ = 0.f;
+	const T clipMinZ = static_cast<T>(0);
 #endif
-	const float clipMaxZ = 1.f;
+	const T clipMaxZ = static_cast<T>(1);
 	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
-	corners[0] = frustumInverse.multiplyPoint(point3f(-1.f, -1.f, clipMinZ));
-	corners[1] = frustumInverse.multiplyPoint(point3f(-1.f, -1.f, clipMaxZ));
-	corners[2] = frustumInverse.multiplyPoint(point3f(1.f, -1.f, clipMinZ));
-	corners[3] = frustumInverse.multiplyPoint(point3f(-1.f, 1.f, clipMinZ));
-	corners[4] = frustumInverse.multiplyPoint(point3f(1.f, -1.f, clipMaxZ));
-	corners[5] = frustumInverse.multiplyPoint(point3f(-1.f, 1.f, clipMaxZ));
-	corners[6] = frustumInverse.multiplyPoint(point3f(1.f, 1.f, clipMinZ));
-	corners[7] = frustumInverse.multiplyPoint(point3f(1.f, 1.f, clipMaxZ));
+	m_corners[0] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>(-1), clipMinZ));
+	m_corners[1] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>(-1), clipMaxZ));
+	m_corners[2] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>(-1), clipMinZ));
+	m_corners[3] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>( 1), clipMinZ));
+	m_corners[4] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>(-1), clipMaxZ));
+	m_corners[5] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>( 1), clipMaxZ));
+	m_corners[6] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>( 1), clipMinZ));
+	m_corners[7] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>( 1), clipMaxZ));
+}
+
+template <typename T>
+point3<T> Frustum<T>::center() const
+{
+	point3<T> c = point3<T>(0.f);
+	for (size_t i = 0; i < 8; i++)
+		for (size_t id = 0; id < 3; id++)
+			c.data[id] += m_corners[i].data[id];
+	return c / static_cast<T>(8);
 }
 
 // --- Shadows
-// TODO mix the two algorithms ? Or just dynamically adapt projection matrix
-// Compute the shadow projection around the object.
-mat4f computeShadowViewProjectionMatrix(const aabbox<>& bbox, const vec3f& lightDir)
-{
-	vec3f halfExtent = bbox.extent() / 2.f;
-	float maxHalfExtent = max(halfExtent.x, max(halfExtent.y, halfExtent.z));
-	aabbox<> squaredBbox(bbox.center() - vec3f(maxHalfExtent), bbox.center() + vec3f(maxHalfExtent));
-	float radius = (squaredBbox.extent() / 2.f).norm();
-	aabbox<> frustumBbox(point3f(-radius), point3f(radius));
-	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(bbox.center(), bbox.center() - lightDir, norm3f(0, 0, 1)));
-	mat4f lightProjectionMatrix = mat4f::orthographic(frustumBbox.min.y, frustumBbox.max.y, frustumBbox.min.x, frustumBbox.max.x, frustumBbox.min.z, frustumBbox.max.z);
-	return lightProjectionMatrix * lightViewMatrix;
-}
-
 // Compute the shadow projection around the view projection.
 mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, float near, float far, const vec3f& lightDirWorld)
 {
-	mat4f viewProjectionInverseMatrix = mat4f::inverse(projection * view);
-#if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
-	const float clipMinZ = -1.f;
-#else
-	const float clipMinZ = 0.f;
-#endif
-	const float clipMaxZ = 1.f;
-	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
-	point3f corners[8] = {
-		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f, -1.f, clipMinZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f, -1.f, clipMaxZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f, -1.f, clipMinZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f,  1.f, clipMinZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f, -1.f, clipMaxZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f(-1.f,  1.f, clipMaxZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f,  1.f, clipMinZ)),
-		viewProjectionInverseMatrix.multiplyPoint(point3f( 1.f,  1.f, clipMaxZ)),
-	};
-	point3f centerWorld = point3f(0.f);
-	for (size_t i = 0; i < 8; i++)
-		for (size_t id = 0; id < 3; id++)
-			centerWorld.data[id] += corners[i].data[id];
-	centerWorld /= 8.f;
+	Frustum frustum(projection * view);
+	point3f centerWorld = frustum.center();
 	// http://alextardif.com/shadowmapping.html
 	// We need to snap position to avoid flickering
 	centerWorld = point3f(
@@ -267,8 +248,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 	// Set to light space.
 	aabbox bbox;
 	for (size_t i = 0; i < 8; i++)
-		bbox.include(lightViewMatrix.multiplyPoint(corners[i]));
-	Logger::info(bbox.center());
+		bbox.include(lightViewMatrix.multiplyPoint(frustum[i]));
 	// snap bbox to upper bounds
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
 	mat4f lightProjectionMatrix = mat4f::orthographic(
@@ -404,7 +384,7 @@ void Viewer::onRender()
 		{
 			if (p.x > pos[i].x && p.x < pos[i].x + size.x && p.y > pos[i].y && p.y < pos[i].y + size.y)
 			{
-				hovered = i;
+				hovered = (int)i;
 				break;
 			}
 		}

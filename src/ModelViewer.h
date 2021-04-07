@@ -6,7 +6,7 @@
 
 namespace viewer {
 
-class Viewer : public aka::View
+class Viewer : public aka::Application
 {
 	void loadShader();
 public:
