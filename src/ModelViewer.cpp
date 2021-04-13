@@ -1,5 +1,7 @@
 #include "ModelViewer.h"
 
+#include <Aka/Layer/ImGuiLayer.h>
+
 namespace viewer {
 
 void Viewer::loadShader()
@@ -143,6 +145,7 @@ void Viewer::onCreate()
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
 	m_camera.set(m_model->bbox);
+	attach<ImGuiLayer>();
 }
 
 void Viewer::onDestroy()
