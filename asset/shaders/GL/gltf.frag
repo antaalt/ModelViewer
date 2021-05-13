@@ -43,17 +43,6 @@ float random(vec3 seed, int i)
 	return fract(sin(dot_product) * 43758.5453);
 }
 
-// Does not take into account GL_TEXTURE_MIN_LOD/GL_TEXTURE_MAX_LOD/GL_TEXTURE_LOD_BIAS,
-// nor implementation-specific flexibility allowed by OpenGL spec
-float mipMapLevel(in vec2 texture_coordinate) // in texel units
-{
-	vec2  dx_vtc        = dFdx(texture_coordinate);
-	vec2  dy_vtc        = dFdy(texture_coordinate);
-	float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-	float mml = 0.5 * log2(delta_max_sqr);
-	return max( 0, mml ); // Thanks @Nims
-}
-
 // Compute TBN matrix.
 // TODO compute this offline.
 // https://stackoverflow.com/questions/5255806/how-to-calculate-tangent-and-binormal
@@ -86,8 +75,7 @@ void main(void)
 {
 	// Normal mapping
 	mat3 tbn = computeTBN();
-	float mipmaplevel = mipMapLevel(v_uv);
-	vec3 normalMap = textureLod(u_normalTexture, v_uv, mipmaplevel).rgb;
+	vec3 normalMap = texture(u_normalTexture, v_uv).rgb;
 	normalMap = normalMap * 2.0 - 1.0;
 	normalMap = normalize(tbn * normalMap);
 
@@ -124,7 +112,7 @@ void main(void)
 
 	// Shading
 	float cosTheta = clamp(dot(normalMap, normalize(u_lightDir)), 0.0, 1.0);
-	vec4 color = v_color * textureLod(u_colorTexture, v_uv, mipmaplevel);
+	vec4 color = v_color * texture(u_colorTexture, v_uv);
 	vec3 indirect = 0.1 * color.rgb;
 	vec3 direct = visibility * color.rgb * cosTheta;
 	o_color = vec4(indirect + direct, color.a);
