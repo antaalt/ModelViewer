@@ -66,6 +66,13 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		node.material.doubleSided = true;
 		node.material.metallic = 1.f;
 		node.material.roughness = 1.f;
+
+		Image missingColorImage;
+		missingColorImage.bytes = { 255, 0, 255, 255 };
+		missingColorImage.width = 1;
+		missingColorImage.height = 1;
+		missingColorImage.components = 4;
+
 		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
 			aiTextureType type = aiTextureType_BASE_COLOR;
@@ -74,6 +81,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 				aiString str;
 				material->GetTexture(type, i, &str);
 				Image image = Image::load(Path(path + str.C_Str()));
+				if (image.bytes.size() == 0)
+					image = missingColorImage;
 				node.material.colorTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 				node.material.colorTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -87,6 +96,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 				aiString str;
 				material->GetTexture(type, i, &str);
 				Image image = Image::load(Path(path + str.C_Str()));
+				if (image.bytes.size() == 0)
+					image = missingColorImage;
 				node.material.colorTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 				node.material.colorTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -99,6 +110,13 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			node.material.colorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 			node.material.colorTexture->upload(data);
 		}
+
+		Image missingNormalImage;
+		missingNormalImage.bytes = { 128,128,255,255 };
+		missingNormalImage.width = 1;
+		missingNormalImage.height = 1;
+		missingNormalImage.components = 4;
+
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
 			aiTextureType type = aiTextureType_NORMAL_CAMERA;
@@ -107,6 +125,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 				aiString str;
 				material->GetTexture(type, i, &str);
 				Image image = Image::load(Path(path + str.C_Str()));
+				if (image.bytes.size() == 0)
+					image = missingNormalImage;
 				node.material.normalTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 				node.material.normalTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -120,6 +140,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 				aiString str;
 				material->GetTexture(type, i, &str);
 				Image image = Image::load(Path(path + str.C_Str()));
+				if (image.bytes.size() == 0)
+					image = missingNormalImage;
 				node.material.normalTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 				node.material.normalTexture->upload(image.bytes.data());
 				break; // Ignore others textures for now.
@@ -128,7 +150,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		else
 		{
 			// TODO cache this
-			uint8_t data[4] = { 128,255,128,255 };
+			uint8_t data[4] = { 128,128,255,255 };
 			node.material.normalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 			node.material.normalTexture->upload(data);
 		}
@@ -144,7 +166,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		uint8_t colorData[4] = { 255,255,255,255 };
 		node.material.colorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 		node.material.colorTexture->upload(colorData);
-		uint8_t normalData[4] = { 128,255,128,255 };
+		uint8_t normalData[4] = { 128,128,255,255 };
 		node.material.normalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
 		node.material.normalTexture->upload(normalData);
 	}
