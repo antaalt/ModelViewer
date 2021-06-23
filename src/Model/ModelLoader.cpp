@@ -7,6 +7,27 @@
 
 namespace viewer {
 
+// TODO create image loader class that map textures to avoid copy
+Texture::Ptr loadTexture(const Path& path, const Sampler& sampler)
+{
+	Image img = Image::load(path);
+	if (img.bytes.size() > 0)
+	{
+		Texture::Ptr texture = Texture::create(
+			img.width,
+			img.height,
+			TextureFormat::UnsignedByte,
+			img.components == 4 ? TextureComponent::RGBA : TextureComponent::RGB,
+			TextureFlag::None,
+			sampler
+		);
+		texture->upload(img.bytes.data());
+		return texture;
+	}
+	else
+		return nullptr;
+}
+
 Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat4f& transform, aabbox<>& bbox)
 {
 	std::vector<Vertex> vertices(mesh->mNumVertices);
@@ -67,12 +88,11 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		node.material.metallic = 1.f;
 		node.material.roughness = 1.f;
 
-		Image missingColorImage;
-		missingColorImage.bytes = { 255, 0, 255, 255 };
-		missingColorImage.width = 1;
-		missingColorImage.height = 1;
-		missingColorImage.components = 4;
-
+		// TODO store somewhere else.
+		// TODO create unordered_map to avoid duplicating textures on GPU
+		static Texture::Ptr missingColorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
+		uint8_t bytesColor[4] = { 255, 0, 255, 255 }; 
+		missingColorTexture->upload(bytesColor);
 		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
 			aiTextureType type = aiTextureType_BASE_COLOR;
@@ -80,11 +100,9 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(path + str.C_Str()));
-				if (image.bytes.size() == 0)
-					image = missingColorImage;
-				node.material.colorTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-				node.material.colorTexture->upload(image.bytes.data());
+				node.material.colorTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.colorTexture == nullptr)
+					node.material.colorTexture = missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -95,27 +113,20 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(path + str.C_Str()));
-				if (image.bytes.size() == 0)
-					image = missingColorImage;
-				node.material.colorTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-				node.material.colorTexture->upload(image.bytes.data());
+				node.material.colorTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.colorTexture == nullptr)
+					node.material.colorTexture = missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			// TODO cache this
-			uint8_t data[4] = { 255,255,255,255 };
-			node.material.colorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-			node.material.colorTexture->upload(data);
+			node.material.colorTexture = missingColorTexture;
 		}
 
-		Image missingNormalImage;
-		missingNormalImage.bytes = { 128,128,255,255 };
-		missingNormalImage.width = 1;
-		missingNormalImage.height = 1;
-		missingNormalImage.components = 4;
+		static Texture::Ptr missingNormalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
+		uint8_t bytesNormal [4] = { 128,128,255,255 };
+		missingNormalTexture->upload(bytesNormal);
 
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
@@ -124,11 +135,9 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(path + str.C_Str()));
-				if (image.bytes.size() == 0)
-					image = missingNormalImage;
-				node.material.normalTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-				node.material.normalTexture->upload(image.bytes.data());
+				node.material.normalTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.normalTexture == nullptr)
+					node.material.normalTexture = missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -139,20 +148,15 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				Image image = Image::load(Path(path + str.C_Str()));
-				if (image.bytes.size() == 0)
-					image = missingNormalImage;
-				node.material.normalTexture = Texture::create(image.width, image.height, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-				node.material.normalTexture->upload(image.bytes.data());
+				node.material.normalTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.normalTexture == nullptr)
+					node.material.normalTexture = missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			// TODO cache this
-			uint8_t data[4] = { 128,128,255,255 };
-			node.material.normalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-			node.material.normalTexture->upload(data);
+			node.material.normalTexture = missingNormalTexture;
 		}
 	}
 	else

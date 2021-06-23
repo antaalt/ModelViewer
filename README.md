@@ -16,3 +16,4 @@
 - Add ray tracing shadows / lightings
 - Add HDR lighting
 - Add spot light / point lights
+- Anti-aliasing (Multi sampling)
