@@ -15,6 +15,46 @@ void Viewer::loadShader()
 	};
 	{
 #if defined(AKA_USE_OPENGL)
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")), aka::ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/gbuffer.hlsl"));
+		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile gbuffer shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			if (shader->valid())
+				m_gbufferMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
+	{
+#if defined(AKA_USE_OPENGL)
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.frag")), aka::ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/shading.hlsl"));
+		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile lighting shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			if (shader->valid())
+				m_lightingMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
+	{
+#if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
 #else
@@ -24,7 +64,7 @@ void Viewer::loadShader()
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
-			aka::Logger::error("Failed to compile shader");
+			aka::Logger::error("Failed to compile default shader");
 		}
 		else
 		{
@@ -70,6 +110,55 @@ void Viewer::onCreate()
 
 	loadShader();
 
+	// --- G-Buffer pass
+	Sampler gbufferSampler{};
+	gbufferSampler.filterMag = Sampler::Filter::Linear;
+	gbufferSampler.filterMin = Sampler::Filter::Linear;
+	gbufferSampler.wrapU = Sampler::Wrap::ClampToEdge;
+	gbufferSampler.wrapV = Sampler::Wrap::ClampToEdge;
+	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	m_depth = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
+	// TODO access internal format for half
+	m_position = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
+	m_albedo = Texture::create(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
+	m_normal = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
+	FramebufferAttachment gbufferAttachments[] = {
+		FramebufferAttachment{
+			FramebufferAttachmentType::Depth,
+			m_depth
+		},
+		FramebufferAttachment{
+			FramebufferAttachmentType::Color0,
+			m_position
+		},
+		FramebufferAttachment{
+			FramebufferAttachmentType::Color1,
+			m_albedo
+		},
+		FramebufferAttachment{
+			FramebufferAttachmentType::Color2,
+			m_normal
+		}
+	};
+	m_gbuffer = Framebuffer::create(width(), height(), gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
+
+	// --- Lighting pass
+	m_quad = Mesh::create();
+	VertexData data;
+	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec2 });
+	float vertices[] = {
+		-1, -1, // bottom left corner
+		 1, -1,  // bottom right corner
+		 1,  1, // top right corner
+		-1,  1, // top left corner
+	};
+	uint8_t indices[] = { 0,1,2,0,2,3 };
+	m_quad->vertices(data, vertices, 4);
+	m_quad->indices(IndexFormat::UnsignedByte, indices, 6);
+
+	// --- Forward pass 
+
+	// --- Shadows
 	uint32_t shadowMapWidth = 2048;
 	uint32_t shadowMapHeight = 2048;
 	Sampler shadowSampler{};
@@ -82,13 +171,13 @@ void Viewer::onCreate()
 	m_shadowCascadeTexture[0] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[1] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[2] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	FramebufferAttachment attachments[] = {
+	FramebufferAttachment shadowAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,
 			m_shadowCascadeTexture[0]
 		}
 	}; 
-	m_shadowFramebuffer = Framebuffer::create(shadowMapWidth, shadowMapHeight, attachments, sizeof(attachments) / sizeof(FramebufferAttachment));
+	m_shadowFramebuffer = Framebuffer::create(shadowMapWidth, shadowMapHeight, shadowAttachments, sizeof(shadowAttachments) / sizeof(FramebufferAttachment));
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
@@ -151,6 +240,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 	for (size_t i = 0; i < 8; i++)
 		bbox.include(lightViewMatrix.multiplyPoint(f.corners[i]));
 	// snap bbox to upper bounds
+	// TODO scale depend on scene bbox vs frustum bbox
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
 	mat4f lightProjectionMatrix = mat4f::orthographic(
 		floor(bbox.min.y), ceil(bbox.max.y),
@@ -162,7 +252,6 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 void Viewer::onRender()
 {
-	RenderPass renderPass{};
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_model->bbox.center() + m_model->bbox.extent(), point3f(0.f)));
 	mat4f view = mat4f::inverse(m_camera.transform());
@@ -174,20 +263,20 @@ void Viewer::onRender()
 	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
 	// Generate shadow cascades
-	mat4f worldToDepthCascadeMatrix[3];
+	mat4f worldToLightSpaceMatrix[3];
 	const size_t cascadeCount = 3;
 	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
 	float cascadeEndClipSpace[cascadeCount];
 	for (size_t i = 0; i < cascadeCount; i++)
 	{
-		float w = (float)backbuffer->width();
-		float h = (float)backbuffer->height();
+		float w = (float)width();
+		float h = (float)height();
 		float n = offset[i];
 		float f = offset[i + 1];
 		mat4f p = mat4f::perspective(angle, w / h, n, f);
-		worldToDepthCascadeMatrix[i] = computeShadowViewProjectionMatrix(view, p, n, f, m_lightDir);
+		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, n, f, m_lightDir);
 		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
-		cascadeEndClipSpace[i] = clipSpace.z;
+		cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 	}
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
@@ -195,6 +284,9 @@ void Viewer::onRender()
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
+	mat4f worldToLightTextureSpaceMatrix[cascadeCount];
+	for (size_t i = 0; i < cascadeCount; i++)
+		worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
 
 	// --- Shadow pass
 	RenderPass shadowPass;
@@ -212,7 +304,7 @@ void Viewer::onRender()
 	{
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-		m_shadowMaterial->set<mat4f>("u_light", worldToDepthCascadeMatrix[i]);
+		m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]);
 		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
 			aka::mat4f model = m_model->nodes[i].transform;
@@ -224,14 +316,85 @@ void Viewer::onRender()
 			shadowPass.execute();
 		}
 	}
-	backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
-	
-	// --- Normal pass
+
+	// --- G-Buffer pass
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
-	mat4f worldToDepthTextureMatrix[cascadeCount];
-	for (size_t i = 0; i < cascadeCount; i++)
-		worldToDepthTextureMatrix[i] = projectionToTextureCoordinateMatrix * worldToDepthCascadeMatrix[i];
+	if (Keyboard::pressed(KeyboardKey::ControlLeft))
+	{
+		renderView = debugView;
+		renderPerspective = debugPerspective;
+	}
+	// TODO depth prepass
+	RenderPass gbufferPass;
+	gbufferPass.framebuffer = m_gbuffer;
+	gbufferPass.primitive = PrimitiveType::Triangles;
+	gbufferPass.indexOffset = 0;
+	gbufferPass.material = m_gbufferMaterial;
+	gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+	gbufferPass.blend = Blending::none();
+	gbufferPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+	gbufferPass.stencil = Stencil::none();
+	gbufferPass.viewport = aka::Rect{ 0 };
+	gbufferPass.scissor = aka::Rect{ 0 };
+
+	m_gbufferMaterial->set<mat4f>("u_view", renderView);
+	m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
+
+	m_gbuffer->clear(color4f(0.f), 1.f, 1, ClearMask::All);
+	
+	for (size_t i = 0; i < m_model->nodes.size(); i++)
+	{
+		aka::mat4f model = m_model->nodes[i].transform;
+		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
+		aka::color4f color = m_model->nodes[i].material.color;
+		m_gbufferMaterial->set<mat4f>("u_model", model);
+		m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
+		m_gbufferMaterial->set<color4f>("u_color", color);
+		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
+		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+
+		m_gbufferMaterial->set<mat4f>("u_model", model);
+		gbufferPass.mesh = m_model->nodes[i].mesh;
+		gbufferPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+		gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+		gbufferPass.execute();
+	}
+
+	// --- Lighting pass
+	// TODO We can use compute here
+	RenderPass lightingPass;
+	lightingPass.framebuffer = backbuffer;
+	lightingPass.primitive = PrimitiveType::Triangles;
+	lightingPass.indexOffset = 0;
+	lightingPass.material = m_lightingMaterial;
+	lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
+	lightingPass.blend = Blending::none();
+	lightingPass.depth = Depth{ DepthCompare::None, true };
+	lightingPass.stencil = Stencil::none();
+	lightingPass.viewport = aka::Rect{ 0 };
+	lightingPass.scissor = aka::Rect{ 0 };
+	lightingPass.mesh = m_quad;
+	lightingPass.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
+	lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+	m_lightingMaterial->set<Texture::Ptr>("u_position", m_position);
+	m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
+	m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
+	m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
+	m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
+	m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);
+	m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
+	m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+
+	lightingPass.execute();
+	
+	
+	// --- Forward pass
+	/*backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
+	mat4f renderView = view;
+	mat4f renderPerspective = perspective;
 		
 	if (Keyboard::pressed(KeyboardKey::ControlLeft))
 	{
@@ -240,10 +403,11 @@ void Viewer::onRender()
 	}
 	m_material->set<mat4f>("u_view", renderView);
 	m_material->set<mat4f>("u_projection", renderPerspective);
-	m_material->set<mat4f>("u_light[0]", worldToDepthTextureMatrix, cascadeCount);
+	m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, cascadeCount);
 	m_material->set<vec3f>("u_lightDir", m_lightDir);
 	m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 	m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+	RenderPass renderPass{};
 	renderPass.framebuffer = backbuffer;
 	renderPass.primitive = PrimitiveType::Triangles;
 	renderPass.indexOffset = 0;
@@ -269,7 +433,8 @@ void Viewer::onRender()
 		renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 			
 		renderPass.execute();
-	}
+	}*/
+
 	// --- Debug pass
 	// TODO add pipeline (default pipeline, debug pipeline...)
 	// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
@@ -300,7 +465,7 @@ void Viewer::onRender()
 		else
 		{
 			Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
-			Renderer3D::drawFrustum(worldToDepthCascadeMatrix[hovered]);
+			Renderer3D::drawFrustum(worldToLightSpaceMatrix[hovered]);
 		}
 		Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
 		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
@@ -320,7 +485,7 @@ void Viewer::onRender()
 		Renderer2D::clear();
 	}
 
-	{
+	/* {
 		if (ImGui::Begin("Info"))
 		{
 			ImGuiIO& io = ImGui::GetIO();
@@ -362,7 +527,7 @@ void Viewer::onRender()
 			ImGui::Text("Indices : %d", indexCount);
 		}
 		ImGui::End();
-	}
+	}*/
 }
 
 };
