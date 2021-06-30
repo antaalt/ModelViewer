@@ -1,5 +1,6 @@
 #include "ModelViewer.h"
 
+#include <imgui.h>
 #include <Aka/Layer/ImGuiLayer.h>
 
 namespace viewer {
@@ -420,6 +421,50 @@ void Viewer::onRender()
 			);
 		Renderer2D::render();
 		Renderer2D::clear();
+	}
+
+	{
+		if (ImGui::Begin("Info"))
+		{
+			ImGuiIO& io = ImGui::GetIO();
+			ImGui::Text("Resolution : %ux%u", width(), height());
+			ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
+			ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Scene"))
+		{
+			m_model->bbox;
+			uint32_t id = 0;
+			uint32_t vertexCount = 0;
+			uint32_t indexCount = 0;
+			for (Node& node : m_model->nodes)
+			{
+				static char buffer[256];
+				vertexCount += node.mesh->getVertexCount();
+				indexCount += node.mesh->getIndexCount();
+				snprintf(buffer, 256, "Node %u", id++);
+				if (ImGui::TreeNode(buffer))
+				{
+					// TODO use ImGuiGizmo
+					ImGui::Text("Transform");
+					ImGui::InputFloat4("##col0", node.transform.cols[0].data);
+					ImGui::InputFloat4("##col1", node.transform.cols[1].data);
+					ImGui::InputFloat4("##col2", node.transform.cols[2].data);
+					ImGui::InputFloat4("##col3", node.transform.cols[3].data);
+					ImGui::Text("Mesh");
+					ImGui::Text("Vertices : %d", node.mesh->getVertexCount());
+					ImGui::Text("Indices : %d", node.mesh->getIndexCount());
+					node.material;
+
+					ImGui::TreePop();
+				}
+			}
+			ImGui::Text("Vertices : %d", vertexCount);
+			ImGui::Text("Indices : %d", indexCount);
+		}
+		ImGui::End();
 	}
 }
 
