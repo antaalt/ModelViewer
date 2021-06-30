@@ -117,14 +117,13 @@ void Viewer::onCreate()
 	gbufferSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
-	m_depth = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
-	// TODO access internal format for half
+	m_depth = Texture::create(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
 	m_position = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_albedo = Texture::create(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
 	m_normal = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
+			FramebufferAttachmentType::DepthStencil,
 			m_depth
 		},
 		FramebufferAttachment{
@@ -320,7 +319,7 @@ void Viewer::onRender()
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
 
-	if (Keyboard::pressed(KeyboardKey::AltLeft))
+	if (!Keyboard::pressed(KeyboardKey::AltLeft))
 	{
 		// --- G-Buffer pass
 		if (Keyboard::pressed(KeyboardKey::ControlLeft))
@@ -344,7 +343,7 @@ void Viewer::onRender()
 		m_gbufferMaterial->set<mat4f>("u_view", renderView);
 		m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
 
-		m_gbuffer->clear(color4f(0.f), 1.f, 1, ClearMask::All);
+		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
 
 		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
@@ -366,7 +365,7 @@ void Viewer::onRender()
 		}
 
 		// --- Lighting pass
-		// TODO copy depth & stencil to draw over the scene.
+		backbuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 		// TODO We can use compute here
 		RenderPass lightingPass;
 		lightingPass.framebuffer = backbuffer;
