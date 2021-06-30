@@ -132,6 +132,7 @@ void Viewer::onCreate()
 	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	// TODO texture atlas & single shader execution
 	m_shadowCascadeTexture[0] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[1] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	m_shadowCascadeTexture[2] = Texture::create(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
@@ -184,62 +185,12 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	}
 }
 
-template <typename T = real_t>
-struct Frustum
-{
-	Frustum(const mat4<T>& projection);
-	Frustum(float left, float right, float bottom, float top, float near, float far);
-
-	point3<T> center() const;
-
-	point3<T>& operator[](size_t index) { return m_corners[index]; }
-	const point3<T>& operator[](size_t index) const { return m_corners[index]; }
-	point3<T>* data() { return m_corners; }
-	const point3<T>* data() const { return m_corners; }
-
-	bool operator==(const Frustum<T>& rhs) const;
-	bool operator!=(const Frustum<T>& rhs) const;
-private:
-	point3<T> m_corners[8];
-};
-
-template <typename T>
-Frustum<T>::Frustum(const mat4<T>& frustum)
-{
-	mat4<T> frustumInverse = mat4<T>::inverse(frustum);
-#if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
-	const T clipMinZ = static_cast<T>(-1);
-#else
-	const T clipMinZ = static_cast<T>(0);
-#endif
-	const T clipMaxZ = static_cast<T>(1);
-	// https://gamedev.stackexchange.com/questions/183196/calculating-directional-shadow-map-using-camera-frustum
-	m_corners[0] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>(-1), clipMinZ));
-	m_corners[1] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>(-1), clipMaxZ));
-	m_corners[2] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>(-1), clipMinZ));
-	m_corners[3] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>( 1), clipMinZ));
-	m_corners[4] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>(-1), clipMaxZ));
-	m_corners[5] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>(-1), static_cast<T>( 1), clipMaxZ));
-	m_corners[6] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>( 1), clipMinZ));
-	m_corners[7] = frustumInverse.multiplyPoint(point3<T>(static_cast<T>( 1), static_cast<T>( 1), clipMaxZ));
-}
-
-template <typename T>
-point3<T> Frustum<T>::center() const
-{
-	point3<T> c = point3<T>(0.f);
-	for (size_t i = 0; i < 8; i++)
-		for (size_t id = 0; id < 3; id++)
-			c.data[id] += m_corners[i].data[id];
-	return c / static_cast<T>(8);
-}
-
 // --- Shadows
 // Compute the shadow projection around the view projection.
 mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, float near, float far, const vec3f& lightDirWorld)
 {
-	Frustum frustum(projection * view);
-	point3f centerWorld = frustum.center();
+	frustum<> f = frustum<>::fromProjection(projection * view);
+	point3f centerWorld = f.center();
 	// http://alextardif.com/shadowmapping.html
 	// We need to snap position to avoid flickering
 	centerWorld = point3f(
@@ -252,7 +203,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 	// Set to light space.
 	aabbox bbox;
 	for (size_t i = 0; i < 8; i++)
-		bbox.include(lightViewMatrix.multiplyPoint(frustum[i]));
+		bbox.include(lightViewMatrix.multiplyPoint(f.corners[i]));
 	// snap bbox to upper bounds
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
 	mat4f lightProjectionMatrix = mat4f::orthographic(
@@ -265,14 +216,14 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 void Viewer::onRender()
 {
-	static aka::RenderPass renderPass{};
+	RenderPass renderPass{};
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_model->bbox.center() + m_model->bbox.extent(), point3f(0.f)));
 	mat4f view = mat4f::inverse(m_camera.transform());
 	// TODO use camera (Arcball inherit camera ?)
-	static float near = 0.01f;
-	static float far = 100.f;
-	static anglef angle = anglef::degree(90.f);
+	const float near = 0.01f;
+	const float far = 100.f;
+	const anglef angle = anglef::degree(90.f);
 	mat4f debugPerspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
@@ -300,7 +251,7 @@ void Viewer::onRender()
 	);
 
 	// --- Shadow pass
-	static RenderPass shadowPass;
+	RenderPass shadowPass;
 	shadowPass.framebuffer = m_shadowFramebuffer;
 	shadowPass.primitive = PrimitiveType::Triangles;
 	shadowPass.indexOffset = 0;
@@ -441,7 +392,7 @@ void Viewer::onRender()
 			uint32_t indexCount = 0;
 			for (Node& node : m_model->nodes)
 			{
-				static char buffer[256];
+				char buffer[256];
 				vertexCount += node.mesh->getVertexCount();
 				indexCount += node.mesh->getIndexCount();
 				snprintf(buffer, 256, "Node %u", id++);
