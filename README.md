@@ -11,9 +11,9 @@
 - Use normal maps of models
 
 ## Roadmap
-- Correct blending
+- Correct blending & transparent rendering
 - Add SSAO as ambient occlusion
-- Add ray tracing shadows / lightings
 - Add HDR lighting
 - Add spot light / point lights
 - Anti-aliasing (Multi sampling)
+- Add ray tracing shadows / lightings

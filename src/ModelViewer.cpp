@@ -7,20 +7,20 @@ namespace viewer {
 
 void Viewer::loadShader()
 {
+	std::vector<Attributes> attributes = { // HLSL only
+		Attributes{ AttributeID(0), "POS" },
+		Attributes{ AttributeID(0), "NORM" },
+		Attributes{ AttributeID(0), "TEX" },
+		Attributes{ AttributeID(0), "COL" }
+	};
 	{
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
-		std::vector<aka::Attributes> attributes;
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/shader.hlsl"));
 		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
-		std::vector<aka::Attributes> attributes;
-		attributes.push_back(aka::Attributes{ aka::AttributeID(0), "POS" });
-		attributes.push_back(aka::Attributes{ aka::AttributeID(0), "NORM" });
-		attributes.push_back(aka::Attributes{ aka::AttributeID(0), "TEX" });
-		attributes.push_back(aka::Attributes{ aka::AttributeID(0), "COL" });
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
@@ -30,68 +30,17 @@ void Viewer::loadShader()
 		{
 			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
 			if (shader->valid())
-			{
-				m_shader = shader;
 				m_material = aka::ShaderMaterial::create(shader);
-			}
 		}
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		// shadow shader
-		const char* vertShader = ""
-			"#version 330 core\n"
-			"layout(location = 0) in vec3 a_position;\n"
-			"uniform mat4 u_light;\n"
-			"uniform mat4 u_model;\n"
-			"void main() {\n"
-			"	gl_Position = u_light * u_model * vec4(a_position, 1.0);\n"
-			"}\n";
-		const char* fragShader = ""
-			"#version 330 core\n"
-			"void main() {\n"
-			"	//gl_FragDepth = gl_FragCoord.z;\n"
-			"}\n";
-		std::vector<Attributes> attributes;
-		ShaderID vert = Shader::compile(vertShader, ShaderType::Vertex);
-		ShaderID frag = Shader::compile(fragShader, ShaderType::Fragment);
+		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")), ShaderType::Vertex);
+		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")), ShaderType::Fragment);
 #else
-		// shadow shader
-		const char* shader = ""
-			"cbuffer constants : register(b0)\n"
-			"{\n"
-			"	row_major float4x4 u_light;\n"
-			"	row_major float4x4 u_model;\n"
-			"}\n"
-			"struct vs_in\n"
-			"{\n"
-			"	float3 position : POS;\n"
-			"	float3 normal : NORM;\n"
-			"	float2 tex : TEX;\n"
-			"	float4 color : COL;\n"
-			"};\n"
-			"struct vs_out\n"
-			"{\n"
-			"	float4 position : SV_POSITION;\n"
-			"};\n"
-			"vs_out vs_main(vs_in input)\n"
-			"{\n"
-			"	vs_out output;\n"
-			"	output.position = mul(mul(float4(input.position, 1.0f), u_model), u_light);\n"
-			"	return output;\n"
-			"}\n"
-			"float4 ps_main(vs_out input) : SV_TARGET\n"
-			"{\n"
-			"	return float4(1.0f, 1.0f, 1.0f, 1.0f);\n"
-			"}\n";
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
-		};
-		ShaderID vert = Shader::compile(shader, ShaderType::Vertex);
-		ShaderID frag = Shader::compile(shader, ShaderType::Fragment);
+		std::string str = File::readString(Asset::path("shaders/D3D/shadow.hlsl"));
+		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
+		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
@@ -101,10 +50,7 @@ void Viewer::loadShader()
 		{
 			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
 			if (shader->valid())
-			{
-				m_shadowShader = shader;
-				m_shadowMaterial = aka::ShaderMaterial::create(m_shadowShader);
-			}
+				m_shadowMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 }
