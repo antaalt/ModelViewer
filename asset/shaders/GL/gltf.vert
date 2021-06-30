@@ -19,13 +19,11 @@ out vec3 v_shadow[SHADOW_CASCADE_COUNT]; // light texture space
 out vec3 v_normal; // world space
 out vec2 v_uv; // texture space
 out vec4 v_color; // color space
-out float v_clipSpaceDepth;
 
 void main(void)
 {
 	gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
 
-	v_clipSpaceDepth = gl_Position.z;
 	v_position = vec3(u_model * vec4(a_position, 1.0));
 	for (int i = 0; i < SHADOW_CASCADE_COUNT; i++)
 	{

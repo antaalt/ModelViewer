@@ -64,7 +64,9 @@ void main(void)
 			);
 #else
 			// PCF
-			/*const int pass = 16;
+			const int pass = 16;
+			vec4 lightTextureSpace = u_worldToLightTextureSpace[iCascade] * vec4(position, 1.0);
+			lightTextureSpace /= lightTextureSpace.w;
 			for (int iPoisson = 0; iPoisson < 16; iPoisson++)
 			{
 				int index = int(16.0 * random(v_uv.xyy, iPoisson)) % 16;
@@ -73,14 +75,6 @@ void main(void)
 				{
 					visibility -= 1.f / pass;
 				}
-			}*/
-
-			// Compute shadow texture coordinate
-			vec4 lightTextureSpace = u_worldToLightTextureSpace[iCascade] * vec4(position, 1.0);
-			//lightTextureSpace /= lightTextureSpace.w;
-			if (texture(u_shadowTexture[iCascade], lightTextureSpace.xy).z < lightTextureSpace.z)
-			{
-				visibility -= 0.8;
 			}
 #endif
 			break;
@@ -92,8 +86,4 @@ void main(void)
 	vec3 indirect = 0.1 * albedo.rgb;
 	vec3 direct = visibility * albedo.rgb * cosTheta;
 	o_color = vec4(indirect + direct, albedo.a);
-	vec4 lightTextureSpace = u_worldToLightTextureSpace[0] * vec4(position, 1.0);
-	//o_color = vec4(lightTextureSpace.w, 0.0, 0.0, 1.0);
-	//o_color = lightTextureSpace / lightTextureSpace.w;
-	//o_color = vec4(texture(u_shadowTexture[0], (lightTextureSpace).xy).z, 0, 0, 1);
 }

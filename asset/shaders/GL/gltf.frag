@@ -7,9 +7,9 @@ in vec3 v_shadow[SHADOW_CASCADE_COUNT];
 in vec3 v_normal;
 in vec2 v_uv;
 in vec4 v_color;
-in float v_clipSpaceDepth;
 
 uniform vec3 u_lightDir;
+uniform mat4 u_light[SHADOW_CASCADE_COUNT];
 uniform float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
 uniform sampler2D u_colorTexture;
 uniform sampler2D u_normalTexture;
@@ -85,7 +85,7 @@ void main(void)
 	float diffusion[3] = float[](1000.f, 3000.f, 5000.f);
 	for (int iCascade = 0; iCascade < SHADOW_CASCADE_COUNT; iCascade++)
 	{
-		if (v_clipSpaceDepth <= u_cascadeEndClipSpace[iCascade])
+		if (gl_FragCoord.z <= u_cascadeEndClipSpace[iCascade])
 		{
 #if 0 // Debug cascades
 			visibility = vec3(
@@ -96,10 +96,11 @@ void main(void)
 #else
 			// PCF
 			const int pass = 16;
+			vec4 shadow = u_light[iCascade] * vec4(v_position, 1.0);
 			for (int iPoisson = 0; iPoisson < 16; iPoisson++)
 			{
 				int index = int(16.0 * random(gl_FragCoord.xyy, iPoisson)) % 16;
-				vec2 uv = v_shadow[iCascade].xy + poissonDisk[index] / diffusion[iCascade];
+				vec2 uv = shadow.xy + poissonDisk[index] / diffusion[iCascade];
 				if (texture(u_shadowTexture[iCascade], uv).z < v_shadow[iCascade].z - bias)
 				{
 					visibility -= 1.f / pass;
@@ -115,5 +116,10 @@ void main(void)
 	vec4 color = v_color * texture(u_colorTexture, v_uv);
 	vec3 indirect = 0.1 * color.rgb;
 	vec3 direct = visibility * color.rgb * cosTheta;
+
+	if (bool(color.a < 0.8)) { // TODO use threshold
+		discard;
+	}
+
 	o_color = vec4(indirect + direct, color.a);
 }

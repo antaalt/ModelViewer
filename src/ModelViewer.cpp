@@ -119,9 +119,9 @@ void Viewer::onCreate()
 	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
 	m_depth = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
 	// TODO access internal format for half
-	m_position = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
+	m_position = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_albedo = Texture::create(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
-	m_normal = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
+	m_normal = Texture::create(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,
@@ -317,123 +317,128 @@ void Viewer::onRender()
 		}
 	}
 
-	// --- G-Buffer pass
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
-	if (Keyboard::pressed(KeyboardKey::ControlLeft))
+
+	if (Keyboard::pressed(KeyboardKey::AltLeft))
 	{
-		renderView = debugView;
-		renderPerspective = debugPerspective;
+		// --- G-Buffer pass
+		if (Keyboard::pressed(KeyboardKey::ControlLeft))
+		{
+			renderView = debugView;
+			renderPerspective = debugPerspective;
+		}
+		// TODO depth prepass
+		RenderPass gbufferPass;
+		gbufferPass.framebuffer = m_gbuffer;
+		gbufferPass.primitive = PrimitiveType::Triangles;
+		gbufferPass.indexOffset = 0;
+		gbufferPass.material = m_gbufferMaterial;
+		gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+		gbufferPass.blend = Blending::none();
+		gbufferPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+		gbufferPass.stencil = Stencil::none();
+		gbufferPass.viewport = aka::Rect{ 0 };
+		gbufferPass.scissor = aka::Rect{ 0 };
+
+		m_gbufferMaterial->set<mat4f>("u_view", renderView);
+		m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
+
+		m_gbuffer->clear(color4f(0.f), 1.f, 1, ClearMask::All);
+
+		for (size_t i = 0; i < m_model->nodes.size(); i++)
+		{
+			aka::mat4f model = m_model->nodes[i].transform;
+			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
+			aka::color4f color = m_model->nodes[i].material.color;
+			m_gbufferMaterial->set<mat4f>("u_model", model);
+			m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
+			m_gbufferMaterial->set<color4f>("u_color", color);
+			m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
+			m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+
+			m_gbufferMaterial->set<mat4f>("u_model", model);
+			gbufferPass.mesh = m_model->nodes[i].mesh;
+			gbufferPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+			gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+			gbufferPass.execute();
+		}
+
+		// --- Lighting pass
+		// TODO copy depth & stencil to draw over the scene.
+		// TODO We can use compute here
+		RenderPass lightingPass;
+		lightingPass.framebuffer = backbuffer;
+		lightingPass.primitive = PrimitiveType::Triangles;
+		lightingPass.indexOffset = 0;
+		lightingPass.material = m_lightingMaterial;
+		lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
+		lightingPass.blend = Blending::none();
+		lightingPass.depth = Depth{ DepthCompare::None, true };
+		lightingPass.stencil = Stencil::none();
+		lightingPass.viewport = aka::Rect{ 0 };
+		lightingPass.scissor = aka::Rect{ 0 };
+		lightingPass.mesh = m_quad;
+		lightingPass.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
+		lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+		m_lightingMaterial->set<Texture::Ptr>("u_position", m_position);
+		m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
+		m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
+		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
+		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
+		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);
+		m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
+		m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+
+		lightingPass.execute();
+
 	}
-	// TODO depth prepass
-	RenderPass gbufferPass;
-	gbufferPass.framebuffer = m_gbuffer;
-	gbufferPass.primitive = PrimitiveType::Triangles;
-	gbufferPass.indexOffset = 0;
-	gbufferPass.material = m_gbufferMaterial;
-	gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-	gbufferPass.blend = Blending::none();
-	gbufferPass.depth = Depth{ DepthCompare::LessOrEqual, true };
-	gbufferPass.stencil = Stencil::none();
-	gbufferPass.viewport = aka::Rect{ 0 };
-	gbufferPass.scissor = aka::Rect{ 0 };
-
-	m_gbufferMaterial->set<mat4f>("u_view", renderView);
-	m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
-
-	m_gbuffer->clear(color4f(0.f), 1.f, 1, ClearMask::All);
-	
-	for (size_t i = 0; i < m_model->nodes.size(); i++)
+	else
 	{
-		aka::mat4f model = m_model->nodes[i].transform;
-		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-		aka::color4f color = m_model->nodes[i].material.color;
-		m_gbufferMaterial->set<mat4f>("u_model", model);
-		m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
-		m_gbufferMaterial->set<color4f>("u_color", color);
-		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
-		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+		// --- Forward pass
+		backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
 
-		m_gbufferMaterial->set<mat4f>("u_model", model);
-		gbufferPass.mesh = m_model->nodes[i].mesh;
-		gbufferPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-		gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+		if (Keyboard::pressed(KeyboardKey::ControlLeft))
+		{
+			renderView = debugView;
+			renderPerspective = debugPerspective;
+		}
+		m_material->set<mat4f>("u_view", renderView);
+		m_material->set<mat4f>("u_projection", renderPerspective);
+		m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, cascadeCount);
+		m_material->set<vec3f>("u_lightDir", m_lightDir);
+		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
+		m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+		RenderPass renderPass{};
+		renderPass.framebuffer = backbuffer;
+		renderPass.primitive = PrimitiveType::Triangles;
+		renderPass.indexOffset = 0;
+		renderPass.material = m_material;
+		renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+		renderPass.blend = Blending::nonPremultiplied();
+		renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+		renderPass.stencil = Stencil::none();
+		renderPass.viewport = aka::Rect{ 0 };
+		renderPass.scissor = aka::Rect{ 0 };
+		for (size_t i = 0; i < m_model->nodes.size(); i++)
+		{
+			aka::mat4f model = m_model->nodes[i].transform;
+			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
+			aka::color4f color = m_model->nodes[i].material.color;
+			m_material->set<mat4f>("u_model", model);
+			m_material->set<mat3f>("u_normalMatrix", normal);
+			m_material->set<color4f>("u_color", color);
+			m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
+			m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+			renderPass.mesh = m_model->nodes[i].mesh;
+			renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+			renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-		gbufferPass.execute();
+			renderPass.execute();
+		}
 	}
-
-	// --- Lighting pass
-	// TODO We can use compute here
-	RenderPass lightingPass;
-	lightingPass.framebuffer = backbuffer;
-	lightingPass.primitive = PrimitiveType::Triangles;
-	lightingPass.indexOffset = 0;
-	lightingPass.material = m_lightingMaterial;
-	lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
-	lightingPass.blend = Blending::none();
-	lightingPass.depth = Depth{ DepthCompare::None, true };
-	lightingPass.stencil = Stencil::none();
-	lightingPass.viewport = aka::Rect{ 0 };
-	lightingPass.scissor = aka::Rect{ 0 };
-	lightingPass.mesh = m_quad;
-	lightingPass.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
-	lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-
-	m_lightingMaterial->set<Texture::Ptr>("u_position", m_position);
-	m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
-	m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
-	m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
-	m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
-	m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);
-	m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
-	m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
-
-	lightingPass.execute();
-	
-	
-	// --- Forward pass
-	/*backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
-	mat4f renderView = view;
-	mat4f renderPerspective = perspective;
-		
-	if (Keyboard::pressed(KeyboardKey::ControlLeft))
-	{
-		renderView = debugView;
-		renderPerspective = debugPerspective;
-	}
-	m_material->set<mat4f>("u_view", renderView);
-	m_material->set<mat4f>("u_projection", renderPerspective);
-	m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, cascadeCount);
-	m_material->set<vec3f>("u_lightDir", m_lightDir);
-	m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
-	m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
-	RenderPass renderPass{};
-	renderPass.framebuffer = backbuffer;
-	renderPass.primitive = PrimitiveType::Triangles;
-	renderPass.indexOffset = 0;
-	renderPass.material = m_material;
-	renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-	renderPass.blend = Blending::nonPremultiplied();
-	renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
-	renderPass.stencil = Stencil::none();
-	renderPass.viewport = aka::Rect{ 0 };
-	renderPass.scissor = aka::Rect{ 0 };
-	for (size_t i = 0; i < m_model->nodes.size(); i++)
-	{
-		aka::mat4f model = m_model->nodes[i].transform;
-		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-		aka::color4f color = m_model->nodes[i].material.color;
-		m_material->set<mat4f>("u_model", model);
-		m_material->set<mat3f>("u_normalMatrix", normal);
-		m_material->set<color4f>("u_color", color);
-		m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
-		m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
-		renderPass.mesh = m_model->nodes[i].mesh;
-		renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-		renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-			
-		renderPass.execute();
-	}*/
 
 	// --- Debug pass
 	// TODO add pipeline (default pipeline, debug pipeline...)
