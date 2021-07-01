@@ -13,15 +13,15 @@ Texture::Ptr loadTexture(const Path& path, const Sampler& sampler)
 	Image img = Image::load(path);
 	if (img.bytes.size() > 0)
 	{
-		Texture::Ptr texture = Texture::create(
+		Texture::Ptr texture = Texture::create2D(
 			img.width,
 			img.height,
 			TextureFormat::UnsignedByte,
 			img.components == 4 ? TextureComponent::RGBA : TextureComponent::RGB,
 			TextureFlag::None,
-			sampler
+			sampler,
+			img.bytes.data()
 		);
-		texture->upload(img.bytes.data());
 		return texture;
 	}
 	else
@@ -90,9 +90,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 
 		// TODO store somewhere else.
 		// TODO create unordered_map to avoid duplicating textures on GPU
-		static Texture::Ptr missingColorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-		uint8_t bytesColor[4] = { 255, 0, 255, 255 }; 
-		missingColorTexture->upload(bytesColor);
+		uint8_t bytesColor[4] = { 255, 0, 255, 255 };
+		static Texture::Ptr missingColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesColor);
 		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
 			aiTextureType type = aiTextureType_BASE_COLOR;
@@ -124,9 +123,8 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 			node.material.colorTexture = missingColorTexture;
 		}
 
-		static Texture::Ptr missingNormalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-		uint8_t bytesNormal [4] = { 128,128,255,255 };
-		missingNormalTexture->upload(bytesNormal);
+		uint8_t bytesNormal[4] = { 128,128,255,255 };
+		static Texture::Ptr missingNormalTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesNormal);
 
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
@@ -168,11 +166,9 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		node.material.metallic = 1.f;
 		node.material.roughness = 1.f;
 		uint8_t colorData[4] = { 255,255,255,255 };
-		node.material.colorTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-		node.material.colorTexture->upload(colorData);
+		node.material.colorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, colorData);
 		uint8_t normalData[4] = { 128,128,255,255 };
-		node.material.normalTexture = Texture::create(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler);
-		node.material.normalTexture->upload(normalData);
+		node.material.normalTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, normalData);
 	}
 	node.mesh = Mesh::create();
 	VertexData data;
