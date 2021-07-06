@@ -10,7 +10,9 @@ uniform sampler2D u_position;
 uniform sampler2D u_albedo;
 uniform sampler2D u_normal;
 uniform sampler2D u_depth;
+uniform samplerCube u_skybox;
 
+uniform vec3 u_cameraPos;
 uniform vec3 u_lightDir;
 uniform mat4 u_worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
 uniform float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
@@ -81,9 +83,14 @@ void main(void)
 		}
 	}
 
+	// Reflection
+	vec3 incidentVector = normalize(position - u_cameraPos);
+	vec3 reflectionVector = reflect(incidentVector, normalize(normal));
+	vec3 reflectColor = texture(u_skybox, reflectionVector).rgb;
+
 	// Shading
 	float cosTheta = clamp(dot(normal, normalize(u_lightDir)), 0.0, 1.0);
 	vec3 indirect = 0.1 * albedo.rgb;
 	vec3 direct = visibility * albedo.rgb * cosTheta;
-	o_color = vec4(indirect + direct, albedo.a);
+	o_color = vec4(indirect + direct + reflectColor * visibility, albedo.a);
 }

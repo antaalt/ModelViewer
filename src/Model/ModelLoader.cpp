@@ -90,8 +90,10 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 
 		// TODO store somewhere else.
 		// TODO create unordered_map to avoid duplicating textures on GPU
-		uint8_t bytesColor[4] = { 255, 0, 255, 255 };
-		static Texture::Ptr missingColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesColor);
+		uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
+		uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
+		static Texture::Ptr missingColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesMissingColor);
+		static Texture::Ptr blankColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesBlankColor);
 		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
 			aiTextureType type = aiTextureType_BASE_COLOR;
@@ -120,7 +122,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		}
 		else
 		{
-			node.material.colorTexture = missingColorTexture;
+			node.material.colorTexture = blankColorTexture;
 		}
 
 		uint8_t bytesNormal[4] = { 128,128,255,255 };

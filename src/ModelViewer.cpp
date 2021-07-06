@@ -484,9 +484,11 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
 		m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
 		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
+		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
 		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);
 		m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
+		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
 		m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
 
 		lightingPass.execute();
