@@ -15,10 +15,13 @@ public:
 	void onUpdate(Time::Unit deltaTime) override;
 	void onRender() override;
 private:
-	aka::Texture::Ptr m_shadowCascadeTexture[3];
+	// shadow map pass
+	static const size_t cascadeCount = 3;
+	aka::Texture::Ptr m_shadowCascadeTexture[cascadeCount];
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;
 
+	// gbuffers pass
 	aka::Texture::Ptr m_position;
 	aka::Texture::Ptr m_albedo;
 	aka::Texture::Ptr m_normal;
@@ -26,9 +29,16 @@ private:
 	aka::Framebuffer::Ptr m_gbuffer;
 	aka::ShaderMaterial::Ptr m_gbufferMaterial;
 
+	// compose pass
 	aka::Mesh::Ptr m_quad;
 	aka::ShaderMaterial::Ptr m_lightingMaterial;
 
+	// Skybox
+	aka::Mesh::Ptr m_cube;
+	aka::Texture::Ptr m_skybox;
+	aka::ShaderMaterial::Ptr m_skyboxMaterial;
+
+	// Forward pass
 	aka::ShaderMaterial::Ptr m_material;
 	vec3f m_lightDir;
 	Model::Ptr m_model;

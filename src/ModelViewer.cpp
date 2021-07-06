@@ -93,6 +93,26 @@ void Viewer::loadShader()
 				m_shadowMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
+	{
+#if defined(AKA_USE_OPENGL)
+		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")), ShaderType::Vertex);
+		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")), ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/skybox.hlsl"));
+		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
+		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile shadow shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			if (shader->valid())
+				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
 }
 
 void Viewer::onCreate()
@@ -143,17 +163,98 @@ void Viewer::onCreate()
 
 	// --- Lighting pass
 	m_quad = Mesh::create();
-	VertexData data;
-	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec2 });
-	float vertices[] = {
+	VertexData dataQuad;
+	dataQuad.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec2 });
+	float quadVertices[] = {
 		-1, -1, // bottom left corner
 		 1, -1,  // bottom right corner
 		 1,  1, // top right corner
 		-1,  1, // top left corner
 	};
 	uint8_t indices[] = { 0,1,2,0,2,3 };
-	m_quad->vertices(data, vertices, 4);
+	m_quad->vertices(dataQuad, quadVertices, 4);
 	m_quad->indices(IndexFormat::UnsignedByte, indices, 6);
+
+	// --- Skybox pass
+	String cubemapPath[6] = {
+		"skybox/skybox_px.jpg",
+		"skybox/skybox_nx.jpg",
+		"skybox/skybox_py.jpg",
+		"skybox/skybox_ny.jpg",
+		"skybox/skybox_pz.jpg",
+		"skybox/skybox_nz.jpg",
+	};
+	Image cubemap[6];
+	for (size_t i = 0; i < 6; i++)
+	{
+		cubemap[i] = Image::load(Asset::path(cubemapPath[i]), false);
+		AKA_ASSERT(cubemap[i].width == cubemap[0].width && cubemap[i].height == cubemap[0].height, "Width & height not matching");
+	}
+	Sampler cubeSampler{};
+	cubeSampler.filterMag = Sampler::Filter::Linear;
+	cubeSampler.filterMin = Sampler::Filter::Linear;
+	cubeSampler.wrapU = Sampler::Wrap::ClampToEdge;
+	cubeSampler.wrapV = Sampler::Wrap::ClampToEdge;
+	cubeSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	m_skybox = Texture::createCubemap(
+		cubemap[0].width, cubemap[0].height,
+		TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, 
+		cubeSampler, 
+		cubemap[0].bytes.data(),
+		cubemap[1].bytes.data(),
+		cubemap[2].bytes.data(),
+		cubemap[3].bytes.data(),
+		cubemap[4].bytes.data(),
+		cubemap[5].bytes.data()
+	);
+
+	m_cube = Mesh::create();
+	VertexData dataSkybox;
+	dataSkybox.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
+	float skyboxVertices[] = {
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f
+	};
+	m_cube->vertices(dataSkybox, skyboxVertices, 36);
 
 	// --- Forward pass 
 
@@ -262,8 +363,7 @@ void Viewer::onRender()
 	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
 
 	// Generate shadow cascades
-	mat4f worldToLightSpaceMatrix[3];
-	const size_t cascadeCount = 3;
+	mat4f worldToLightSpaceMatrix[cascadeCount];
 	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
 	float cascadeEndClipSpace[cascadeCount];
 	for (size_t i = 0; i < cascadeCount; i++)
@@ -295,7 +395,8 @@ void Viewer::onRender()
 	shadowPass.material = m_shadowMaterial;
 	shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 	shadowPass.blend = Blending::none();
-	shadowPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+	shadowPass.depth = Depth{ DepthCompare::Less, true };
+	shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 	shadowPass.stencil = Stencil::none();
 	shadowPass.viewport = aka::Rect{ 0 };
 	shadowPass.scissor = aka::Rect{ 0 };
@@ -304,13 +405,11 @@ void Viewer::onRender()
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]);
-		for (size_t i = 0; i < m_model->nodes.size(); i++)
+ 		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
-			aka::mat4f model = m_model->nodes[i].transform;
-			m_shadowMaterial->set<mat4f>("u_model", model);
+			m_shadowMaterial->set<mat4f>("u_model", m_model->nodes[i].transform);
 			shadowPass.mesh = m_model->nodes[i].mesh;
 			shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-			shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 			shadowPass.execute();
 		}
@@ -335,7 +434,7 @@ void Viewer::onRender()
 		gbufferPass.material = m_gbufferMaterial;
 		gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		gbufferPass.blend = Blending::none();
-		gbufferPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+		gbufferPass.depth = Depth{ DepthCompare::Less, true };
 		gbufferPass.stencil = Stencil::none();
 		gbufferPass.viewport = aka::Rect{ 0 };
 		gbufferPass.scissor = aka::Rect{ 0 };
@@ -365,7 +464,6 @@ void Viewer::onRender()
 		}
 
 		// --- Lighting pass
-		backbuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 		// TODO We can use compute here
 		RenderPass lightingPass;
 		lightingPass.framebuffer = backbuffer;
@@ -374,7 +472,7 @@ void Viewer::onRender()
 		lightingPass.material = m_lightingMaterial;
 		lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
 		lightingPass.blend = Blending::none();
-		lightingPass.depth = Depth{ DepthCompare::None, true };
+		lightingPass.depth = Depth{ DepthCompare::None, false };
 		lightingPass.stencil = Stencil::none();
 		lightingPass.viewport = aka::Rect{ 0 };
 		lightingPass.scissor = aka::Rect{ 0 };
@@ -393,6 +491,7 @@ void Viewer::onRender()
 
 		lightingPass.execute();
 
+		backbuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 	}
 	else
 	{
@@ -417,7 +516,7 @@ void Viewer::onRender()
 		renderPass.material = m_material;
 		renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		renderPass.blend = Blending::nonPremultiplied();
-		renderPass.depth = Depth{ DepthCompare::LessOrEqual, true };
+		renderPass.depth = Depth{ DepthCompare::Less, true };
 		renderPass.stencil = Stencil::none();
 		renderPass.viewport = aka::Rect{ 0 };
 		renderPass.scissor = aka::Rect{ 0 };
@@ -438,6 +537,27 @@ void Viewer::onRender()
 			renderPass.execute();
 		}
 	}
+	// --- Skybox pass
+	RenderPass skyboxPass;
+	skyboxPass.framebuffer = backbuffer;
+	skyboxPass.primitive = PrimitiveType::Triangles;
+	skyboxPass.indexOffset = 0;
+	skyboxPass.material = m_skyboxMaterial;
+	skyboxPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
+	skyboxPass.blend = Blending::none();
+	skyboxPass.depth = Depth{ DepthCompare::LessOrEqual, false };
+	skyboxPass.stencil = Stencil::none();
+	skyboxPass.viewport = aka::Rect{ 0 };
+	skyboxPass.scissor = aka::Rect{ 0 };
+	skyboxPass.mesh = m_cube;
+	skyboxPass.indexCount = m_cube->getIndexCount();
+	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+	m_skyboxMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
+	m_skyboxMaterial->set<mat4f>("u_view", mat4f(mat3f(renderView)));
+	m_skyboxMaterial->set<mat4f>("u_projection", renderPerspective);
+
+	skyboxPass.execute();
 
 	// --- Debug pass
 	// TODO add pipeline (default pipeline, debug pipeline...)
