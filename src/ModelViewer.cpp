@@ -150,8 +150,8 @@ void Viewer::onCreate()
 
 	// --- G-Buffer pass
 	Sampler gbufferSampler{};
-	gbufferSampler.filterMag = Sampler::Filter::Linear;
-	gbufferSampler.filterMin = Sampler::Filter::Linear;
+	gbufferSampler.filterMag = Sampler::Filter::Nearest;
+	gbufferSampler.filterMin = Sampler::Filter::Nearest;
 	gbufferSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
@@ -177,7 +177,7 @@ void Viewer::onCreate()
 			m_normal
 		}
 	};
-	m_gbuffer = Framebuffer::create(width(), height(), gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
+	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
 
 	// --- Lighting pass
 	m_quad = Mesh::create();
@@ -277,8 +277,6 @@ void Viewer::onCreate()
 	// --- Forward pass 
 
 	// --- Shadows
-	uint32_t shadowMapWidth = 2048;
-	uint32_t shadowMapHeight = 2048;
 	Sampler shadowSampler{};
 	shadowSampler.filterMag = Sampler::Filter::Linear;
 	shadowSampler.filterMin = Sampler::Filter::Linear;
@@ -286,16 +284,16 @@ void Viewer::onCreate()
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
 	// TODO texture atlas & single shader execution
-	m_shadowCascadeTexture[0] = Texture::create2D(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	m_shadowCascadeTexture[1] = Texture::create2D(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	m_shadowCascadeTexture[2] = Texture::create2D(shadowMapWidth, shadowMapHeight, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowCascadeTexture[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowCascadeTexture[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	m_shadowCascadeTexture[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	FramebufferAttachment shadowAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,
 			m_shadowCascadeTexture[0]
 		}
 	}; 
-	m_shadowFramebuffer = Framebuffer::create(shadowMapWidth, shadowMapHeight, shadowAttachments, sizeof(shadowAttachments) / sizeof(FramebufferAttachment));
+	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
 
@@ -340,30 +338,40 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 
 // --- Shadows
 // Compute the shadow projection around the view projection.
-mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, float near, float far, const vec3f& lightDirWorld)
+mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, uint32_t resolution, float near, float far, const vec3f& lightDirWorld)
 {
 	frustum<> f = frustum<>::fromProjection(projection * view);
 	point3f centerWorld = f.center();
 	// http://alextardif.com/shadowmapping.html
-	// We need to snap position to avoid flickering
-	centerWorld = point3f(
-		floor(centerWorld.x),
-		floor(centerWorld.y),
-		floor(centerWorld.z)
+	vec3f extentDepth = f.corners[0] - f.corners[7];
+	vec3f extentWidth = f.corners[1] - f.corners[7];
+	vec3f e = vec3f(
+		max(abs(extentDepth.x), abs(extentWidth.x)),
+		max(abs(extentDepth.y), abs(extentWidth.y)),
+		max(abs(extentDepth.z), abs(extentWidth.z))
 	);
-	// TODO handle up.
-	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(centerWorld, centerWorld - lightDirWorld, norm3f(0, 1, 0)));
-	// Set to light space.
-	aabbox bbox;
-	for (size_t i = 0; i < 8; i++)
-		bbox.include(lightViewMatrix.multiplyPoint(f.corners[i]));
-	// snap bbox to upper bounds
-	// TODO scale depend on scene bbox vs frustum bbox
+	float radius = e.norm() / 2.f;
+	float texelsPerUnit = (float)resolution / (radius * 2.f);
+
+	mat4f lookAt = mat4f::inverse(mat4f::lookAt(point3f(0.f), point3f(-lightDirWorld), norm3f(0, 1, 0)));
+	mat4f scalar = mat4f::scale(vec3f(texelsPerUnit));
+	lookAt *= scalar;
+	mat4f lookAtInverse = mat4f::inverse(lookAt);
+
+	centerWorld = lookAt * centerWorld;
+	centerWorld.x = floor(centerWorld.x);
+	centerWorld.y = floor(centerWorld.y);
+	centerWorld = lookAtInverse * centerWorld;
+
+	point3f eye = centerWorld + (lightDirWorld * radius * 2.f);
+
+	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(eye, centerWorld, norm3f(0, 1, 0)));
+
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
-	mat4f lightProjectionMatrix = mat4f::orthographic(
-		floor(bbox.min.y), ceil(bbox.max.y),
-		floor(bbox.min.x), ceil(bbox.max.x),
-		floor(bbox.min.z) * scale, ceil(bbox.max.z) * scale
+	mat4 lightProjectionMatrix = mat4f::orthographic(
+		-radius, radius,
+		-radius, radius,
+		-radius * scale, radius * scale
 	);
 	return lightProjectionMatrix * lightViewMatrix;
 }
@@ -391,7 +399,7 @@ void Viewer::onRender()
 		float n = offset[i];
 		float f = offset[i + 1];
 		mat4f p = mat4f::perspective(angle, w / h, n, f);
-		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, n, f, m_lightDir);
+		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, m_lightDir);
 		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 		cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 	}
