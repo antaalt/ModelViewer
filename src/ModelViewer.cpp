@@ -7,13 +7,13 @@ namespace viewer {
 
 void Viewer::loadShader()
 {
-	std::vector<Attributes> attributes = { // HLSL only
-		Attributes{ AttributeID(0), "POS" },
-		Attributes{ AttributeID(0), "NORM" },
-		Attributes{ AttributeID(0), "TEX" },
-		Attributes{ AttributeID(0), "COL" }
-	};
 	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
+		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")), aka::ShaderType::Fragment);
@@ -34,6 +34,9 @@ void Viewer::loadShader()
 		}
 	}
 	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" }
+		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.frag")), aka::ShaderType::Fragment);
@@ -54,6 +57,12 @@ void Viewer::loadShader()
 		}
 	}
 	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
+		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
@@ -74,6 +83,12 @@ void Viewer::loadShader()
 		}
 	}
 	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
+		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")), ShaderType::Vertex);
 		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")), ShaderType::Fragment);
@@ -94,6 +109,9 @@ void Viewer::loadShader()
 		}
 	}
 	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")), ShaderType::Vertex);
 		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")), ShaderType::Fragment);
@@ -104,7 +122,7 @@ void Viewer::loadShader()
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
-			aka::Logger::error("Failed to compile shadow shader");
+			aka::Logger::error("Failed to compile skybox shader");
 		}
 		else
 		{
