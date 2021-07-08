@@ -3,6 +3,7 @@
 layout (location = 0) out vec3 o_position;
 layout (location = 1) out vec4 o_albedo;
 layout (location = 2) out vec3 o_normal;
+layout (location = 3) out vec3 o_roughness;
 
 in vec3 v_position;
 in vec3 v_normal;
@@ -11,13 +12,15 @@ in vec4 v_color;
 
 uniform sampler2D u_colorTexture;
 uniform sampler2D u_normalTexture;
+uniform sampler2D u_roughnessTexture;
+uniform vec4 u_color;
 
 out vec4 o_color;
 
 void main(void)
 {
     // --- Generate albedo
-    vec4 albedo = v_color * texture(u_colorTexture, v_uv);
+    vec4 albedo = u_color * v_color * texture(u_colorTexture, v_uv);
 
     // --- Generate normals
     // Compute TBN matrix.
@@ -53,4 +56,5 @@ void main(void)
     o_position = v_position;
     o_normal = normal;
     o_albedo = albedo;
+    o_roughness = texture(u_roughnessTexture, v_uv).rgb;
 }

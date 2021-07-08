@@ -10,6 +10,7 @@ uniform sampler2D u_position;
 uniform sampler2D u_albedo;
 uniform sampler2D u_normal;
 uniform sampler2D u_depth;
+uniform sampler2D u_roughness;
 uniform samplerCube u_skybox;
 
 uniform vec3 u_cameraPos;
@@ -44,13 +45,8 @@ float random(vec3 seed, int i)
 	return fract(sin(dot_product) * 43758.5453);
 }
 
-void main(void)
+vec3 computeShadows(vec3 position)
 {
-	vec3 position = texture(u_position, v_uv).rgb; // TODO get position from depth buffer ? to save memory
-	vec3 normal   = texture(u_normal, v_uv).rgb;
-	vec4 albedo   = texture(u_albedo, v_uv);
-
-	// Shadow
 	const float bias = 0.0005; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
 	float diffusion[3] = float[](1000.f, 3000.f, 5000.f); // TODO parameter
@@ -82,6 +78,18 @@ void main(void)
 			break;
 		}
 	}
+	return visibility;
+}
+
+void main(void)
+{
+	vec3 position = texture(u_position, v_uv).rgb; // TODO get position from depth buffer ? to save memory
+	vec3 normal   = texture(u_normal, v_uv).rgb;
+	vec4 albedo   = texture(u_albedo, v_uv);
+	vec3 material = texture(u_roughness, v_uv).rgb; // AO / roughness / metalness
+
+	// Shadow
+	vec3 visibility = computeShadows(position);
 
 	// Reflection
 	vec3 incidentVector = normalize(position - u_cameraPos);
@@ -92,5 +100,5 @@ void main(void)
 	float cosTheta = clamp(dot(normal, normalize(u_lightDir)), 0.0, 1.0);
 	vec3 indirect = 0.1 * albedo.rgb;
 	vec3 direct = visibility * albedo.rgb * cosTheta;
-	o_color = vec4(indirect + direct + reflectColor * visibility, albedo.a);
+	o_color = vec4(material.g * (indirect + direct + reflectColor * 0.1), albedo.a);
 }

@@ -159,6 +159,7 @@ void Viewer::onCreate()
 	m_position = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_albedo = Texture::create2D(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
 	m_normal = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_roughness = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::DepthStencil,
@@ -175,6 +176,10 @@ void Viewer::onCreate()
 		FramebufferAttachment{
 			FramebufferAttachmentType::Color2,
 			m_normal
+		},
+		FramebufferAttachment{
+			FramebufferAttachmentType::Color3,
+			m_roughness
 		}
 	};
 	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
@@ -478,6 +483,7 @@ void Viewer::onRender()
 			m_gbufferMaterial->set<mat4f>("u_model", model);
 			m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
 			m_gbufferMaterial->set<color4f>("u_color", color);
+			m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", m_model->nodes[i].material.roughnessTexture);
 			m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
 			m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
 
@@ -510,6 +516,7 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
 		m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
 		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
+		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
 		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);

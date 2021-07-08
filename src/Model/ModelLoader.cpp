@@ -85,9 +85,6 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		Sampler defaultSampler = Sampler::bilinear();
 		node.material.color = color4f(1.f);
 		node.material.doubleSided = true;
-		node.material.metallic = 1.f;
-		node.material.roughness = 1.f;
-
 		// TODO store somewhere else.
 		// TODO create unordered_map to avoid duplicating textures on GPU
 		uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
@@ -141,7 +138,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 				break; // Ignore others textures for now.
 			}
 		}
-		if (material->GetTextureCount(aiTextureType_NORMALS) > 0)
+		else if (material->GetTextureCount(aiTextureType_NORMALS) > 0)
 		{
 			aiTextureType type = aiTextureType_NORMALS;
 			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
@@ -158,19 +155,54 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		{
 			node.material.normalTexture = missingNormalTexture;
 		}
+
+		uint8_t roughnessData[4] = { 255,255,255,255 };
+		static Texture::Ptr missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, roughnessData);
+
+		if (material->GetTextureCount(aiTextureType_UNKNOWN) > 0) // GLTF pbr texture is retrieved this way (?)
+		{
+			aiTextureType type = aiTextureType_UNKNOWN;
+			//for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
+			{
+				aiString str;
+				material->GetTexture(type, 0, &str);
+				node.material.roughnessTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.roughnessTexture == nullptr)
+					node.material.roughnessTexture = missingRoughnessTexture;
+				//break; // Ignore others textures for now.
+			}
+		}
+		else if (material->GetTextureCount(aiTextureType_SHININESS) > 0)
+		{
+			aiTextureType type = aiTextureType_SHININESS;
+			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
+			{
+				aiString str;
+				material->GetTexture(type, i, &str);
+				node.material.roughnessTexture = loadTexture(Path(path + str.C_Str()), defaultSampler);
+				if (node.material.roughnessTexture == nullptr)
+					node.material.roughnessTexture = missingRoughnessTexture;
+				break; // Ignore others textures for now.
+			}
+		}
+		else
+		{
+			node.material.roughnessTexture = missingRoughnessTexture;
+		}
 	}
 	else
 	{
 		// No material !
+		// TODO avoid duplicated textures
 		Sampler defaultSampler = Sampler::bilinear();
 		node.material.color = color4f(1.f);
 		node.material.doubleSided = true;
-		node.material.metallic = 1.f;
-		node.material.roughness = 1.f;
 		uint8_t colorData[4] = { 255,255,255,255 };
 		node.material.colorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, colorData);
 		uint8_t normalData[4] = { 128,128,255,255 };
 		node.material.normalTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, normalData);
+		uint8_t roughnessData[4] = { 255,255,255,255 };
+		node.material.roughnessTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, roughnessData);
 	}
 	node.mesh = Mesh::create();
 	VertexData data;

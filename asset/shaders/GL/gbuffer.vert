@@ -8,12 +8,11 @@ uniform mat4 u_model;
 uniform mat4 u_view;
 uniform mat4 u_projection;
 uniform mat3 u_normalMatrix;
-uniform vec4 u_color;
 
 out vec3 v_position; // world space
 out vec3 v_normal; // world space
 out vec2 v_uv; // texture space
-out vec4 v_color; // color space
+out vec4 v_color;
 
 void main(void)
 {
@@ -22,5 +21,5 @@ void main(void)
 	v_position = vec3(u_model * vec4(a_position, 1.0));
 	v_normal = normalize(u_normalMatrix * a_normal);
 	v_uv = a_uv;
-	v_color = u_color * a_color;
+	v_color = a_color;
 }

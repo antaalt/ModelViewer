@@ -10,12 +10,10 @@ struct Material {
 	using Ptr = std::shared_ptr<Material>;
 	bool doubleSided;
 	color4f color;
-	float metallic;
-	float roughness;
 	Texture::Ptr colorTexture;
 	Texture::Ptr normalTexture;
-	Texture::Ptr metallicTexture;
-	Texture::Ptr emissiveTexture;
+	Texture::Ptr roughnessTexture;
+	//Texture::Ptr emissiveTexture;
 };
 
 struct Vertex {
