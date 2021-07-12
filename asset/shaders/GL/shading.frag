@@ -3,6 +3,7 @@
 layout(location = 0) out vec4 o_color;
 
 const int SHADOW_CASCADE_COUNT = 3;
+const float PI = 3.14159265359;
 
 in vec2 v_uv;
 
@@ -81,12 +82,106 @@ vec3 computeShadows(vec3 position)
 	return visibility;
 }
 
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+	return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+	float a      = roughness*roughness;
+	float a2     = a*a;
+	float NdotH  = max(dot(N, H), 0.0);
+	float NdotH2 = NdotH*NdotH;
+
+	float num   = a2;
+	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+	denom = PI * denom * denom;
+
+	return num / denom;
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+	float r = (roughness + 1.0);
+	float k = (r*r) / 8.0;
+
+	float num   = NdotV;
+	float denom = NdotV * (1.0 - k) + k;
+
+	return num / denom;
+}
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+	float NdotV = max(dot(N, V), 0.0);
+	float NdotL = max(dot(N, L), 0.0);
+	float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+	float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+
+	return ggx1 * ggx2;
+}
+
+vec3 ACESFilm(vec3 x)
+{
+	const float a = 2.51f;
+	const float b = 0.03f;
+	const float c = 2.43f;
+	const float d = 0.59f;
+	const float e = 0.14f;
+	return vec3(clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1));
+}
+
 void main(void)
 {
 	vec3 position = texture(u_position, v_uv).rgb; // TODO get position from depth buffer ? to save memory
 	vec3 normal   = texture(u_normal, v_uv).rgb;
-	vec4 albedo   = texture(u_albedo, v_uv);
+	vec3 albedo   = pow(texture(u_albedo, v_uv).rgb, vec3(2.2)); // To Linear space
 	vec3 material = texture(u_roughness, v_uv).rgb; // AO / roughness / metalness
+	float ao = material.r;
+	float roughness = material.g;
+	float metalness = material.b;
+
+	vec3 N = normalize(normal);
+	vec3 V = normalize(u_cameraPos - position);
+	vec3 I = -V;
+
+	vec3 Lo = vec3(0.0);
+	// Point lights
+	/*for(int i = 0; i < 4; ++i)
+	{
+		vec3 L = normalize(lightPositions[i] - WorldPos);
+		vec3 H = normalize(V + L);
+
+		float distance    = length(lightPositions[i] - WorldPos);
+		float attenuation = 1.0 / (distance * distance);
+		vec3 radiance     = lightColors[i] * attenuation;
+
+	}*/
+	// Direct lights
+	vec3 L = normalize(u_lightDir);
+	vec3 H = normalize(V + L);
+	float distance = 138;
+	float attenuation = 1.0 / (distance * distance);
+	vec3 radiance = vec3(10);
+
+	// non metallic surface always 0.04
+	vec3 F0 = vec3(0.04);
+	F0      = mix(F0, albedo, vec3(metalness));
+	vec3 F  = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+	float NDF = DistributionGGX(N, H, roughness);
+	float G   = GeometrySmith(N, V, L, roughness);
+
+	vec3 numerator    = NDF * G * F;
+	float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+	vec3 specular     = numerator / max(denominator, 0.001);
+
+	vec3 kS = F;
+	vec3 kD = vec3(1.0) - kS;
+	kD *= 1.0 - metalness;
+
+	float NdotL = max(dot(N, L), 0.0);
+	Lo += (kD * albedo / PI + specular) * radiance * NdotL;
 
 	// Shadow
 	vec3 visibility = computeShadows(position);
@@ -97,8 +192,17 @@ void main(void)
 	vec3 reflectColor = texture(u_skybox, reflectionVector).rgb;
 
 	// Shading
-	float cosTheta = clamp(dot(normal, normalize(u_lightDir)), 0.0, 1.0);
-	vec3 indirect = 0.1 * albedo.rgb;
-	vec3 direct = visibility * albedo.rgb * cosTheta;
-	o_color = vec4(material.g * (indirect + direct + reflectColor * 0.1), albedo.a);
+	vec3 indirect = 0.03 * albedo; // ao broken for some
+	vec3 direct = visibility * Lo;
+	vec3 color = indirect + direct;
+
+	// Tonemapping
+	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+	color = ACESFilm(color); // ACES approximation tonemapping
+	//color = color / (color + vec3(1.0)); // Reinhard operator
+
+	// Gamma correction
+	color = pow(color, vec3(1.0/2.2));
+
+	o_color = vec4(color, 1);
 }

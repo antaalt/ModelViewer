@@ -83,8 +83,10 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 		Sampler defaultSampler = Sampler::bilinear();
-		node.material.color = color4f(1.f);
-		node.material.doubleSided = true;
+		aiColor4D c;
+		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
+		material->Get(AI_MATKEY_TWOSIDED, node.material.doubleSided);
+		node.material.color = color4f(c.r, c.g, c.b, c.a);
 		// TODO store somewhere else.
 		// TODO create unordered_map to avoid duplicating textures on GPU
 		uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
