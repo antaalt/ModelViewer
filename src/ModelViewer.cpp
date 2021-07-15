@@ -38,7 +38,7 @@ void Viewer::loadShader()
 			Attributes{ AttributeID(0), "POS" }
 		};
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.frag")), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/shading.hlsl"));
@@ -131,6 +131,29 @@ void Viewer::loadShader()
 				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
+	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" }
+		};
+#if defined(AKA_USE_OPENGL)
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/fxaa.frag")), aka::ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/fxaa.hlsl"));
+		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile fxaa shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			if (shader->valid())
+				m_fxaaMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
 }
 
 void Viewer::onCreate()
@@ -141,6 +164,7 @@ void Viewer::onCreate()
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
 	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
 	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
+	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), point3f(0.f), 1.f);
 	if (m_model == nullptr)
 		throw std::runtime_error("Could not load model.");
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
@@ -301,6 +325,21 @@ void Viewer::onCreate()
 	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
 
 	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
+
+	// --- FXAA pass
+	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
+	m_storage = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	FramebufferAttachment storageAttachment[] = {
+		FramebufferAttachment{
+			FramebufferAttachmentType::DepthStencil,
+			m_storageDepth
+		},
+		FramebufferAttachment{
+			FramebufferAttachmentType::Color0,
+			m_storage
+		}
+	};
+	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 
 	m_camera.set(m_model->bbox);
 	attach<ImGuiLayer>();
@@ -498,7 +537,7 @@ void Viewer::onRender()
 		// --- Lighting pass
 		// TODO We can use compute here
 		RenderPass lightingPass;
-		lightingPass.framebuffer = backbuffer;
+		lightingPass.framebuffer = m_storageFramebuffer;
 		lightingPass.primitive = PrimitiveType::Triangles;
 		lightingPass.indexOffset = 0;
 		lightingPass.material = m_lightingMaterial;
@@ -526,12 +565,12 @@ void Viewer::onRender()
 
 		lightingPass.execute();
 
-		backbuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+		m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 	}
 	else
 	{
 		// --- Forward pass
-		backbuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
+		m_storageFramebuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
 
 		if (Keyboard::pressed(KeyboardKey::ControlLeft))
 		{
@@ -545,7 +584,7 @@ void Viewer::onRender()
 		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
 		RenderPass renderPass{};
-		renderPass.framebuffer = backbuffer;
+		renderPass.framebuffer = m_storageFramebuffer;
 		renderPass.primitive = PrimitiveType::Triangles;
 		renderPass.indexOffset = 0;
 		renderPass.material = m_material;
@@ -574,7 +613,7 @@ void Viewer::onRender()
 	}
 	// --- Skybox pass
 	RenderPass skyboxPass;
-	skyboxPass.framebuffer = backbuffer;
+	skyboxPass.framebuffer = m_storageFramebuffer;
 	skyboxPass.primitive = PrimitiveType::Triangles;
 	skyboxPass.indexOffset = 0;
 	skyboxPass.material = m_skyboxMaterial;
@@ -593,6 +632,28 @@ void Viewer::onRender()
 	m_skyboxMaterial->set<mat4f>("u_projection", renderPerspective);
 
 	skyboxPass.execute();
+
+	// --- FXAA pass
+	RenderPass fxaaPass;
+	fxaaPass.framebuffer = backbuffer;
+	fxaaPass.primitive = PrimitiveType::Triangles;
+	fxaaPass.indexOffset = 0;
+	fxaaPass.material = m_fxaaMaterial;
+	fxaaPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
+	fxaaPass.blend = Blending::none();
+	fxaaPass.depth = Depth{ DepthCompare::None, false };
+	fxaaPass.stencil = Stencil::none();
+	fxaaPass.viewport = aka::Rect{ 0 };
+	fxaaPass.scissor = aka::Rect{ 0 };
+	fxaaPass.mesh = m_quad;
+	fxaaPass.indexCount = m_quad->getIndexCount();
+	fxaaPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+	m_fxaaMaterial->set<Texture::Ptr>("u_input", m_storage);
+	m_fxaaMaterial->set<uint32_t>("u_width", width());
+	m_fxaaMaterial->set<uint32_t>("u_height", height());
+
+	fxaaPass.execute();
 
 	// --- Debug pass
 	// TODO add pipeline (default pipeline, debug pipeline...)
@@ -644,7 +705,7 @@ void Viewer::onRender()
 		Renderer2D::clear();
 	}
 
-	/* {
+	 {
 		if (ImGui::Begin("Info"))
 		{
 			ImGuiIO& io = ImGui::GetIO();
@@ -686,7 +747,7 @@ void Viewer::onRender()
 			ImGui::Text("Indices : %d", indexCount);
 		}
 		ImGui::End();
-	}*/
+	}
 }
 
 };

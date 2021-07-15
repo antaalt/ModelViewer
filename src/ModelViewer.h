@@ -44,6 +44,13 @@ private:
 	vec3f m_lightDir;
 	Model::Ptr m_model;
 	ArcballCamera m_camera;
+
+	// FXAA pass
+	aka::Texture::Ptr m_storageDepth;
+	aka::Texture::Ptr m_storage;
+	aka::Framebuffer::Ptr m_storageFramebuffer;
+	aka::ShaderMaterial::Ptr m_fxaaMaterial;
+
 };
 
 };
