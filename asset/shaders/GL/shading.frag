@@ -187,14 +187,12 @@ void main(void)
 	vec3 visibility = computeShadows(position);
 
 	// Reflection
-	vec3 incidentVector = normalize(position - u_cameraPos);
-	vec3 reflectionVector = reflect(incidentVector, normalize(normal));
-	vec3 reflectColor = texture(u_skybox, reflectionVector).rgb;
+	vec3 reflection = texture(u_skybox, reflect(I, N)).rgb;
 
 	// Shading
-	vec3 indirect = 0.03 * albedo; // ao broken for some
+	vec3 indirect = max(kD * ao, 0.03) * albedo; // ao broken for some
 	vec3 direct = visibility * Lo;
-	vec3 color = indirect + direct;
+	vec3 color = indirect + direct + reflection * 0.03; // TODO use irradiance map
 
 	// Tonemapping
 	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
