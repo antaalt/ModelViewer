@@ -639,7 +639,7 @@ void Viewer::onRender()
 	fxaaPass.primitive = PrimitiveType::Triangles;
 	fxaaPass.indexOffset = 0;
 	fxaaPass.material = m_fxaaMaterial;
-	fxaaPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
+	fxaaPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
 	fxaaPass.blend = Blending::none();
 	fxaaPass.depth = Depth{ DepthCompare::None, false };
 	fxaaPass.stencil = Stencil::none();
@@ -660,9 +660,9 @@ void Viewer::onRender()
 	// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
 	vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
 	vec2f pos[3];
-	vec2f size = windowSize / 8.f;
+	vec2f size = vec2f(128.f);
 	for (size_t i = 0; i < cascadeCount; i++)
-		pos[i] = vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f);
+		pos[i] = vec2f(size.x + 10.f * (i + 1), windowSize.y - size.y - 10.f);
 	{
 		int hovered = -1;
 		const Position& p = Mouse::position();
@@ -695,7 +695,7 @@ void Viewer::onRender()
 		for (size_t i = 0; i < cascadeCount; i++)
 			Renderer2D::drawRect(
 				mat3f::identity(),
-				vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f), 
+				vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f),
 				size,
 				m_shadowCascadeTexture[i],
 				color4f(1.f),

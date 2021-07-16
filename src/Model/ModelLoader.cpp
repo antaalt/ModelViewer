@@ -82,7 +82,7 @@ Node processMesh(const Path& path, aiMesh* mesh, const aiScene* scene, const mat
 		//aiTextureType_DIFFUSE_ROUGHNESS = 16,
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-		Sampler defaultSampler = Sampler::bilinear();
+		Sampler defaultSampler = Sampler::trilinear();
 		aiColor4D c;
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
 		material->Get(AI_MATKEY_TWOSIDED, node.material.doubleSided);
