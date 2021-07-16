@@ -53,7 +53,9 @@ vec3 computeShadows(vec3 position)
 	float diffusion[3] = float[](1000.f, 3000.f, 5000.f); // TODO parameter
 	for (int iCascade = 0; iCascade < SHADOW_CASCADE_COUNT; iCascade++)
 	{
-		if (texture(u_depth, v_uv).x <= u_cascadeEndClipSpace[iCascade])
+		// Small offset to blend cascades together smoothly
+		float offset = random(v_uv.xyy, iCascade) * 0.0001;
+		if (texture(u_depth, v_uv).x <= u_cascadeEndClipSpace[iCascade] + offset)
 		{
 #if 0 // Debug cascades
 			visibility = vec3(
