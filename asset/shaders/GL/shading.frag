@@ -48,7 +48,7 @@ float random(vec3 seed, int i)
 
 vec3 computeShadows(vec3 position)
 {
-	const float bias = 0.0005; // Low value to avoid peter panning
+	const float bias = 0.0003; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
 	float diffusion[3] = float[](1000.f, 3000.f, 5000.f); // TODO parameter
 	for (int iCascade = 0; iCascade < SHADOW_CASCADE_COUNT; iCascade++)
@@ -194,7 +194,7 @@ void main(void)
 	// Shading
 	vec3 indirect = max(kD * ao, 0.03) * albedo; // ao broken for some
 	vec3 direct = visibility * Lo;
-	vec3 color = indirect + direct + reflection * 0.03; // TODO use irradiance map
+	vec3 color = indirect + direct + reflection * 0.01; // TODO use irradiance map
 
 	// Tonemapping
 	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/

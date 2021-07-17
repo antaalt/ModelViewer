@@ -342,6 +342,12 @@ void Viewer::onCreate()
 	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 
 	m_camera.set(m_model->bbox);
+
+	m_near = 0.01f;
+	m_far = 100.f;
+	m_hFov = anglef::degree(90.f);
+	m_debug = true;
+
 	attach<ImGuiLayer>();
 }
 
@@ -352,7 +358,8 @@ void Viewer::onDestroy()
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
 	// Arcball
-	m_camera.update(deltaTime);
+	if(!ImGui::GetIO().WantCaptureKeyboard)
+		m_camera.update(deltaTime);
 
 	// TOD
 	if (Mouse::pressed(MouseButton::ButtonMiddle))
@@ -366,6 +373,14 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	if (Keyboard::down(KeyboardKey::R))
 	{
 		m_camera.set(m_model->bbox);
+	}
+	if (Keyboard::down(KeyboardKey::D))
+	{
+		m_debug = !m_debug;
+	}
+	if (Keyboard::down(KeyboardKey::PrintScreen))
+	{
+		GraphicBackend::screenshot("screen.png");
 	}
 	// Hot reload
 	if (Keyboard::down(KeyboardKey::Space))
@@ -426,15 +441,12 @@ void Viewer::onRender()
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_model->bbox.center() + m_model->bbox.extent(), point3f(0.f)));
 	mat4f view = mat4f::inverse(m_camera.transform());
 	// TODO use camera (Arcball inherit camera ?)
-	const float near = 0.01f;
-	const float far = 100.f;
-	const anglef angle = anglef::degree(90.f);
-	mat4f debugPerspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
-	mat4f perspective = mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), near, far);
+	mat4f debugPerspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
+	mat4f perspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_near, m_far);
 
 	// Generate shadow cascades
 	mat4f worldToLightSpaceMatrix[cascadeCount];
-	const float offset[cascadeCount + 1] = { near, far / 20.f, far / 5.f, far };
+	const float offset[cascadeCount + 1] = { m_near, m_far / 20.f, m_far / 5.f, m_far };
 	float cascadeEndClipSpace[cascadeCount];
 	for (size_t i = 0; i < cascadeCount; i++)
 	{
@@ -442,7 +454,7 @@ void Viewer::onRender()
 		float h = (float)height();
 		float n = offset[i];
 		float f = offset[i + 1];
-		mat4f p = mat4f::perspective(angle, w / h, n, f);
+		mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
 		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, m_lightDir);
 		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 		cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
@@ -453,9 +465,8 @@ void Viewer::onRender()
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
-	mat4f worldToLightTextureSpaceMatrix[cascadeCount];
 	for (size_t i = 0; i < cascadeCount; i++)
-		worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
+		m_worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
 
 	// --- Shadow pass
 	RenderPass shadowPass;
@@ -475,7 +486,7 @@ void Viewer::onRender()
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]);
- 		for (size_t i = 0; i < m_model->nodes.size(); i++)
+		for (size_t i = 0; i < m_model->nodes.size(); i++)
 		{
 			m_shadowMaterial->set<mat4f>("u_model", m_model->nodes[i].transform);
 			shadowPass.mesh = m_model->nodes[i].mesh;
@@ -558,7 +569,7 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
 		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
-		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, cascadeCount);
+		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
 		m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
 		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
 		m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
@@ -579,7 +590,7 @@ void Viewer::onRender()
 		}
 		m_material->set<mat4f>("u_view", renderView);
 		m_material->set<mat4f>("u_projection", renderPerspective);
-		m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, cascadeCount);
+		m_material->set<mat4f>("u_light[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
 		m_material->set<vec3f>("u_lightDir", m_lightDir);
 		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
@@ -656,14 +667,16 @@ void Viewer::onRender()
 	fxaaPass.execute();
 
 	// --- Debug pass
-	// TODO add pipeline (default pipeline, debug pipeline...)
-	// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
-	vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
-	vec2f pos[3];
-	vec2f size = vec2f(128.f);
-	for (size_t i = 0; i < cascadeCount; i++)
-		pos[i] = vec2f(size.x + 10.f * (i + 1), windowSize.y - size.y - 10.f);
+	if (m_debug)
 	{
+		// TODO add pipeline (default pipeline, debug pipeline...)
+		// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
+		vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
+		vec2f pos[3];
+		vec2f size = vec2f(128.f);
+		for (size_t i = 0; i < cascadeCount; i++)
+			pos[i] = vec2f(size.x + 10.f * (i + 1), windowSize.y - size.y - 10.f);
+		
 		int hovered = -1;
 		const Position& p = Mouse::position();
 		for (size_t i = 0; i < cascadeCount; i++)
@@ -684,14 +697,13 @@ void Viewer::onRender()
 		}
 		else
 		{
-			Renderer3D::drawFrustum(mat4f::perspective(angle, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
+			Renderer3D::drawFrustum(mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
 			Renderer3D::drawFrustum(worldToLightSpaceMatrix[hovered]);
 		}
 		Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
 		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
 		Renderer3D::clear();
-	}
-	{
+		
 		for (size_t i = 0; i < cascadeCount; i++)
 			Renderer2D::drawRect(
 				mat3f::identity(),
@@ -705,13 +717,26 @@ void Viewer::onRender()
 		Renderer2D::clear();
 	}
 
-	 {
+	if (m_debug)
+	{
 		if (ImGui::Begin("Info"))
 		{
 			ImGuiIO& io = ImGui::GetIO();
 			ImGui::Text("Resolution : %ux%u", width(), height());
 			ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 			ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+			// TODO toggle fullscreen, vsync
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("Camera"))
+		{
+			float fov = m_hFov.radian();
+			if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
+				m_hFov = anglef::radian(fov);
+			ImGui::SliderFloat("Near", &m_near, 0.001f, 10.f);
+			ImGui::SliderFloat("Far", &m_far, 10.f, 1000.f);
+			//imgui gizmo
 		}
 		ImGui::End();
 
