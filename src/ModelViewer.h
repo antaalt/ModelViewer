@@ -50,8 +50,9 @@ private:
 
 	// Forward pass
 	aka::ShaderMaterial::Ptr m_material;
-	vec3f m_lightDir;
-	Model::Ptr m_model;
+	aka::aabbox<> m_bounds;
+	aka::World m_world;
+	aka::Entity m_sun;
 	ArcballCamera m_camera;
 
 	// FXAA pass

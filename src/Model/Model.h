@@ -6,35 +6,46 @@ namespace viewer {
 
 using namespace aka;
 
-struct Material {
-	using Ptr = std::shared_ptr<Material>;
-	bool doubleSided;
+struct Transform3DComponent {
+	mat4f transform;
+};
+
+struct MeshComponent {
+	SubMesh submesh;
+	aabbox<> bounds;
+};
+
+struct MaterialComponent {
 	color4f color;
+	bool doubleSided;
 	Texture::Ptr colorTexture;
 	Texture::Ptr normalTexture;
 	Texture::Ptr roughnessTexture;
 	//Texture::Ptr emissiveTexture;
 };
 
-struct Vertex {
-	point3f position;
-	norm3f normal;
-	uv2f uv;
-	color4f color;
+struct DirectionnalLightComponent {
+	vec3f direction;
+	color3f color;
+	float intensity;
 };
 
-struct Node {
-	mat4f transform;
-	Mesh::Ptr mesh;
-	Material material;
+struct PointLightComponent {
+	color3f color;
+	float intensity;
 };
 
-struct Model
-{
-	using Ptr = std::shared_ptr<Model>;
+struct Camera3DComponent {
+	//CameraProjection* projection;
+	//Camera3DController* controller;
+};
 
-	aabbox<> bbox;
-	std::vector<Node> nodes;
+struct Camera3DController {
+	// arcball, standard
+};
+
+struct CameraProjection {
+	// either persp or ortho
 };
 
 class ArcballCamera

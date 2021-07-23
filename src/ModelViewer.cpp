@@ -160,15 +160,24 @@ void Viewer::onCreate()
 {
 	StopWatch<> stopWatch;
 	// TODO use args
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), point3f(0.f), 1.f);
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"));
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"));
-	m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), point3f(0.f), 1.f);
-	//m_model = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), point3f(0.f), 1.f);
-	if (m_model == nullptr)
+	bool loaded = false;
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
+	if (!loaded)
 		throw std::runtime_error("Could not load model.");
+	// Compute scene bounds.
+	auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+	m_bounds;
+	view.each([this](Transform3DComponent& t, MeshComponent& mesh) {
+		// TODO node inheritance.
+		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.min));
+		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.max));
+	});
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
-	aka::Logger::info("Scene Bounding box : ", m_model->bbox.min, " - ", m_model->bbox.max);
+	aka::Logger::info("Scene Bounding box : ", m_bounds.min, " - ", m_bounds.max);
 
 	loadShader();
 
@@ -324,7 +333,15 @@ void Viewer::onCreate()
 	}; 
 	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
 
-	m_lightDir = vec3f(0.1f, 1.f, 0.1f);
+	m_sun = m_world.createEntity("Sun");
+	m_sun.add<Transform3DComponent>();
+	m_sun.add<DirectionnalLightComponent>();
+	Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
+	DirectionnalLightComponent& sun = m_sun.get<DirectionnalLightComponent>();
+	sun.direction = vec3f(0.1f, 1.f, 0.1f);
+	sun.color = color3f(1.f);
+	sun.intensity = 1.f;
+	sunTransform.transform = mat4f::identity();
 
 	// --- FXAA pass
 	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
@@ -341,7 +358,7 @@ void Viewer::onCreate()
 	};
 	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 
-	m_camera.set(m_model->bbox);
+	m_camera.set(m_bounds);
 
 	m_near = 0.01f;
 	m_far = 100.f;
@@ -366,13 +383,13 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		const Position& pos = Mouse::position();
 		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
-		m_lightDir = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
+		m_sun.get<DirectionnalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
 	}
 
 	// Reset
 	if (Keyboard::down(KeyboardKey::R))
 	{
-		m_camera.set(m_model->bbox);
+		m_camera.set(m_bounds);
 	}
 	if (Keyboard::down(KeyboardKey::D))
 	{
@@ -438,7 +455,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 void Viewer::onRender()
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
-	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_model->bbox.center() + m_model->bbox.extent(), point3f(0.f)));
+	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_bounds.center() + m_bounds.extent(), point3f(0.f)));
 	mat4f view = mat4f::inverse(m_camera.transform());
 	// TODO use camera (Arcball inherit camera ?)
 	mat4f debugPerspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
@@ -455,7 +472,7 @@ void Viewer::onRender()
 		float n = offset[i];
 		float f = offset[i + 1];
 		mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
-		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, m_lightDir);
+		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, m_sun.get<DirectionnalLightComponent>().direction);
 		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 		cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 	}
@@ -471,8 +488,8 @@ void Viewer::onRender()
 	// --- Shadow pass
 	RenderPass shadowPass;
 	shadowPass.framebuffer = m_shadowFramebuffer;
-	shadowPass.primitive = PrimitiveType::Triangles;
-	shadowPass.indexOffset = 0;
+	shadowPass.submesh.type = PrimitiveType::Triangles;
+	shadowPass.submesh.indexOffset = 0;
 	shadowPass.material = m_shadowMaterial;
 	shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 	shadowPass.blend = Blending::none();
@@ -486,18 +503,17 @@ void Viewer::onRender()
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]);
-		for (size_t i = 0; i < m_model->nodes.size(); i++)
-		{
-			m_shadowMaterial->set<mat4f>("u_model", m_model->nodes[i].transform);
-			shadowPass.mesh = m_model->nodes[i].mesh;
-			shadowPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-
+		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+			m_shadowMaterial->set<mat4f>("u_model", transform.transform);
+			shadowPass.submesh = mesh.submesh;
 			shadowPass.execute();
-		}
+		});
 	}
 
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
+	auto renderableView = m_world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
 
 	if (!Keyboard::pressed(KeyboardKey::AltLeft))
 	{
@@ -510,8 +526,8 @@ void Viewer::onRender()
 		// TODO depth prepass
 		RenderPass gbufferPass;
 		gbufferPass.framebuffer = m_gbuffer;
-		gbufferPass.primitive = PrimitiveType::Triangles;
-		gbufferPass.indexOffset = 0;
+		gbufferPass.submesh.type = PrimitiveType::Triangles;
+		gbufferPass.submesh.indexOffset = 0;
 		gbufferPass.material = m_gbufferMaterial;
 		gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		gbufferPass.blend = Blending::none();
@@ -525,32 +541,30 @@ void Viewer::onRender()
 
 		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
 
-		for (size_t i = 0; i < m_model->nodes.size(); i++)
-		{
-			aka::mat4f model = m_model->nodes[i].transform;
+		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = m_model->nodes[i].material.color;
+			aka::color4f color = material.color;
 			m_gbufferMaterial->set<mat4f>("u_model", model);
 			m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
 			m_gbufferMaterial->set<color4f>("u_color", color);
-			m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", m_model->nodes[i].material.roughnessTexture);
-			m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
-			m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
+			m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", material.roughnessTexture);
+			m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
+			m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
 
 			m_gbufferMaterial->set<mat4f>("u_model", model);
-			gbufferPass.mesh = m_model->nodes[i].mesh;
-			gbufferPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
+			gbufferPass.submesh = mesh.submesh;
 			gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 			gbufferPass.execute();
-		}
+		});
 
 		// --- Lighting pass
 		// TODO We can use compute here
 		RenderPass lightingPass;
 		lightingPass.framebuffer = m_storageFramebuffer;
-		lightingPass.primitive = PrimitiveType::Triangles;
-		lightingPass.indexOffset = 0;
+		lightingPass.submesh.type = PrimitiveType::Triangles;
+		lightingPass.submesh.indexOffset = 0;
 		lightingPass.material = m_lightingMaterial;
 		lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
 		lightingPass.blend = Blending::none();
@@ -558,8 +572,8 @@ void Viewer::onRender()
 		lightingPass.stencil = Stencil::none();
 		lightingPass.viewport = aka::Rect{ 0 };
 		lightingPass.scissor = aka::Rect{ 0 };
-		lightingPass.mesh = m_quad;
-		lightingPass.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
+		lightingPass.submesh.mesh = m_quad;
+		lightingPass.submesh.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
 		lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 		m_lightingMaterial->set<Texture::Ptr>("u_position", m_position);
@@ -570,7 +584,7 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
 		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
-		m_lightingMaterial->set<vec3f>("u_lightDir", m_lightDir);
+		m_lightingMaterial->set<vec3f>("u_lightDir", m_sun.get<DirectionnalLightComponent>().direction);
 		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
 		m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
 
@@ -591,13 +605,13 @@ void Viewer::onRender()
 		m_material->set<mat4f>("u_view", renderView);
 		m_material->set<mat4f>("u_projection", renderPerspective);
 		m_material->set<mat4f>("u_light[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
-		m_material->set<vec3f>("u_lightDir", m_lightDir);
+		m_material->set<vec3f>("u_lightDir", m_sun.get<DirectionnalLightComponent>().direction);
 		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
 		m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
 		RenderPass renderPass{};
 		renderPass.framebuffer = m_storageFramebuffer;
-		renderPass.primitive = PrimitiveType::Triangles;
-		renderPass.indexOffset = 0;
+		renderPass.submesh.type = PrimitiveType::Triangles;
+		renderPass.submesh.indexOffset = 0;
 		renderPass.material = m_material;
 		renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		renderPass.blend = Blending::nonPremultiplied();
@@ -605,28 +619,29 @@ void Viewer::onRender()
 		renderPass.stencil = Stencil::none();
 		renderPass.viewport = aka::Rect{ 0 };
 		renderPass.scissor = aka::Rect{ 0 };
-		for (size_t i = 0; i < m_model->nodes.size(); i++)
-		{
-			aka::mat4f model = m_model->nodes[i].transform;
+
+		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = m_model->nodes[i].material.color;
+			aka::color4f color = material.color;
 			m_material->set<mat4f>("u_model", model);
 			m_material->set<mat3f>("u_normalMatrix", normal);
 			m_material->set<color4f>("u_color", color);
-			m_material->set<Texture::Ptr>("u_colorTexture", m_model->nodes[i].material.colorTexture);
-			m_material->set<Texture::Ptr>("u_normalTexture", m_model->nodes[i].material.normalTexture);
-			renderPass.mesh = m_model->nodes[i].mesh;
-			renderPass.indexCount = m_model->nodes[i].mesh->getIndexCount(); // TODO set zero means all ?
-			renderPass.cull = m_model->nodes[i].material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+			m_material->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
+			m_material->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
+			renderPass.submesh = mesh.submesh;
+			renderPass.cull = material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 			renderPass.execute();
-		}
+		});
 	}
 	// --- Skybox pass
 	RenderPass skyboxPass;
 	skyboxPass.framebuffer = m_storageFramebuffer;
-	skyboxPass.primitive = PrimitiveType::Triangles;
-	skyboxPass.indexOffset = 0;
+	skyboxPass.submesh.type = PrimitiveType::Triangles;
+	skyboxPass.submesh.indexOffset = 0;
+	skyboxPass.submesh.indexCount = m_cube->getIndexCount();
+	skyboxPass.submesh.mesh = m_cube;
 	skyboxPass.material = m_skyboxMaterial;
 	skyboxPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
 	skyboxPass.blend = Blending::none();
@@ -634,8 +649,6 @@ void Viewer::onRender()
 	skyboxPass.stencil = Stencil::none();
 	skyboxPass.viewport = aka::Rect{ 0 };
 	skyboxPass.scissor = aka::Rect{ 0 };
-	skyboxPass.mesh = m_cube;
-	skyboxPass.indexCount = m_cube->getIndexCount();
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 	m_skyboxMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
@@ -647,8 +660,10 @@ void Viewer::onRender()
 	// --- FXAA pass
 	RenderPass fxaaPass;
 	fxaaPass.framebuffer = backbuffer;
-	fxaaPass.primitive = PrimitiveType::Triangles;
-	fxaaPass.indexOffset = 0;
+	fxaaPass.submesh.type = PrimitiveType::Triangles;
+	fxaaPass.submesh.indexOffset = 0;
+	fxaaPass.submesh.indexCount = m_quad->getIndexCount();
+	fxaaPass.submesh.mesh = m_quad;
 	fxaaPass.material = m_fxaaMaterial;
 	fxaaPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
 	fxaaPass.blend = Blending::none();
@@ -656,8 +671,6 @@ void Viewer::onRender()
 	fxaaPass.stencil = Stencil::none();
 	fxaaPass.viewport = aka::Rect{ 0 };
 	fxaaPass.scissor = aka::Rect{ 0 };
-	fxaaPass.mesh = m_quad;
-	fxaaPass.indexCount = m_quad->getIndexCount();
 	fxaaPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 	m_fxaaMaterial->set<Texture::Ptr>("u_input", m_storage);
@@ -690,7 +703,7 @@ void Viewer::onRender()
 
 		Renderer3D::drawAxis(mat4f::identity());
 		Renderer3D::drawAxis(mat4f::inverse(view));
-		Renderer3D::drawAxis(mat4f::translate(vec3f(m_model->bbox.center())));
+		Renderer3D::drawAxis(mat4f::translate(vec3f(m_bounds.center())));
 		if (hovered < 0)
 		{
 			Renderer3D::drawFrustum(perspective * view);
@@ -700,7 +713,7 @@ void Viewer::onRender()
 			Renderer3D::drawFrustum(mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
 			Renderer3D::drawFrustum(worldToLightSpaceMatrix[hovered]);
 		}
-		Renderer3D::drawTransform(mat4f::translate(vec3f(m_model->bbox.center())) * mat4f::scale(m_model->bbox.extent() / 2.f));
+		Renderer3D::drawTransform(mat4f::translate(vec3f(m_bounds.center())) * mat4f::scale(m_bounds.extent() / 2.f));
 		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
 		Renderer3D::clear();
 		
@@ -742,32 +755,30 @@ void Viewer::onRender()
 
 		if (ImGui::Begin("Scene"))
 		{
-			m_model->bbox;
 			uint32_t id = 0;
 			uint32_t vertexCount = 0;
 			uint32_t indexCount = 0;
-			for (Node& node : m_model->nodes)
-			{
+			renderableView.each([&](Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
 				char buffer[256];
-				vertexCount += node.mesh->getVertexCount();
-				indexCount += node.mesh->getIndexCount();
+				vertexCount += mesh.submesh.mesh->getVertexCount();
+				indexCount += mesh.submesh.mesh->getIndexCount();
 				snprintf(buffer, 256, "Node %u", id++);
 				if (ImGui::TreeNode(buffer))
 				{
 					// TODO use ImGuiGizmo
 					ImGui::Text("Transform");
-					ImGui::InputFloat4("##col0", node.transform.cols[0].data);
-					ImGui::InputFloat4("##col1", node.transform.cols[1].data);
-					ImGui::InputFloat4("##col2", node.transform.cols[2].data);
-					ImGui::InputFloat4("##col3", node.transform.cols[3].data);
+					ImGui::InputFloat4("##col0", transform.transform.cols[0].data);
+					ImGui::InputFloat4("##col1", transform.transform.cols[1].data);
+					ImGui::InputFloat4("##col2", transform.transform.cols[2].data);
+					ImGui::InputFloat4("##col3", transform.transform.cols[3].data);
 					ImGui::Text("Mesh");
-					ImGui::Text("Vertices : %d", node.mesh->getVertexCount());
-					ImGui::Text("Indices : %d", node.mesh->getIndexCount());
-					node.material;
+					ImGui::Text("Vertices : %d", mesh.submesh.mesh->getVertexCount());
+					ImGui::Text("Indices : %d", mesh.submesh.mesh->getIndexCount());
+					material;
 
 					ImGui::TreePop();
 				}
-			}
+			});
 			ImGui::Text("Vertices : %d", vertexCount);
 			ImGui::Text("Indices : %d", indexCount);
 		}
