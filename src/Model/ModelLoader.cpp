@@ -11,8 +11,8 @@ struct AssimpImporter {
 	AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world);
 
 	void process();
-	void processNode(const mat4f& transform, aiNode* node);
-	void processMesh(const mat4f& transform, aiMesh* mesh);
+	void processNode(Entity parent, aiNode* node);
+	Entity processMesh(aiMesh* mesh);
 
 	Texture::Ptr loadTexture(const Path& path, const Sampler& sampler);
 private:
@@ -45,26 +45,44 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 
 void AssimpImporter::process()
 {
-	processNode(mat4f::identity(), m_assimpScene->mRootNode);
+	processNode(Entity::null(), m_assimpScene->mRootNode);
 }
 
-void AssimpImporter::processNode(const mat4f& transform, aiNode* node)
+void AssimpImporter::processNode(Entity parent, aiNode* node)
 {
-	mat4f t = transform * mat4f(
+	Entity entity = m_world.createEntity(node->mName.C_Str());
+	entity.add<Hierarchy3DComponent>();
+	entity.add<Transform3DComponent>();
+	entity.get<Transform3DComponent>().transform = mat4f(
 		col4f(node->mTransformation[0][0], node->mTransformation[1][0], node->mTransformation[2][0], node->mTransformation[3][0]),
 		col4f(node->mTransformation[0][1], node->mTransformation[1][1], node->mTransformation[2][1], node->mTransformation[3][1]),
 		col4f(node->mTransformation[0][2], node->mTransformation[1][2], node->mTransformation[2][2], node->mTransformation[3][2]),
 		col4f(node->mTransformation[0][3], node->mTransformation[1][3], node->mTransformation[2][3], node->mTransformation[3][3])
 	);
+	entity.get<Hierarchy3DComponent>().parent = parent;
+	if (parent.valid())
+	{
+		entity.get<Transform3DComponent>().transform = parent.get<Transform3DComponent>().transform * entity.get<Transform3DComponent>().transform;
+		entity.get<Hierarchy3DComponent>().inverseTransform = mat4f::inverse(parent.get<Transform3DComponent>().transform);
+	}
+	else
+	{
+		entity.get<Hierarchy3DComponent>().inverseTransform = mat4f::identity();
+	}
 	// process all the node's meshes (if any)
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
-		processMesh(t, m_assimpScene->mMeshes[node->mMeshes[i]]);
+		Entity e = processMesh(m_assimpScene->mMeshes[node->mMeshes[i]]);
+		e.add<Transform3DComponent>();
+		e.add<Hierarchy3DComponent>();
+		e.get<Transform3DComponent>().transform = entity.get<Transform3DComponent>().transform;
+		e.get<Hierarchy3DComponent>().parent = entity;
+		e.get<Hierarchy3DComponent>().inverseTransform = mat4f::inverse(entity.get<Transform3DComponent>().transform);
 	}
 	// then do the same for each of its children
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
-		processNode(t, node->mChildren[i]);
+		processNode(entity, node->mChildren[i]);
 	}
 }
 
@@ -75,7 +93,7 @@ struct Vertex {
 	color4f color;
 };
 
-void AssimpImporter::processMesh(const mat4f& transform, aiMesh* mesh)
+Entity AssimpImporter::processMesh(aiMesh* mesh)
 {
 	std::vector<Vertex> vertices(mesh->mNumVertices);
 	std::vector<unsigned int> indices;
@@ -84,10 +102,8 @@ void AssimpImporter::processMesh(const mat4f& transform, aiMesh* mesh)
 	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
 
 	Entity e = m_world.createEntity(mesh->mName.C_Str());
-	e.add<Transform3DComponent>();
 	e.add<MeshComponent>();
 	e.add<MaterialComponent>();
-	Transform3DComponent& transformComponent = e.get<Transform3DComponent>();
 	MeshComponent& meshComponent = e.get<MeshComponent>();
 	MaterialComponent& materialComponent = e.get<MaterialComponent>();
 
@@ -256,7 +272,7 @@ void AssimpImporter::processMesh(const mat4f& transform, aiMesh* mesh)
 	meshComponent.submesh.type = PrimitiveType::Triangles;
 	meshComponent.submesh.indexCount = static_cast<uint32_t>(indices.size()); // TODO 0 means all
 	meshComponent.submesh.indexOffset = 0;
-	transformComponent.transform = transform;
+	return e;
 }
 
 Texture::Ptr AssimpImporter::loadTexture(const Path& path, const Sampler& sampler)

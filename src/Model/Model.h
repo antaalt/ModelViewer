@@ -10,6 +10,11 @@ struct Transform3DComponent {
 	mat4f transform;
 };
 
+struct Hierarchy3DComponent {
+	Entity parent;
+	mat4f inverseTransform;
+};
+
 struct MeshComponent {
 	SubMesh submesh;
 	aabbox<> bounds;
@@ -46,6 +51,15 @@ struct Camera3DController {
 
 struct CameraProjection {
 	// either persp or ortho
+};
+
+class SceneGraph : public System
+{
+public:
+	void create(World& world) override;
+	void destroy(World& world) override;
+	// The update is deferred.
+	void update(World& world, Time::Unit deltaTime) override;
 };
 
 class ArcballCamera

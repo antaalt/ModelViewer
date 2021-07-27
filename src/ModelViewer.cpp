@@ -158,13 +158,15 @@ void Viewer::loadShader()
 
 void Viewer::onCreate()
 {
+	m_world.attach<SceneGraph>();
+	m_world.create();
 	StopWatch<> stopWatch;
 	// TODO use args
 	bool loaded = false;
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
 		throw std::runtime_error("Could not load model.");
@@ -370,6 +372,7 @@ void Viewer::onCreate()
 
 void Viewer::onDestroy()
 {
+	m_world.destroy();
 }
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
@@ -410,6 +413,7 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
+	m_world.update(deltaTime);
 }
 
 // --- Shadows
@@ -461,55 +465,58 @@ void Viewer::onRender()
 	mat4f debugPerspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_near, m_far);
 
-	// Generate shadow cascades
+	// --- Shadow pass
+	auto directShadows = m_world.registry().view<Transform3DComponent, DirectionnalLightComponent>();
 	mat4f worldToLightSpaceMatrix[cascadeCount];
 	const float offset[cascadeCount + 1] = { m_near, m_far / 20.f, m_far / 5.f, m_far };
 	float cascadeEndClipSpace[cascadeCount];
-	for (size_t i = 0; i < cascadeCount; i++)
-	{
-		float w = (float)width();
-		float h = (float)height();
-		float n = offset[i];
-		float f = offset[i + 1];
-		mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
-		worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, m_sun.get<DirectionnalLightComponent>().direction);
-		vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
-		cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
-	}
-	mat4f projectionToTextureCoordinateMatrix(
-		col4f(0.5, 0.0, 0.0, 0.0),
-		col4f(0.0, 0.5, 0.0, 0.0),
-		col4f(0.0, 0.0, 0.5, 0.0),
-		col4f(0.5, 0.5, 0.5, 1.0)
-	);
-	for (size_t i = 0; i < cascadeCount; i++)
-		m_worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
+	directShadows.each([&](const Transform3DComponent& transform, const DirectionnalLightComponent& lights) {
+		// Generate shadow cascades
+		for (size_t i = 0; i < cascadeCount; i++)
+		{
+			float w = (float)width();
+			float h = (float)height();
+			float n = offset[i];
+			float f = offset[i + 1];
+			mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
+			worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, lights.direction);
+			vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
+			cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
+		}
+		mat4f projectionToTextureCoordinateMatrix(
+			col4f(0.5, 0.0, 0.0, 0.0),
+			col4f(0.0, 0.5, 0.0, 0.0),
+			col4f(0.0, 0.0, 0.5, 0.0),
+			col4f(0.5, 0.5, 0.5, 1.0)
+		);
+		for (size_t i = 0; i < cascadeCount; i++)
+			m_worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
 
-	// --- Shadow pass
-	RenderPass shadowPass;
-	shadowPass.framebuffer = m_shadowFramebuffer;
-	shadowPass.submesh.type = PrimitiveType::Triangles;
-	shadowPass.submesh.indexOffset = 0;
-	shadowPass.material = m_shadowMaterial;
-	shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-	shadowPass.blend = Blending::none();
-	shadowPass.depth = Depth{ DepthCompare::Less, true };
-	shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-	shadowPass.stencil = Stencil::none();
-	shadowPass.viewport = aka::Rect{ 0 };
-	shadowPass.scissor = aka::Rect{ 0 };
-	for (size_t i = 0; i < cascadeCount; i++)
-	{
-		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]);
-		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-		m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]);
-		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
-		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-			m_shadowMaterial->set<mat4f>("u_model", transform.transform);
-			shadowPass.submesh = mesh.submesh;
-			shadowPass.execute();
-		});
-	}
+		RenderPass shadowPass;
+		shadowPass.framebuffer = m_shadowFramebuffer;
+		shadowPass.submesh.type = PrimitiveType::Triangles;
+		shadowPass.submesh.indexOffset = 0;
+		shadowPass.material = m_shadowMaterial;
+		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+		shadowPass.blend = Blending::none();
+		shadowPass.depth = Depth{ DepthCompare::Less, true };
+		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+		shadowPass.stencil = Stencil::none();
+		shadowPass.viewport = aka::Rect{ 0 };
+		shadowPass.scissor = aka::Rect{ 0 };
+		for (size_t i = 0; i < cascadeCount; i++)
+		{
+			m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]); // Store in DirectionalLightComponent
+			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
+			m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]); // Store in DirectionalLightComponent
+			auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
+				shadowPass.submesh = mesh.submesh;
+				shadowPass.execute();
+			});
+		}
+	});
 
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;

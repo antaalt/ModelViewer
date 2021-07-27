@@ -2,6 +2,67 @@
 
 namespace viewer {
 
+
+void onHierarchyAdd(entt::registry& registry, entt::entity entity)
+{
+	// Set id matrix.
+	registry.get<Hierarchy3DComponent>(entity).inverseTransform = mat4f::identity();
+	registry.get<Hierarchy3DComponent>(entity).parent = Entity::null();
+}
+void onHierarchyRemove(entt::registry& registry, entt::entity entity)
+{
+	if (!registry.has<Transform3DComponent>(entity))
+		return;
+	Transform3DComponent& t = registry.get<Transform3DComponent>(entity);
+	Hierarchy3DComponent& h = registry.get<Hierarchy3DComponent>(entity);
+	// Restore local transform
+	t.transform = h.inverseTransform * t.transform;
+}
+
+void SceneGraph::create(World& world)
+{
+	world.registry().on_construct<Hierarchy3DComponent>().connect<&onHierarchyAdd>();
+	world.registry().on_destroy<Hierarchy3DComponent>().connect<&onHierarchyRemove>();
+	//world.registry().on_update<Hierarchy3DComponent>().connect<&onHierarchyUpdate>();
+}
+void SceneGraph::destroy(World& world)
+{
+	world.registry().on_construct<Hierarchy3DComponent>().disconnect<&onHierarchyAdd>();
+	world.registry().on_destroy<Hierarchy3DComponent>().disconnect<&onHierarchyRemove>();
+	//world.registry().on_update<Hierarchy3DComponent>().disconnect<&onHierarchyUpdate>();
+}
+
+// The update is deferred.
+void SceneGraph::update(World& world, Time::Unit deltaTime)
+{
+	entt::registry& r = world.registry();
+	// Sort hierarchy to ensure correct order.
+	// https://skypjack.github.io/2019-08-20-ecs-baf-part-4-insights/
+	r.sort<Hierarchy3DComponent>([&r](const entt::entity lhs, entt::entity rhs) {
+		const Hierarchy3DComponent& clhs = r.get<Hierarchy3DComponent>(lhs);
+		const Hierarchy3DComponent& crhs = r.get<Hierarchy3DComponent>(rhs);
+		return lhs < rhs && clhs.parent.handle() != rhs;
+		//return lhs != crhs.parent.handle();
+	});
+	// Compute transforms
+	auto view = world.registry().view<Hierarchy3DComponent, Transform3DComponent>();
+	for (entt::entity entity : view)
+	{
+		Transform3DComponent& t = r.get<Transform3DComponent>(entity);
+		Hierarchy3DComponent& h = r.get<Hierarchy3DComponent>(entity);
+		if (h.parent != Entity::null())
+		{
+			mat4f localTransform = h.inverseTransform * t.transform;
+			t.transform = h.parent.get<Transform3DComponent>().transform * localTransform;
+			h.inverseTransform = mat4f::inverse(h.parent.get<Transform3DComponent>().transform);
+		}
+		else
+		{
+			h.inverseTransform = mat4f::identity();
+		}
+	}
+}
+
 ArcballCamera::ArcballCamera() :
 	ArcballCamera(aabbox(point3f(0.f), point3f(1.f)))
 {
