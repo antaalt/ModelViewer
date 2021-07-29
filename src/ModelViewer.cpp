@@ -174,7 +174,6 @@ void Viewer::onCreate()
 	auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 	m_bounds;
 	view.each([this](Transform3DComponent& t, MeshComponent& mesh) {
-		// TODO node inheritance.
 		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.min));
 		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.max));
 	});
@@ -367,7 +366,7 @@ void Viewer::onCreate()
 
 	{
 		// Second dir light
-		Entity e = m_world.createEntity("Sun");
+		Entity e = m_world.createEntity("Sun2");
 		e.add<Transform3DComponent>();
 		e.add<Hierarchy3DComponent>();
 		e.add<DirectionalLightComponent>();
@@ -744,8 +743,6 @@ void Viewer::onRender()
 	// --- Debug pass
 	if (m_debug)
 	{
-		// TODO add pipeline (default pipeline, debug pipeline...)
-		// Debug pipeline : create origin mesh. for every mesh in scene, draw bbox & origin as line.
 		vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
 		vec2f pos[3];
 		vec2f size = vec2f(128.f);
@@ -817,30 +814,73 @@ void Viewer::onRender()
 
 		if (ImGui::Begin("Scene"))
 		{
-			uint32_t id = 0;
 			uint32_t vertexCount = 0;
 			uint32_t indexCount = 0;
-			renderableView.each([&](Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+			auto view = m_world.registry().view<Transform3DComponent, Hierarchy3DComponent>();
+			std::map<entt::entity, std::vector<entt::entity>> childrens;
+			std::vector<entt::entity> roots;
+			for (entt::entity entity : view)
+			{
+				const Hierarchy3DComponent& h = m_world.registry().get<Hierarchy3DComponent>(entity);
+				if (h.parent == Entity::null())
+				{
+					roots.push_back(entity);
+				}
+				else
+				{
+					childrens[h.parent.handle()].push_back(entity);
+				}
+			}
+
+			std::function<void(entt::entity)> recurse = [&](entt::entity entity)
+			{
 				char buffer[256];
-				vertexCount += mesh.submesh.mesh->getVertexCount();
-				indexCount += mesh.submesh.mesh->getIndexCount();
-				snprintf(buffer, 256, "Node %u", id++);
+				Transform3DComponent& transform = m_world.registry().get<Transform3DComponent>(entity);
+				const Hierarchy3DComponent& hierarchy = m_world.registry().get<Hierarchy3DComponent>(entity);
+				const TagComponent& tag = m_world.registry().get<TagComponent>(entity);
+
+				int err = snprintf(buffer, 256, "%s##%p", tag.name.cstr(), &transform);
 				if (ImGui::TreeNode(buffer))
 				{
-					// TODO use ImGuiGizmo
 					ImGui::Text("Transform");
 					ImGui::InputFloat4("##col0", transform.transform.cols[0].data);
 					ImGui::InputFloat4("##col1", transform.transform.cols[1].data);
 					ImGui::InputFloat4("##col2", transform.transform.cols[2].data);
 					ImGui::InputFloat4("##col3", transform.transform.cols[3].data);
-					ImGui::Text("Mesh");
-					ImGui::Text("Vertices : %d", mesh.submesh.mesh->getVertexCount());
-					ImGui::Text("Indices : %d", mesh.submesh.mesh->getIndexCount());
-					material;
 
+					if (m_world.registry().has<MeshComponent>(entity))
+					{
+						const MeshComponent& mesh = m_world.registry().get<MeshComponent>(entity);
+						vertexCount += mesh.submesh.mesh->getVertexCount();
+						indexCount += mesh.submesh.mesh->getIndexCount();
+						ImGui::Text("Mesh");
+						ImGui::Text("Vertices : %d", mesh.submesh.mesh->getVertexCount());
+						ImGui::Text("Indices : %d", mesh.submesh.mesh->getIndexCount());
+					}
+					if (m_world.registry().has<DirectionalLightComponent>(entity))
+					{
+						DirectionalLightComponent& light = m_world.registry().get<DirectionalLightComponent>(entity);
+						ImGui::Text("Directional light");
+						ImGui::InputFloat3("Direction : %d", light.direction.data);
+					}
+					// Recurse childs.
+					auto it = childrens.find(entity);
+					if (it != childrens.end())
+					{
+						for (entt::entity e : it->second)
+							recurse(e);
+					}
 					ImGui::TreePop();
 				}
-			});
+			};
+
+			ImGui::TextColored(ImVec4(1.0, 1.0, 1.0, 1.0),  "Graph");
+			if (ImGui::BeginChild("", ImVec2(0, 200), true))
+			{
+				for (entt::entity e : roots)
+					recurse(e);
+			}
+			ImGui::EndChild();
 			ImGui::Text("Vertices : %d", vertexCount);
 			ImGui::Text("Indices : %d", indexCount);
 		}
