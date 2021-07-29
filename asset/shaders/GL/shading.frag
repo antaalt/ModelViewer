@@ -15,10 +15,32 @@ uniform sampler2D u_roughness;
 uniform samplerCube u_skybox;
 
 uniform vec3 u_cameraPos;
-uniform vec3 u_lightDir;
-uniform mat4 u_worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
-uniform float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
-uniform sampler2D u_shadowTexture[SHADOW_CASCADE_COUNT];
+
+struct DirectionalLight {
+	vec3 direction;
+	float intensity;
+	vec3 color;
+	mat4 worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
+	float cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
+	sampler2D shadowMap[SHADOW_CASCADE_COUNT];
+};
+
+//struct PointLight {
+//	vec3 position;
+//	float intensity;
+//	vec3 color;
+//	mat4 worldToLightTextureSpace;
+//	samplerCube shadowMap;
+//};
+
+uniform int u_dirLightCount;
+//uniform int u_pointLightCount;
+
+const int MAX_DIR_LIGHT_COUNT = 8;
+uniform DirectionalLight u_dirLights[MAX_DIR_LIGHT_COUNT];
+
+//const int MAX_POINT_LIGHT_COUNT = 32;
+//uniform PointLight u_pointLights[MAX_POINT_LIGHT_COUNT];
 
 vec2 poissonDisk[16] = vec2[](
 	vec2( -0.94201624, -0.39906216 ),
@@ -46,7 +68,7 @@ float random(vec3 seed, int i)
 	return fract(sin(dot_product) * 43758.5453);
 }
 
-vec3 computeShadows(vec3 position)
+vec3 computeShadows(vec3 from, int lightID)
 {
 	const float bias = 0.0003; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
@@ -55,7 +77,7 @@ vec3 computeShadows(vec3 position)
 	{
 		// Small offset to blend cascades together smoothly
 		float offset = random(v_uv.xyy, iCascade) * 0.0001;
-		if (texture(u_depth, v_uv).x <= u_cascadeEndClipSpace[iCascade] + offset)
+		if (texture(u_depth, v_uv).x <= u_dirLights[lightID].cascadeEndClipSpace[iCascade] + offset)
 		{
 #if 0 // Debug cascades
 			visibility = vec3(
@@ -66,13 +88,13 @@ vec3 computeShadows(vec3 position)
 #else
 			// PCF
 			const int pass = 16;
-			vec4 lightTextureSpace = u_worldToLightTextureSpace[iCascade] * vec4(position, 1.0);
+			vec4 lightTextureSpace = u_dirLights[lightID].worldToLightTextureSpace[iCascade] * vec4(from, 1.0);
 			lightTextureSpace /= lightTextureSpace.w;
 			for (int iPoisson = 0; iPoisson < 16; iPoisson++)
 			{
 				int index = int(16.0 * random(v_uv.xyy, iPoisson)) % 16;
 				vec2 uv = lightTextureSpace.xy + poissonDisk[index] / diffusion[iCascade];
-				if (texture(u_shadowTexture[iCascade], uv).z < lightTextureSpace.z - bias)
+				if (texture(u_dirLights[lightID].shadowMap[iCascade], uv).z < lightTextureSpace.z - bias)
 				{
 					visibility -= 1.f / pass;
 				}
@@ -159,41 +181,46 @@ void main(void)
 		vec3 radiance     = lightColors[i] * attenuation;
 
 	}*/
-	// Direct lights
-	vec3 L = normalize(u_lightDir);
-	vec3 H = normalize(V + L);
-	float distance = 138;
-	float attenuation = 1.0 / (distance * distance);
-	vec3 radiance = vec3(10);
+	// Directional lights
+	for(int i = 0; i < u_dirLightCount; ++i)
+	{
+		// Shadow
+		vec3 visibility = computeShadows(position, i);
 
-	// non metallic surface always 0.04
-	vec3 F0 = vec3(0.04);
-	F0      = mix(F0, albedo, vec3(metalness));
-	vec3 F  = fresnelSchlick(max(dot(H, V), 0.0), F0);
+		// Shading
+		vec3 L = normalize(u_dirLights[i].direction);
+		vec3 H = normalize(V + L);
 
-	float NDF = DistributionGGX(N, H, roughness);
-	float G   = GeometrySmith(N, V, L, roughness);
+		float distance = 1.0;
+		float attenuation = 1.0 / (distance * distance);
+		vec3 radiance = u_dirLights[i].color * u_dirLights[i].intensity * attenuation;
 
-	vec3 numerator    = NDF * G * F;
-	float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-	vec3 specular     = numerator / max(denominator, 0.001);
+		// non metallic surface always 0.04
+		vec3 F0 = vec3(0.04);
+		F0      = mix(F0, albedo, vec3(metalness));
+		vec3 F  = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-	vec3 kS = F;
-	vec3 kD = vec3(1.0) - kS;
-	kD *= 1.0 - metalness;
+		float NDF = DistributionGGX(N, H, roughness);
+		float G   = GeometrySmith(N, V, L, roughness);
 
-	float NdotL = max(dot(N, L), 0.0);
-	Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+		vec3 numerator    = NDF * G * F;
+		float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+		vec3 specular     = numerator / max(denominator, 0.001);
 
-	// Shadow
-	vec3 visibility = computeShadows(position);
+		vec3 kS = F;
+		vec3 kD = vec3(1.0) - kS;
+		kD *= 1.0 - metalness;
+
+		float NdotL = max(dot(N, L), 0.0);
+		Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
+	}
 
 	// Reflection
 	vec3 reflection = texture(u_skybox, reflect(I, N)).rgb;
 
 	// Shading
-	vec3 indirect = max(kD * ao, 0.03) * albedo; // ao broken for some
-	vec3 direct = visibility * Lo;
+	vec3 indirect = 0.03 * albedo; // ao broken for some
+	vec3 direct = Lo;
 	vec3 color = indirect + direct + reflection * 0.01; // TODO use irradiance map
 
 	// Tonemapping

@@ -38,6 +38,7 @@ void SceneGraph::update(World& world, Time::Unit deltaTime)
 	entt::registry& r = world.registry();
 	// Sort hierarchy to ensure correct order.
 	// https://skypjack.github.io/2019-08-20-ecs-baf-part-4-insights/
+	// https://wickedengine.net/2019/09/29/entity-component-system/
 	r.sort<Hierarchy3DComponent>([&r](const entt::entity lhs, entt::entity rhs) {
 		const Hierarchy3DComponent& clhs = r.get<Hierarchy3DComponent>(lhs);
 		const Hierarchy3DComponent& crhs = r.get<Hierarchy3DComponent>(rhs);

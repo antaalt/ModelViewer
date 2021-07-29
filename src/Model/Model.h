@@ -29,10 +29,15 @@ struct MaterialComponent {
 	//Texture::Ptr emissiveTexture;
 };
 
-struct DirectionnalLightComponent {
+// CSM based directional light
+struct DirectionalLightComponent {
 	vec3f direction;
 	color3f color;
 	float intensity;
+	static const size_t cascadeCount = 3;
+	mat4f worldToLightSpaceMatrix[cascadeCount];
+	Texture::Ptr shadowMap[cascadeCount];
+	float cascadeEndClipSpace[cascadeCount];
 };
 
 struct PointLightComponent {
@@ -47,10 +52,13 @@ struct Camera3DComponent {
 
 struct Camera3DController {
 	// arcball, standard
+	virtual mat4f transform() const = 0;
+	virtual mat4f view() const = 0;
 };
 
 struct CameraProjection {
 	// either persp or ortho
+	virtual mat4f projection() const = 0;
 };
 
 class SceneGraph : public System

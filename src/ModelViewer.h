@@ -24,9 +24,6 @@ private:
 	bool m_debug;
 
 	// shadow map pass
-	static const size_t cascadeCount = 3;
-	aka::mat4f m_worldToLightTextureSpaceMatrix[cascadeCount];
-	aka::Texture::Ptr m_shadowCascadeTexture[cascadeCount];
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;
 

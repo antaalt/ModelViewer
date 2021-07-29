@@ -190,6 +190,21 @@ void Viewer::onCreate()
 	gbufferSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
+
+	// Depth | Stencil
+	// D     | S  
+	// 
+	// position | _
+	// R G B    | A
+	// 
+	// albedo | opacity
+	// R G B  | A
+	// 
+	// normal | _
+	// R G B  | A
+	// 
+	// ao | roughness | metalness | _
+	// R  | G         | B         | A
 	m_depth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
 	m_position = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_albedo = Texture::create2D(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
@@ -323,27 +338,54 @@ void Viewer::onCreate()
 	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
-	// TODO texture atlas & single shader execution
-	m_shadowCascadeTexture[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	m_shadowCascadeTexture[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	m_shadowCascadeTexture[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	FramebufferAttachment shadowAttachments[] = {
-		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
-			m_shadowCascadeTexture[0]
-		}
-	}; 
-	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
 
 	m_sun = m_world.createEntity("Sun");
 	m_sun.add<Transform3DComponent>();
-	m_sun.add<DirectionnalLightComponent>();
+	m_sun.add<Hierarchy3DComponent>();
+	m_sun.add<DirectionalLightComponent>();
 	Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
-	DirectionnalLightComponent& sun = m_sun.get<DirectionnalLightComponent>();
-	sun.direction = vec3f(0.1f, 1.f, 0.1f);
+	Hierarchy3DComponent& h = m_sun.get<Hierarchy3DComponent>();
+	DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
+	sun.direction = vec3f::normalize(vec3f(0.1f, 1.f, 0.1f));
 	sun.color = color3f(1.f);
 	sun.intensity = 1.f;
 	sunTransform.transform = mat4f::identity();
+	sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	// TODO texture atlas & single shader execution
+	sun.worldToLightSpaceMatrix[0] = mat4f::identity();
+	sun.worldToLightSpaceMatrix[1] = mat4f::identity();
+	sun.worldToLightSpaceMatrix[2] = mat4f::identity();
+	FramebufferAttachment shadowAttachments[] = {
+		FramebufferAttachment{
+			FramebufferAttachmentType::Depth,
+			sun.shadowMap[0]
+		}
+	};
+	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
+
+	{
+		// Second dir light
+		Entity e = m_world.createEntity("Sun");
+		e.add<Transform3DComponent>();
+		e.add<Hierarchy3DComponent>();
+		e.add<DirectionalLightComponent>();
+		Transform3DComponent& t = e.get<Transform3DComponent>();
+		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
+		DirectionalLightComponent& l = e.get<DirectionalLightComponent>();
+		l.direction = vec3f::normalize(vec3f(0.2f, 1.f, 0.2f));
+		l.color = color3f(1.f, 0.1f, 0.2f);
+		l.intensity = 1.f;
+		t.transform = mat4f::identity();
+		l.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		// TODO texture atlas & single shader execution
+		l.worldToLightSpaceMatrix[0] = mat4f::identity();
+		l.worldToLightSpaceMatrix[1] = mat4f::identity();
+		l.worldToLightSpaceMatrix[2] = mat4f::identity();
+	}
 
 	// --- FXAA pass
 	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
@@ -386,7 +428,7 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		const Position& pos = Mouse::position();
 		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
-		m_sun.get<DirectionnalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
+		m_sun.get<DirectionalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
 	}
 
 	// Reset
@@ -466,31 +508,28 @@ void Viewer::onRender()
 	mat4f perspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_near, m_far);
 
 	// --- Shadow pass
-	auto directShadows = m_world.registry().view<Transform3DComponent, DirectionnalLightComponent>();
-	mat4f worldToLightSpaceMatrix[cascadeCount];
-	const float offset[cascadeCount + 1] = { m_near, m_far / 20.f, m_far / 5.f, m_far };
-	float cascadeEndClipSpace[cascadeCount];
-	directShadows.each([&](const Transform3DComponent& transform, const DirectionnalLightComponent& lights) {
+	// TODO only update on camera move
+	auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
+	const float offset[DirectionalLightComponent::cascadeCount + 1] = { m_near, m_far / 20.f, m_far / 5.f, m_far };
+	mat4f projectionToTextureCoordinateMatrix(
+		col4f(0.5, 0.0, 0.0, 0.0),
+		col4f(0.0, 0.5, 0.0, 0.0),
+		col4f(0.0, 0.0, 0.5, 0.0),
+		col4f(0.5, 0.5, 0.5, 1.0)
+	);
+	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
 		// Generate shadow cascades
-		for (size_t i = 0; i < cascadeCount; i++)
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
 			float w = (float)width();
 			float h = (float)height();
 			float n = offset[i];
 			float f = offset[i + 1];
 			mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
-			worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, m_shadowCascadeTexture[i]->width(), n, f, lights.direction);
+			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap[i]->width(), n, f, light.direction);
 			vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
-			cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
+			light.cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 		}
-		mat4f projectionToTextureCoordinateMatrix(
-			col4f(0.5, 0.0, 0.0, 0.0),
-			col4f(0.0, 0.5, 0.0, 0.0),
-			col4f(0.0, 0.0, 0.5, 0.0),
-			col4f(0.5, 0.5, 0.5, 1.0)
-		);
-		for (size_t i = 0; i < cascadeCount; i++)
-			m_worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * worldToLightSpaceMatrix[i];
 
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
@@ -504,11 +543,11 @@ void Viewer::onRender()
 		shadowPass.stencil = Stencil::none();
 		shadowPass.viewport = aka::Rect{ 0 };
 		shadowPass.scissor = aka::Rect{ 0 };
-		for (size_t i = 0; i < cascadeCount; i++)
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
-			m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, m_shadowCascadeTexture[i]); // Store in DirectionalLightComponent
+			m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap[i]);
 			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-			m_shadowMaterial->set<mat4f>("u_light", worldToLightSpaceMatrix[i]); // Store in DirectionalLightComponent
+			m_shadowMaterial->set<mat4f>("u_light", light.worldToLightSpaceMatrix[i]);
 			auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
 				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
@@ -517,6 +556,7 @@ void Viewer::onRender()
 			});
 		}
 	});
+	// TODO add point light support
 
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
@@ -547,7 +587,7 @@ void Viewer::onRender()
 		m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
 
 		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
-
+		
 		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
 			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
@@ -589,11 +629,22 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
 		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
-		m_lightingMaterial->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
-		m_lightingMaterial->set<mat4f>("u_worldToLightTextureSpace[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
-		m_lightingMaterial->set<vec3f>("u_lightDir", m_sun.get<DirectionnalLightComponent>().direction);
 		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
-		m_lightingMaterial->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+		int count = 0;
+		directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
+			mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
+			for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+				worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
+			std::string index = std::to_string(count);
+			m_lightingMaterial->set<vec3f>(("u_dirLights[" + index + "].direction").c_str(), light.direction);
+			m_lightingMaterial->set<float>(("u_dirLights[" + index + "].intensity").c_str(), light.intensity);
+			m_lightingMaterial->set<color3f>(("u_dirLights[" + index + "].color").c_str(), light.color);
+			m_lightingMaterial->set<mat4f>(("u_dirLights[" + index + "].worldToLightTextureSpace[0]").c_str(), worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
+			m_lightingMaterial->set<float>(("u_dirLights[" + index + "].cascadeEndClipSpace[0]").c_str(), light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
+			m_lightingMaterial->set<Texture::Ptr>(("u_dirLights[" + index + "].shadowMap[0]").c_str(), light.shadowMap, DirectionalLightComponent::cascadeCount);
+			count++;
+		});
+		m_lightingMaterial->set<int>("u_dirLightCount", count);
 
 		lightingPass.execute();
 
@@ -609,12 +660,16 @@ void Viewer::onRender()
 			renderView = debugView;
 			renderPerspective = debugPerspective;
 		}
+		mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+			worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * m_sun.get<DirectionalLightComponent>().worldToLightSpaceMatrix[i];
 		m_material->set<mat4f>("u_view", renderView);
 		m_material->set<mat4f>("u_projection", renderPerspective);
-		m_material->set<mat4f>("u_light[0]", m_worldToLightTextureSpaceMatrix, cascadeCount);
-		m_material->set<vec3f>("u_lightDir", m_sun.get<DirectionnalLightComponent>().direction);
-		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_shadowCascadeTexture, cascadeCount);
-		m_material->set<float>("u_cascadeEndClipSpace[0]", cascadeEndClipSpace, cascadeCount);
+		m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
+		m_material->set<vec3f>("u_lightDir", m_sun.get<DirectionalLightComponent>().direction);
+		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_sun.get<DirectionalLightComponent>().shadowMap, DirectionalLightComponent::cascadeCount);
+		m_material->set<float>("u_cascadeEndClipSpace[0]", m_sun.get<DirectionalLightComponent>().cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
+
 		RenderPass renderPass{};
 		renderPass.framebuffer = m_storageFramebuffer;
 		renderPass.submesh.type = PrimitiveType::Triangles;
@@ -694,12 +749,12 @@ void Viewer::onRender()
 		vec2f windowSize = vec2f((float)backbuffer->width(), (float)backbuffer->height());
 		vec2f pos[3];
 		vec2f size = vec2f(128.f);
-		for (size_t i = 0; i < cascadeCount; i++)
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 			pos[i] = vec2f(size.x + 10.f * (i + 1), windowSize.y - size.y - 10.f);
 		
 		int hovered = -1;
 		const Position& p = Mouse::position();
-		for (size_t i = 0; i < cascadeCount; i++)
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
 			if (p.x > pos[i].x && p.x < pos[i].x + size.x && p.y > pos[i].y && p.y < pos[i].y + size.y)
 			{
@@ -718,18 +773,18 @@ void Viewer::onRender()
 		else
 		{
 			Renderer3D::drawFrustum(mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
-			Renderer3D::drawFrustum(worldToLightSpaceMatrix[hovered]);
+			Renderer3D::drawFrustum(m_sun.get<DirectionalLightComponent>().worldToLightSpaceMatrix[hovered]);
 		}
 		Renderer3D::drawTransform(mat4f::translate(vec3f(m_bounds.center())) * mat4f::scale(m_bounds.extent() / 2.f));
 		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
 		Renderer3D::clear();
 		
-		for (size_t i = 0; i < cascadeCount; i++)
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 			Renderer2D::drawRect(
 				mat3f::identity(),
 				vec2f(size.x * i + 10.f * (i + 1), windowSize.y - size.y - 10.f),
 				size,
-				m_shadowCascadeTexture[i],
+				m_sun.get<DirectionalLightComponent>().shadowMap[i],
 				color4f(1.f),
 				10
 			);
