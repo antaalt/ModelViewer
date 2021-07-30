@@ -71,32 +71,20 @@ float random(vec3 seed, int i)
 vec3 computePointShadows(vec3 from, int lightID)
 {
 	vec3 fragToLight = from - u_pointLights[lightID].position;
-	//float closestDepth = texture(u_pointLights[lightID].shadowMap, fragToLight).r;
-	//closestDepth *= u_farPointLight;
 	float currentDepth = length(fragToLight);
-	//return vec3(currentDepth - bias > closestDepth ? 0.0 : 1.0);
-
 	float shadow  = 0.0;
-	float bias    = 0.05;
-	float samples = 4.0;
-	float offset  = 0.1;
-	for(float x = -offset; x < offset; x += offset / (samples * 0.5))
+	float bias    = 0.15;
+	float samples = 20;
+	float diskRadius = 0.05;
+	for(int i = 0; i < samples; ++i)
 	{
-		for(float y = -offset; y < offset; y += offset / (samples * 0.5))
-		{
-			for(float z = -offset; z < offset; z += offset / (samples * 0.5))
-			{
-				float closestDepth = texture(u_pointLights[lightID].shadowMap, fragToLight + vec3(x, y, z)).r;
-				closestDepth *= u_farPointLight;   // undo mapping [0;1]
-				if(currentDepth - bias > closestDepth)
-					shadow += 1.0;
-			}
-		}
+		float closestDepth = texture(u_pointLights[lightID].shadowMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
+		closestDepth *= u_farPointLight;
+		if(currentDepth - bias > closestDepth)
+			shadow += 1.0;
 	}
-	shadow /= (samples * samples * samples);
-
-
-	return vec3(shadow);
+	shadow /= float(samples);
+	return vec3(1.0 - shadow);
 }
 
 vec3 computeDirectionalShadows(vec3 from, int lightID)
