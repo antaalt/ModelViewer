@@ -15,17 +15,13 @@ public:
 	void onUpdate(Time::Unit deltaTime) override;
 	void onRender() override;
 private:
-	// Camera info
-	float m_near;
-	float m_far;
-	aka::anglef m_hFov;
-
 	// Debug info
 	bool m_debug;
 
 	// shadow map pass
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;
+	aka::ShaderMaterial::Ptr m_shadowPointMaterial;
 
 	// gbuffers pass
 	aka::Texture::Ptr m_position;
@@ -50,6 +46,7 @@ private:
 	aka::aabbox<> m_bounds;
 	aka::World m_world;
 	aka::Entity m_sun;
+	CameraPerspective m_projection;
 	ArcballCamera m_camera;
 
 	// FXAA pass

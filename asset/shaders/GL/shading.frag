@@ -15,6 +15,7 @@ uniform sampler2D u_roughness;
 uniform samplerCube u_skybox;
 
 uniform vec3 u_cameraPos;
+uniform float u_farPointLight;
 
 struct DirectionalLight {
 	vec3 direction;
@@ -25,22 +26,21 @@ struct DirectionalLight {
 	sampler2D shadowMap[SHADOW_CASCADE_COUNT];
 };
 
-//struct PointLight {
-//	vec3 position;
-//	float intensity;
-//	vec3 color;
-//	mat4 worldToLightTextureSpace;
-//	samplerCube shadowMap;
-//};
+struct PointLight {
+	vec3 position;
+	float intensity;
+	vec3 color;
+	samplerCube shadowMap;
+};
 
 uniform int u_dirLightCount;
-//uniform int u_pointLightCount;
+uniform int u_pointLightCount;
 
-const int MAX_DIR_LIGHT_COUNT = 8;
+const int MAX_DIR_LIGHT_COUNT = 4;
 uniform DirectionalLight u_dirLights[MAX_DIR_LIGHT_COUNT];
 
-//const int MAX_POINT_LIGHT_COUNT = 32;
-//uniform PointLight u_pointLights[MAX_POINT_LIGHT_COUNT];
+const int MAX_POINT_LIGHT_COUNT = 8;
+uniform PointLight u_pointLights[MAX_POINT_LIGHT_COUNT];
 
 vec2 poissonDisk[16] = vec2[](
 	vec2( -0.94201624, -0.39906216 ),
@@ -68,7 +68,17 @@ float random(vec3 seed, int i)
 	return fract(sin(dot_product) * 43758.5453);
 }
 
-vec3 computeShadows(vec3 from, int lightID)
+vec3 computePointShadows(vec3 from, int lightID)
+{
+	vec3 fragToLight = from - u_pointLights[lightID].position;
+	float closestDepth = texture(u_pointLights[lightID].shadowMap, fragToLight).r;
+	closestDepth *= u_farPointLight;
+	float currentDepth = length(fragToLight);
+	float bias = 0.05;
+	return vec3(currentDepth - bias > closestDepth ? 0.0 : 1.0);
+}
+
+vec3 computeDirectionalShadows(vec3 from, int lightID)
 {
 	const float bias = 0.0003; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
@@ -171,21 +181,43 @@ void main(void)
 
 	vec3 Lo = vec3(0.0);
 	// Point lights
-	/*for(int i = 0; i < 4; ++i)
+	for(int i = 0; i < u_pointLightCount; ++i)
 	{
-		vec3 L = normalize(lightPositions[i] - WorldPos);
+		// Shadow
+		vec3 visibility = computePointShadows(position, i);
+
+	 	// Shading
+		vec3 L = normalize(u_pointLights[i].position - position);
 		vec3 H = normalize(V + L);
 
-		float distance    = length(lightPositions[i] - WorldPos);
+		float distance    = length(u_pointLights[i].position - position);
 		float attenuation = 1.0 / (distance * distance);
-		vec3 radiance     = lightColors[i] * attenuation;
+		vec3 radiance     = u_pointLights[i].color* u_pointLights[i].intensity * attenuation;
 
-	}*/
+		// non metallic surface always 0.04
+		vec3 F0 = vec3(0.04);
+		F0      = mix(F0, albedo, vec3(metalness));
+		vec3 F  = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+		float NDF = DistributionGGX(N, H, roughness);
+		float G   = GeometrySmith(N, V, L, roughness);
+
+		vec3 numerator    = NDF * G * F;
+		float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+		vec3 specular     = numerator / max(denominator, 0.001);
+
+		vec3 kS = F;
+		vec3 kD = vec3(1.0) - kS;
+		kD *= 1.0 - metalness;
+
+		float NdotL = max(dot(N, L), 0.0);
+		Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
+	}
 	// Directional lights
 	for(int i = 0; i < u_dirLightCount; ++i)
 	{
 		// Shadow
-		vec3 visibility = computeShadows(position, i);
+		vec3 visibility = computeDirectionalShadows(position, i);
 
 		// Shading
 		vec3 L = normalize(u_dirLights[i].direction);

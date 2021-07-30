@@ -34,6 +34,7 @@ struct DirectionalLightComponent {
 	vec3f direction;
 	color3f color;
 	float intensity;
+	// Rendering
 	static const size_t cascadeCount = 3;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
 	Texture::Ptr shadowMap[cascadeCount];
@@ -43,23 +44,21 @@ struct DirectionalLightComponent {
 struct PointLightComponent {
 	color3f color;
 	float intensity;
-};
-
-struct Camera3DComponent {
-	//CameraProjection* projection;
-	//Camera3DController* controller;
+	// Rendering
+	mat4f worldToLightSpaceMatrix[6];
+	Texture::Ptr shadowMap;
 };
 
 struct Camera3DController {
-	// arcball, standard
 	virtual mat4f transform() const = 0;
 	virtual mat4f view() const = 0;
 };
 
-struct CameraProjection {
-	// either persp or ortho
-	virtual mat4f projection() const = 0;
+struct Camera3DComponent {
+	CameraProjection* projection;
+	Camera3DController* controller;
 };
+
 
 class SceneGraph : public System
 {
@@ -70,7 +69,7 @@ public:
 	void update(World& world, Time::Unit deltaTime) override;
 };
 
-class ArcballCamera
+class ArcballCamera : Camera3DController
 {
 public:
 	ArcballCamera();
@@ -88,8 +87,8 @@ public:
 	// Update the camera depending on user input
 	void update(Time::Unit deltaTime);
 
-	mat4f& transform() { return m_transform; }
-	const mat4f& transform() const { return m_transform; }
+	mat4f transform() const override { return m_transform; }
+	mat4f view() const override { return mat4f::inverse(m_transform); }
 private:
 	mat4f m_transform;
 	float m_speed;

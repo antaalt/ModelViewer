@@ -28,7 +28,7 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_gbufferMaterial = aka::ShaderMaterial::create(shader);
 		}
@@ -51,7 +51,7 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_lightingMaterial = aka::ShaderMaterial::create(shader);
 		}
@@ -77,7 +77,7 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_material = aka::ShaderMaterial::create(shader);
 		}
@@ -103,9 +103,37 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_shadowMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
+	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
+		};
+#if defined(AKA_USE_OPENGL)
+		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")), ShaderType::Vertex);
+		ShaderID geo = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.geo")), ShaderType::Geometry);
+		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.frag")), ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/shadowPoint.hlsl"));
+		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
+		ShaderID geo = Shader::compile(str, ShaderType::Geometry);
+		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0) || geo == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile shadow point shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::createGeometry(vert, frag, geo, attributes);
+			if (shader->valid())
+				m_shadowPointMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
@@ -126,7 +154,7 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
 		}
@@ -149,7 +177,7 @@ void Viewer::loadShader()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, aka::ShaderID(0), attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
 				m_fxaaMaterial = aka::ShaderMaterial::create(shader);
 		}
@@ -163,9 +191,9 @@ void Viewer::onCreate()
 	StopWatch<> stopWatch;
 	// TODO use args
 	bool loaded = false;
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
@@ -332,8 +360,8 @@ void Viewer::onCreate()
 
 	// --- Shadows
 	Sampler shadowSampler{};
-	shadowSampler.filterMag = Sampler::Filter::Linear;
-	shadowSampler.filterMin = Sampler::Filter::Linear;
+	shadowSampler.filterMag = Sampler::Filter::Nearest;
+	shadowSampler.filterMin = Sampler::Filter::Nearest;
 	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
@@ -347,15 +375,15 @@ void Viewer::onCreate()
 	DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
 	sun.direction = vec3f::normalize(vec3f(0.1f, 1.f, 0.1f));
 	sun.color = color3f(1.f);
-	sun.intensity = 1.f;
+	sun.intensity = 10.f;
 	sunTransform.transform = mat4f::identity();
 	sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 	// TODO texture atlas & single shader execution
-	sun.worldToLightSpaceMatrix[0] = mat4f::identity();
-	sun.worldToLightSpaceMatrix[1] = mat4f::identity();
-	sun.worldToLightSpaceMatrix[2] = mat4f::identity();
+	for (size_t i = 0; i < 3; i++)
+		sun.worldToLightSpaceMatrix[i] = mat4f::identity();
+	// TODO empty attachment as default ?
 	FramebufferAttachment shadowAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,
@@ -381,9 +409,24 @@ void Viewer::onCreate()
 		l.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 		l.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
 		// TODO texture atlas & single shader execution
-		l.worldToLightSpaceMatrix[0] = mat4f::identity();
-		l.worldToLightSpaceMatrix[1] = mat4f::identity();
-		l.worldToLightSpaceMatrix[2] = mat4f::identity();
+		for (size_t i = 0; i < 3; i++)
+			l.worldToLightSpaceMatrix[i] = mat4f::identity();
+	}
+	{
+		// Point light
+		Entity e = m_world.createEntity("Light");
+		e.add<Transform3DComponent>();
+		e.add<Hierarchy3DComponent>();
+		e.add<PointLightComponent>();
+		Transform3DComponent& t = e.get<Transform3DComponent>();
+		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
+		PointLightComponent& l = e.get<PointLightComponent>();
+		l.color = color3f(0.2f, 1.f, 0.2f);
+		l.intensity = 10.f;
+		t.transform = mat4f::translate(vec3f(0, 1, 0));
+		l.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		for (size_t i = 0; i < 6; i++)
+			l.worldToLightSpaceMatrix[i] = mat4f::identity();
 	}
 
 	// --- FXAA pass
@@ -403,9 +446,10 @@ void Viewer::onCreate()
 
 	m_camera.set(m_bounds);
 
-	m_near = 0.01f;
-	m_far = 100.f;
-	m_hFov = anglef::degree(90.f);
+	m_projection.nearZ = 0.01f;
+	m_projection.farZ = 100.f;
+	m_projection.hFov = anglef::degree(90.f);
+	m_projection.ratio = width() / (float)height();
 	m_debug = true;
 
 	attach<ImGuiLayer>();
@@ -503,13 +547,15 @@ void Viewer::onRender()
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_bounds.center() + m_bounds.extent(), point3f(0.f)));
 	mat4f view = mat4f::inverse(m_camera.transform());
 	// TODO use camera (Arcball inherit camera ?)
-	mat4f debugPerspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
-	mat4f perspective = mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_near, m_far);
+	mat4f debugPerspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
+	mat4f perspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_projection.nearZ, m_projection.farZ);
 
 	// --- Shadow pass
 	// TODO only update on camera move
 	auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
-	const float offset[DirectionalLightComponent::cascadeCount + 1] = { m_near, m_far / 20.f, m_far / 5.f, m_far };
+	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
+	const float offset[DirectionalLightComponent::cascadeCount + 1] = { m_projection.nearZ, m_projection.farZ / 20.f, m_projection.farZ / 5.f, m_projection.farZ };
+	float farPointLight = 40.f;
 	mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
@@ -524,7 +570,7 @@ void Viewer::onRender()
 			float h = (float)height();
 			float n = offset[i];
 			float f = offset[i + 1];
-			mat4f p = mat4f::perspective(m_hFov, w / h, n, f);
+			mat4f p = mat4f::perspective(m_projection.hFov, w / h, n, f);
 			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap[i]->width(), n, f, light.direction);
 			vec4f clipSpace = perspective * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 			light.cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
@@ -555,7 +601,43 @@ void Viewer::onRender()
 			});
 		}
 	});
-	// TODO add point light support
+	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
+		// Generate shadow cascades
+		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 1.f, farPointLight);
+		point3f lightPos = point3f(transform.transform.cols[3]);
+		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 1.0,  0.0,  0.0), norm3f(0.0, -1.0,  0.0)));
+		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0,  0.0,  0.0), norm3f(0.0, -1.0,  0.0)));
+		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  1.0,  0.0), norm3f(0.0,  0.0,  1.0)));
+		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0, -1.0,  0.0), norm3f(0.0,  0.0, -1.0)));
+		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0,  1.0), norm3f(0.0, -1.0,  0.0)));
+		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0, -1.0), norm3f(0.0, -1.0,  0.0)));
+		
+
+		RenderPass shadowPass;
+		shadowPass.framebuffer = m_shadowFramebuffer;
+		shadowPass.submesh.type = PrimitiveType::Triangles;
+		shadowPass.submesh.indexOffset = 0;
+		shadowPass.material = m_shadowPointMaterial;
+		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+		shadowPass.blend = Blending::none();
+		shadowPass.depth = Depth{ DepthCompare::Less, true };
+		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+		shadowPass.stencil = Stencil::none();
+		shadowPass.viewport = aka::Rect{ 0 };
+		shadowPass.scissor = aka::Rect{ 0 };
+
+		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
+		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
+		m_shadowPointMaterial->set<mat4f>("u_lights[0]", light.worldToLightSpaceMatrix, 6);
+		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
+		m_shadowPointMaterial->set<float>("u_far", farPointLight);
+		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+			m_shadowPointMaterial->set<mat4f>("u_model", transform.transform);
+			shadowPass.submesh = mesh.submesh;
+			shadowPass.execute();
+		});
+	});
 
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
@@ -629,6 +711,7 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
 		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
+		m_lightingMaterial->set<float>("u_farPointLight", farPointLight);
 		int count = 0;
 		directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
 			mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
@@ -644,6 +727,20 @@ void Viewer::onRender()
 			count++;
 		});
 		m_lightingMaterial->set<int>("u_dirLightCount", count);
+		count = 0;
+		pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
+			mat4f worldToLightTextureSpaceMatrix[6];
+			for (size_t i = 0; i < 6; i++)
+				worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
+			std::string index = std::to_string(count);
+			m_lightingMaterial->set<vec3f>(("u_pointLights[" + index + "].position").c_str(), vec3f(transform.transform.cols[3]));
+			m_lightingMaterial->set<float>(("u_pointLights[" + index + "].intensity").c_str(), light.intensity);
+			m_lightingMaterial->set<color3f>(("u_pointLights[" + index + "].color").c_str(), light.color);
+			//m_lightingMaterial->set<mat4f>(("u_pointLights[" + index + "].worldToLightTextureSpace[0]").c_str(), worldToLightTextureSpaceMatrix, 6);
+			m_lightingMaterial->set<Texture::Ptr>(("u_pointLights[" + index + "].shadowMap").c_str(), light.shadowMap);
+			count++;
+		});
+		m_lightingMaterial->set<int>("u_pointLightCount", count);
 
 		lightingPass.execute();
 
@@ -769,7 +866,7 @@ void Viewer::onRender()
 		}
 		else
 		{
-			Renderer3D::drawFrustum(mat4f::perspective(m_hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
+			Renderer3D::drawFrustum(mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
 			Renderer3D::drawFrustum(m_sun.get<DirectionalLightComponent>().worldToLightSpaceMatrix[hovered]);
 		}
 		Renderer3D::drawTransform(mat4f::translate(vec3f(m_bounds.center())) * mat4f::scale(m_bounds.extent() / 2.f));
@@ -803,11 +900,11 @@ void Viewer::onRender()
 
 		if (ImGui::Begin("Camera"))
 		{
-			float fov = m_hFov.radian();
+			float fov = m_projection.hFov.radian();
 			if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
-				m_hFov = anglef::radian(fov);
-			ImGui::SliderFloat("Near", &m_near, 0.001f, 10.f);
-			ImGui::SliderFloat("Far", &m_far, 10.f, 1000.f);
+				m_projection.hFov = anglef::radian(fov);
+			ImGui::SliderFloat("Near", &m_projection.nearZ, 0.001f, 10.f);
+			ImGui::SliderFloat("Far", &m_projection.farZ, 10.f, 1000.f);
 			//imgui gizmo
 		}
 		ImGui::End();
@@ -823,13 +920,9 @@ void Viewer::onRender()
 			{
 				const Hierarchy3DComponent& h = m_world.registry().get<Hierarchy3DComponent>(entity);
 				if (h.parent == Entity::null())
-				{
 					roots.push_back(entity);
-				}
 				else
-				{
 					childrens[h.parent.handle()].push_back(entity);
-				}
 			}
 
 			std::function<void(entt::entity)> recurse = [&](entt::entity entity)
@@ -861,7 +954,16 @@ void Viewer::onRender()
 					{
 						DirectionalLightComponent& light = m_world.registry().get<DirectionalLightComponent>(entity);
 						ImGui::Text("Directional light");
-						ImGui::InputFloat3("Direction : %d", light.direction.data);
+						ImGui::InputFloat3("Direction", light.direction.data);
+						ImGui::ColorEdit3("Color", light.color.data);
+						ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
+					}
+					if (m_world.registry().has<PointLightComponent>(entity))
+					{
+						PointLightComponent& light = m_world.registry().get<PointLightComponent>(entity);
+						ImGui::Text("Point light");
+						ImGui::ColorEdit3("Color", light.color.data);
+						ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
 					}
 					// Recurse childs.
 					auto it = childrens.find(entity);
