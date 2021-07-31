@@ -61,6 +61,15 @@ vec2 poissonDisk[16] = vec2[](
 	vec2( 0.14383161, -0.14100790 )
 );
 
+vec3 sampleOffsetDirections[20] = vec3[]
+(
+	vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
+	vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
+	vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+	vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
+	vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+);
+
 float random(vec3 seed, int i)
 {
 	vec4 seed4 = vec4(seed,i);
