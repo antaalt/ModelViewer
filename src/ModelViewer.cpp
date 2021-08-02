@@ -202,8 +202,7 @@ void Viewer::onCreate()
 	auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 	m_bounds;
 	view.each([this](Transform3DComponent& t, MeshComponent& mesh) {
-		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.min));
-		m_bounds.include(t.transform.multiplyPoint(mesh.bounds.max));
+		m_bounds.include(t.transform * mesh.bounds);
 	});
 	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
 	aka::Logger::info("Scene Bounding box : ", m_bounds.min, " - ", m_bounds.max);
@@ -595,6 +594,7 @@ void Viewer::onRender()
 			m_shadowMaterial->set<mat4f>("u_light", light.worldToLightSpaceMatrix[i]);
 			auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+				// TODO separate light view matrix to be able to perform culling here
 				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
 				shadowPass.submesh = mesh.submesh;
 				shadowPass.execute();
@@ -612,7 +612,6 @@ void Viewer::onRender()
 		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0,  1.0), norm3f(0.0, -1.0,  0.0)));
 		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0, -1.0), norm3f(0.0, -1.0,  0.0)));
 		
-
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
 		shadowPass.submesh.type = PrimitiveType::Triangles;
@@ -670,6 +669,11 @@ void Viewer::onRender()
 		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
 		
 		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+			frustum<>::planes p = frustum<>::extract(renderPerspective * renderView * transform.transform);
+			// Check intersection in camera space
+			if (!p.intersect(mesh.bounds))
+				return;
+
 			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
 			aka::color4f color = material.color;
@@ -779,6 +783,10 @@ void Viewer::onRender()
 		renderPass.scissor = aka::Rect{ 0 };
 
 		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+			frustum<>::planes p = frustum<>::extract(renderPerspective);
+			// Check intersection in camera space
+			if (!p.intersect((renderView * transform.transform) * mesh.bounds))
+				return;
 			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
 			aka::color4f color = material.color;
