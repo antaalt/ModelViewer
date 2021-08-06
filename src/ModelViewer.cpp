@@ -669,9 +669,10 @@ void Viewer::onRender()
 		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
 		
 		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
-			frustum<>::planes p = frustum<>::extract(renderPerspective * renderView * transform.transform);
+			frustum<>::planes p = frustum<>::extract(perspective * view);
 			// Check intersection in camera space
-			if (!p.intersect(mesh.bounds))
+			// https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
+			if (!p.intersect(transform.transform * mesh.bounds))
 				return;
 
 			aka::mat4f model = transform.transform;
@@ -783,9 +784,8 @@ void Viewer::onRender()
 		renderPass.scissor = aka::Rect{ 0 };
 
 		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
-			frustum<>::planes p = frustum<>::extract(renderPerspective);
-			// Check intersection in camera space
-			if (!p.intersect((renderView * transform.transform) * mesh.bounds))
+			frustum<>::planes p = frustum<>::extract(perspective * view);
+			if (!p.intersect(transform.transform * mesh.bounds))
 				return;
 			aka::mat4f model = transform.transform;
 			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
