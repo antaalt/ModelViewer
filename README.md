@@ -8,6 +8,7 @@
 - Support many model format with Assimp
 - Deferred rendering
 - Shadow mapping (CSM)
+- Directional lights & point lights
 - Normal mapping
 - PBR rendering
 - FXAA

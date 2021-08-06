@@ -46,8 +46,8 @@ private:
 	aka::aabbox<> m_bounds;
 	aka::World m_world;
 	aka::Entity m_sun;
-	CameraPerspective m_projection;
-	ArcballCamera m_camera;
+	aka::CameraPerspective m_projection;
+	ArcballCamera3D m_cameraController;
 
 	// FXAA pass
 	aka::Texture::Ptr m_storageDepth;

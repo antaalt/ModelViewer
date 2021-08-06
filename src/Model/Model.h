@@ -35,7 +35,7 @@ struct DirectionalLightComponent {
 	color3f color;
 	float intensity;
 	// Rendering
-	static const size_t cascadeCount = 3;
+	static constexpr size_t cascadeCount = 3;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
 	Texture::Ptr shadowMap[cascadeCount];
 	float cascadeEndClipSpace[cascadeCount];
@@ -45,6 +45,7 @@ struct PointLightComponent {
 	color3f color;
 	float intensity;
 	// Rendering
+	static constexpr float far = 40.f;
 	mat4f worldToLightSpaceMatrix[6];
 	Texture::Ptr shadowMap;
 };
@@ -52,13 +53,16 @@ struct PointLightComponent {
 struct Camera3DController {
 	virtual mat4f transform() const = 0;
 	virtual mat4f view() const = 0;
+	virtual void set(const aabbox<>& bbox) {}
 };
-
+// CameraProjectionComponent
 struct Camera3DComponent {
+	mat4f view;
 	CameraProjection* projection;
-	Camera3DController* controller;
+	//Camera3DController* controller;
 };
 
+struct DirtyLightComponent {};
 
 class SceneGraph : public System
 {

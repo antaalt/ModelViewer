@@ -200,7 +200,6 @@ void Viewer::onCreate()
 		throw std::runtime_error("Could not load model.");
 	// Compute scene bounds.
 	auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
-	m_bounds;
 	view.each([this](Transform3DComponent& t, MeshComponent& mesh) {
 		m_bounds.include(t.transform * mesh.bounds);
 	});
@@ -369,6 +368,7 @@ void Viewer::onCreate()
 	m_sun.add<Transform3DComponent>();
 	m_sun.add<Hierarchy3DComponent>();
 	m_sun.add<DirectionalLightComponent>();
+	m_sun.add<DirtyLightComponent>();
 	Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
 	Hierarchy3DComponent& h = m_sun.get<Hierarchy3DComponent>();
 	DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
@@ -397,6 +397,7 @@ void Viewer::onCreate()
 		e.add<Transform3DComponent>();
 		e.add<Hierarchy3DComponent>();
 		e.add<DirectionalLightComponent>();
+		e.add<DirtyLightComponent>();
 		Transform3DComponent& t = e.get<Transform3DComponent>();
 		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
 		DirectionalLightComponent& l = e.get<DirectionalLightComponent>();
@@ -417,6 +418,7 @@ void Viewer::onCreate()
 		e.add<Transform3DComponent>();
 		e.add<Hierarchy3DComponent>();
 		e.add<PointLightComponent>();
+		e.add<DirtyLightComponent>();
 		Transform3DComponent& t = e.get<Transform3DComponent>();
 		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
 		PointLightComponent& l = e.get<PointLightComponent>();
@@ -443,7 +445,7 @@ void Viewer::onCreate()
 	};
 	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 
-	m_camera.set(m_bounds);
+	m_cameraController.set(m_bounds);
 
 	m_projection.nearZ = 0.01f;
 	m_projection.farZ = 100.f;
@@ -462,8 +464,15 @@ void Viewer::onDestroy()
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
 	// Arcball
-	if(!ImGui::GetIO().WantCaptureKeyboard)
-		m_camera.update(deltaTime);
+	if (!ImGui::GetIO().WantCaptureKeyboard)
+	{
+		m_cameraController.update(deltaTime);
+		// TODO check if main camera moved only, add to all dir lights
+		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
+		for (entt::entity e : dirLightUpdate)
+			if (!m_world.registry().has<DirtyLightComponent>(e))
+				m_world.registry().emplace<DirtyLightComponent>(e);
+	}
 
 	// TOD
 	if (Mouse::pressed(MouseButton::ButtonMiddle))
@@ -471,12 +480,14 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 		const Position& pos = Mouse::position();
 		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
 		m_sun.get<DirectionalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
+		if (!m_sun.has<DirtyLightComponent>())
+			m_sun.add<DirtyLightComponent>();
 	}
 
 	// Reset
 	if (Keyboard::down(KeyboardKey::R))
 	{
-		m_camera.set(m_bounds);
+		m_cameraController.set(m_bounds);
 	}
 	if (Keyboard::down(KeyboardKey::D))
 	{
@@ -544,24 +555,60 @@ void Viewer::onRender()
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_bounds.center() + m_bounds.extent(), point3f(0.f)));
-	mat4f view = mat4f::inverse(m_camera.transform());
+	mat4f view = mat4f::inverse(m_cameraController.transform());
 	// TODO use camera (Arcball inherit camera ?)
 	mat4f debugPerspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_projection.nearZ, m_projection.farZ);
 
-	// --- Shadow pass
-	// TODO only update on camera move
-	auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
-	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
-	const float offset[DirectionalLightComponent::cascadeCount + 1] = { m_projection.nearZ, m_projection.farZ / 20.f, m_projection.farZ / 5.f, m_projection.farZ };
-	float farPointLight = 40.f;
-	mat4f projectionToTextureCoordinateMatrix(
-		col4f(0.5, 0.0, 0.0, 0.0),
-		col4f(0.0, 0.5, 0.0, 0.0),
-		col4f(0.0, 0.0, 0.5, 0.0),
-		col4f(0.5, 0.5, 0.5, 1.0)
-	);
-	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
+	auto pointLightUpdate = m_world.registry().view<DirtyLightComponent, PointLightComponent>();
+	auto dirLightUpdate = m_world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
+	for (entt::entity e : pointLightUpdate)
+	{
+		Transform3DComponent& transform = m_world.registry().get<Transform3DComponent>(e);
+		PointLightComponent& light = m_world.registry().get<PointLightComponent>(e);
+
+		// Generate shadow cascades
+		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 1.f, PointLightComponent::far);
+		point3f lightPos = point3f(transform.transform.cols[3]);
+		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
+		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
+		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 1.0, 0.0), norm3f(0.0, 0.0, 1.0)));
+		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, -1.0, 0.0), norm3f(0.0, 0.0, -1.0)));
+		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 0.0, 1.0), norm3f(0.0, -1.0, 0.0)));
+		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 0.0, -1.0), norm3f(0.0, -1.0, 0.0)));
+
+		RenderPass shadowPass;
+		shadowPass.framebuffer = m_shadowFramebuffer;
+		shadowPass.submesh.type = PrimitiveType::Triangles;
+		shadowPass.submesh.indexOffset = 0;
+		shadowPass.material = m_shadowPointMaterial;
+		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+		shadowPass.blend = Blending::none();
+		shadowPass.depth = Depth{ DepthCompare::Less, true };
+		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+		shadowPass.stencil = Stencil::none();
+		shadowPass.viewport = aka::Rect{ 0 };
+		shadowPass.scissor = aka::Rect{ 0 };
+
+		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
+		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
+		m_shadowPointMaterial->set<mat4f>("u_lights[0]", light.worldToLightSpaceMatrix, 6);
+		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
+		m_shadowPointMaterial->set<float>("u_far", PointLightComponent::far);
+		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+			m_shadowPointMaterial->set<mat4f>("u_model", transform.transform);
+			shadowPass.submesh = mesh.submesh;
+			shadowPass.execute();
+		});
+		m_world.registry().remove<DirtyLightComponent>(e);
+	}
+
+	for (entt::entity e : dirLightUpdate)
+	{
+		DirectionalLightComponent& light = m_world.registry().get<DirectionalLightComponent>(e);
+
+		const float offset[DirectionalLightComponent::cascadeCount + 1] = { m_projection.nearZ, m_projection.farZ / 20.f, m_projection.farZ / 5.f, m_projection.farZ };
 		// Generate shadow cascades
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
@@ -598,46 +645,17 @@ void Viewer::onRender()
 				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
 				shadowPass.submesh = mesh.submesh;
 				shadowPass.execute();
-			});
+				});
 		}
-	});
-	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
-		// Generate shadow cascades
-		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 1.f, farPointLight);
-		point3f lightPos = point3f(transform.transform.cols[3]);
-		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 1.0,  0.0,  0.0), norm3f(0.0, -1.0,  0.0)));
-		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0,  0.0,  0.0), norm3f(0.0, -1.0,  0.0)));
-		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  1.0,  0.0), norm3f(0.0,  0.0,  1.0)));
-		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0, -1.0,  0.0), norm3f(0.0,  0.0, -1.0)));
-		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0,  1.0), norm3f(0.0, -1.0,  0.0)));
-		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f( 0.0,  0.0, -1.0), norm3f(0.0, -1.0,  0.0)));
-		
-		RenderPass shadowPass;
-		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.submesh.type = PrimitiveType::Triangles;
-		shadowPass.submesh.indexOffset = 0;
-		shadowPass.material = m_shadowPointMaterial;
-		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		shadowPass.blend = Blending::none();
-		shadowPass.depth = Depth{ DepthCompare::Less, true };
-		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		shadowPass.stencil = Stencil::none();
-		shadowPass.viewport = aka::Rect{ 0 };
-		shadowPass.scissor = aka::Rect{ 0 };
-
-		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
-		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-		m_shadowPointMaterial->set<mat4f>("u_lights[0]", light.worldToLightSpaceMatrix, 6);
-		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
-		m_shadowPointMaterial->set<float>("u_far", farPointLight);
-		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
-		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-			m_shadowPointMaterial->set<mat4f>("u_model", transform.transform);
-			shadowPass.submesh = mesh.submesh;
-			shadowPass.execute();
-		});
-	});
-
+		m_world.registry().remove<DirtyLightComponent>(e);
+	}
+	// --- Shadow pass
+	const mat4f projectionToTextureCoordinateMatrix(
+		col4f(0.5, 0.0, 0.0, 0.0),
+		col4f(0.0, 0.5, 0.0, 0.0),
+		col4f(0.0, 0.0, 0.5, 0.0),
+		col4f(0.5, 0.5, 0.5, 1.0)
+	);
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
 	auto renderableView = m_world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
@@ -715,9 +733,10 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
 		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
-		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.transform()[3]));
-		m_lightingMaterial->set<float>("u_farPointLight", farPointLight);
+		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_cameraController.transform()[3]));
+		m_lightingMaterial->set<float>("u_farPointLight", PointLightComponent::far);
 		int count = 0;
+		auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 		directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
 			mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
 			for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
@@ -733,6 +752,7 @@ void Viewer::onRender()
 		});
 		m_lightingMaterial->set<int>("u_dirLightCount", count);
 		count = 0;
+		auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
 		pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
 			mat4f worldToLightTextureSpaceMatrix[6];
 			for (size_t i = 0; i < 6; i++)
@@ -868,7 +888,7 @@ void Viewer::onRender()
 		Renderer3D::drawAxis(mat4f::identity());
 		Renderer3D::drawAxis(mat4f::inverse(view));
 		Renderer3D::drawAxis(mat4f::translate(vec3f(m_bounds.center())));
-		if (hovered < 0)
+		/*if (hovered < 0)
 		{
 			Renderer3D::drawFrustum(perspective * view);
 		}
@@ -876,7 +896,7 @@ void Viewer::onRender()
 		{
 			Renderer3D::drawFrustum(mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), offset[hovered], offset[hovered + 1]) * view);
 			Renderer3D::drawFrustum(m_sun.get<DirectionalLightComponent>().worldToLightSpaceMatrix[hovered]);
-		}
+		}*/
 		Renderer3D::drawTransform(mat4f::translate(vec3f(m_bounds.center())) * mat4f::scale(m_bounds.extent() / 2.f));
 		Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
 		Renderer3D::clear();
