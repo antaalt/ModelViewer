@@ -62,7 +62,20 @@ struct Camera3DComponent {
 	//Camera3DController* controller;
 };
 
+struct ArcballCameraComponent {
+	point3f position;
+	point3f target;
+	norm3f up;
+
+	float speed;
+	bool active;
+
+	void set(const aabbox<>& bbox);
+};
+
 struct DirtyLightComponent {};
+struct DirtyCameraComponent {};
+struct DirtyTransformComponent {};
 
 class SceneGraph : public System
 {
@@ -73,32 +86,10 @@ public:
 	void update(World& world, Time::Unit deltaTime) override;
 };
 
-class ArcballCamera : Camera3DController
+class ArcballCameraSystem : public System
 {
 public:
-	ArcballCamera();
-	ArcballCamera(const aabbox<>& bbox);
-
-	// Rotate the camera
-	void rotate(float x, float y);
-	// Pan the camera
-	void pan(float x, float y);
-	// Zoom the camera
-	void zoom(float zoom);
-
-	// Set the camera bounds
-	void set(const aabbox<>& bbox);
-	// Update the camera depending on user input
-	void update(Time::Unit deltaTime);
-
-	mat4f transform() const override { return m_transform; }
-	mat4f view() const override { return mat4f::inverse(m_transform); }
-private:
-	mat4f m_transform;
-	float m_speed;
-	point3f m_position;
-	point3f m_target;
-	norm3f m_up;
+	void update(World& world, Time::Unit deltaTime) override;
 };
 
 };

@@ -43,11 +43,13 @@ private:
 
 	// Forward pass
 	aka::ShaderMaterial::Ptr m_material;
+
+	// Scene
 	aka::aabbox<> m_bounds;
 	aka::World m_world;
 	aka::Entity m_sun;
+	aka::Entity m_camera;
 	aka::CameraPerspective m_projection;
-	ArcballCamera3D m_cameraController;
 
 	// FXAA pass
 	aka::Texture::Ptr m_storageDepth;

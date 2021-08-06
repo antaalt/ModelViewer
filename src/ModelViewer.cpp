@@ -186,6 +186,7 @@ void Viewer::loadShader()
 
 void Viewer::onCreate()
 {
+	m_world.attach<ArcballCameraSystem>();
 	m_world.attach<SceneGraph>();
 	m_world.create();
 	StopWatch<> stopWatch;
@@ -445,14 +446,29 @@ void Viewer::onCreate()
 	};
 	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 
-	m_cameraController.set(m_bounds);
-
+	// --- Camera
+	{
+		m_camera = m_world.createEntity("Camera");
+		m_camera.add<Transform3DComponent>();
+		m_camera.add<Camera3DComponent>();
+		m_camera.add<ArcballCameraComponent>();
+		m_camera.add<DirtyCameraComponent>();
+		ArcballCameraComponent& controller = m_camera.get<ArcballCameraComponent>();
+		Transform3DComponent& transform = m_camera.get<Transform3DComponent>();
+		Camera3DComponent& camera = m_camera.get<Camera3DComponent>();
+		controller.set(m_bounds);
+		transform.transform = mat4f::lookAt(controller.position, controller.target, controller.up);
+		camera.projection = &m_projection;
+		camera.view = mat4f::inverse(transform.transform);
+	}
+	
 	m_projection.nearZ = 0.01f;
 	m_projection.farZ = 100.f;
 	m_projection.hFov = anglef::degree(90.f);
 	m_projection.ratio = width() / (float)height();
-	m_debug = true;
 
+	// --- UI
+	m_debug = true;
 	attach<ImGuiLayer>();
 }
 
@@ -463,16 +479,8 @@ void Viewer::onDestroy()
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
-	// Arcball
-	if (!ImGui::GetIO().WantCaptureKeyboard)
-	{
-		m_cameraController.update(deltaTime);
-		// TODO check if main camera moved only, add to all dir lights
-		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
-		for (entt::entity e : dirLightUpdate)
-			if (!m_world.registry().has<DirtyLightComponent>(e))
-				m_world.registry().emplace<DirtyLightComponent>(e);
-	}
+	// Arcball status
+	m_camera.get<ArcballCameraComponent>().active = !ImGui::GetIO().WantCaptureKeyboard;
 
 	// TOD
 	if (Mouse::pressed(MouseButton::ButtonMiddle))
@@ -487,7 +495,11 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	// Reset
 	if (Keyboard::down(KeyboardKey::R))
 	{
-		m_cameraController.set(m_bounds);
+		m_camera.get<ArcballCameraComponent>().set(m_bounds);
+		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
+		for (entt::entity e : dirLightUpdate)
+			if (!m_world.registry().has<DirtyLightComponent>(e))
+				m_world.registry().emplace<DirtyLightComponent>(e);
 	}
 	if (Keyboard::down(KeyboardKey::D))
 	{
@@ -509,6 +521,16 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 		EventDispatcher<QuitEvent>::emit();
 	}
 	m_world.update(deltaTime);
+	// check if main camera was updated and set dirty flag on dir lights
+	if (m_camera.has<DirtyCameraComponent>())
+	{
+		// TODO check if main camera moved only, add to all dir lights
+		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
+		for (entt::entity e : dirLightUpdate)
+			if (!m_world.registry().has<DirtyLightComponent>(e))
+				m_world.registry().emplace<DirtyLightComponent>(e);
+		m_camera.remove<DirtyCameraComponent>();
+	}
 }
 
 // --- Shadows
@@ -555,11 +577,12 @@ void Viewer::onRender()
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_bounds.center() + m_bounds.extent(), point3f(0.f)));
-	mat4f view = mat4f::inverse(m_cameraController.transform());
+	mat4f view = m_camera.get<Camera3DComponent>().view;
 	// TODO use camera (Arcball inherit camera ?)
 	mat4f debugPerspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_projection.nearZ, m_projection.farZ);
 
+	// --- Shadow map system
 	auto pointLightUpdate = m_world.registry().view<DirtyLightComponent, PointLightComponent>();
 	auto dirLightUpdate = m_world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
 	for (entt::entity e : pointLightUpdate)
@@ -649,6 +672,7 @@ void Viewer::onRender()
 		}
 		m_world.registry().remove<DirtyLightComponent>(e);
 	}
+
 	// --- Shadow pass
 	const mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
@@ -733,7 +757,7 @@ void Viewer::onRender()
 		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
 		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
 		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
-		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_cameraController.transform()[3]));
+		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
 		m_lightingMaterial->set<float>("u_farPointLight", PointLightComponent::far);
 		int count = 0;
 		auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
