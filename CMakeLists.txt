@@ -25,7 +25,7 @@ set(BUILD_ASSIMP_VIEW OFF)
 set(ASSIMP_BUILD_STATIC_LIB ON)
 set(ASSIMP_BUILD_TESTS OFF)
 add_subdirectory(lib/assimp)
-target_include_directories(AkaViewer PUBLIC lib/assimp)
+target_include_directories(AkaViewer PUBLIC lib/assimp lib/IconCppHeaders)
 target_link_libraries(AkaViewer assimp)
 
 add_custom_command(

@@ -50,11 +50,11 @@ struct PointLightComponent {
 	Texture::Ptr shadowMap;
 };
 
-struct Camera3DController {
+/*struct Camera3DController {
 	virtual mat4f transform() const = 0;
 	virtual mat4f view() const = 0;
 	virtual void set(const aabbox<>& bbox) {}
-};
+};*/
 // CameraProjectionComponent
 struct Camera3DComponent {
 	mat4f view;
@@ -77,13 +77,20 @@ struct DirtyLightComponent {};
 struct DirtyCameraComponent {};
 struct DirtyTransformComponent {};
 
-class SceneGraph : public System
+class Scene
 {
 public:
-	void create(World& world) override;
-	void destroy(World& world) override;
-	// The update is deferred.
-	void update(World& world, Time::Unit deltaTime) override;
+	class GraphSystem : public System
+	{
+	public:
+		void create(World& world) override;
+		void destroy(World& world) override;
+		// The update is deferred.
+		void update(World& world, Time::Unit deltaTime) override;
+	};
+	static Entity getMainCamera(World& world) { return Entity::null(); }
+	static Entity createMesh() { return Entity::null(); }
+	static Entity createCamera() { return Entity::null(); }
 };
 
 class ArcballCameraSystem : public System

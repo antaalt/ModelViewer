@@ -19,13 +19,13 @@ void onHierarchyRemove(entt::registry& registry, entt::entity entity)
 	t.transform = h.inverseTransform * t.transform;
 }
 
-void SceneGraph::create(World& world)
+void Scene::GraphSystem::create(World& world)
 {
 	world.registry().on_construct<Hierarchy3DComponent>().connect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().connect<&onHierarchyRemove>();
 	//world.registry().on_update<Hierarchy3DComponent>().connect<&onHierarchyUpdate>();
 }
-void SceneGraph::destroy(World& world)
+void Scene::GraphSystem::destroy(World& world)
 {
 	world.registry().on_construct<Hierarchy3DComponent>().disconnect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().disconnect<&onHierarchyRemove>();
@@ -33,7 +33,7 @@ void SceneGraph::destroy(World& world)
 }
 
 // The update is deferred.
-void SceneGraph::update(World& world, Time::Unit deltaTime)
+void Scene::GraphSystem::update(World& world, Time::Unit deltaTime)
 {
 	entt::registry& r = world.registry();
 	// Sort hierarchy to ensure correct order.
