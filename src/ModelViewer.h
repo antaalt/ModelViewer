@@ -3,6 +3,7 @@
 #include <Aka/Aka.h>
 
 #include "Model/ModelLoader.h"
+#include "Editor/Editor.h"
 
 namespace viewer {
 
@@ -17,6 +18,7 @@ public:
 private:
 	// Debug info
 	bool m_debug;
+	std::vector<EditorWindow*> m_editors;
 
 	// shadow map pass
 	aka::Framebuffer::Ptr m_shadowFramebuffer;

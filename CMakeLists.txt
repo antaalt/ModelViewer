@@ -12,6 +12,10 @@ add_executable(AkaViewer
 
 	"src/Model/Model.cpp"
 	"src/Model/ModelLoader.cpp"
+
+	"src/Editor/SceneEditor.cpp"
+	"src/Editor/InfoEditor.cpp" 
+	"src/Editor/AssetEditor.cpp"
 )
 
 target_link_libraries(AkaViewer Aka)

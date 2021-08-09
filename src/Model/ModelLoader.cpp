@@ -50,24 +50,21 @@ void AssimpImporter::process()
 
 void AssimpImporter::processNode(Entity parent, aiNode* node)
 {
-	Entity entity = m_world.createEntity(node->mName.C_Str());
-	entity.add<Hierarchy3DComponent>();
-	entity.add<Transform3DComponent>();
-	entity.get<Transform3DComponent>().transform = mat4f(
+	mat4f transform = mat4f(
 		col4f(node->mTransformation[0][0], node->mTransformation[1][0], node->mTransformation[2][0], node->mTransformation[3][0]),
 		col4f(node->mTransformation[0][1], node->mTransformation[1][1], node->mTransformation[2][1], node->mTransformation[3][1]),
 		col4f(node->mTransformation[0][2], node->mTransformation[1][2], node->mTransformation[2][2], node->mTransformation[3][2]),
 		col4f(node->mTransformation[0][3], node->mTransformation[1][3], node->mTransformation[2][3], node->mTransformation[3][3])
 	);
-	entity.get<Hierarchy3DComponent>().parent = parent;
+	mat4f inverseParentTransform;
 	if (parent.valid())
 	{
-		entity.get<Transform3DComponent>().transform = parent.get<Transform3DComponent>().transform * entity.get<Transform3DComponent>().transform;
-		entity.get<Hierarchy3DComponent>().inverseTransform = mat4f::inverse(parent.get<Transform3DComponent>().transform);
+		transform = parent.get<Transform3DComponent>().transform * transform;
+		inverseParentTransform = mat4f::inverse(parent.get<Transform3DComponent>().transform);
 	}
 	else
 	{
-		entity.get<Hierarchy3DComponent>().inverseTransform = mat4f::identity();
+		inverseParentTransform = mat4f::identity();
 	}
 	// process all the node's meshes (if any)
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
@@ -75,14 +72,22 @@ void AssimpImporter::processNode(Entity parent, aiNode* node)
 		Entity e = processMesh(m_assimpScene->mMeshes[node->mMeshes[i]]);
 		e.add<Transform3DComponent>();
 		e.add<Hierarchy3DComponent>();
-		e.get<Transform3DComponent>().transform = entity.get<Transform3DComponent>().transform;
-		e.get<Hierarchy3DComponent>().parent = entity;
-		e.get<Hierarchy3DComponent>().inverseTransform = mat4f::inverse(entity.get<Transform3DComponent>().transform);
+		e.get<Transform3DComponent>().transform = transform;
+		e.get<Hierarchy3DComponent>().parent = parent;
+		e.get<Hierarchy3DComponent>().inverseTransform = inverseParentTransform;
 	}
-	// then do the same for each of its children
-	for (unsigned int i = 0; i < node->mNumChildren; i++)
+	// TODO if only one child, do not create intermediate entity
+	if (node->mNumChildren > 0)
 	{
-		processNode(entity, node->mChildren[i]);
+		Entity entity = m_world.createEntity(node->mName.C_Str());
+		entity.add<Hierarchy3DComponent>();
+		entity.add<Transform3DComponent>();
+		entity.get<Transform3DComponent>().transform = transform;
+		// then do the same for each of its children
+		for (unsigned int i = 0; i < node->mNumChildren; i++)
+		{
+			processNode(entity, node->mChildren[i]);
+		}
 	}
 }
 

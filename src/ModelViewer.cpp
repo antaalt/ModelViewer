@@ -4,6 +4,10 @@
 #include <imguizmo.h>
 #include <Aka/Layer/ImGuiLayer.h>
 
+#include "Editor/SceneEditor.h"
+#include "Editor/InfoEditor.h"
+#include "Editor/AssetEditor.h"
+
 namespace viewer {
 
 void Viewer::loadShader()
@@ -190,8 +194,15 @@ void Viewer::onCreate()
 	m_world.attach<ArcballCameraSystem>();
 	m_world.attach<Scene::GraphSystem>();
 	m_world.create();
+
+	m_editors.push_back(new SceneEditor);
+	m_editors.push_back(new InfoEditor);
+	m_editors.push_back(new AssetEditor);
+	for (EditorWindow* editor : m_editors)
+		editor->onCreate(m_world);
+
 	StopWatch<> stopWatch;
-	// TODO use args
+	// TODO use args & worker
 	bool loaded = false;
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
@@ -476,6 +487,12 @@ void Viewer::onCreate()
 
 void Viewer::onDestroy()
 {
+	for (EditorWindow* editor : m_editors)
+	{
+		editor->onDestroy(m_world);
+		delete editor;
+	}
+	m_editors.clear();
 	m_world.destroy();
 }
 
@@ -523,16 +540,9 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 		EventDispatcher<QuitEvent>::emit();
 	}
 	m_world.update(deltaTime);
-	// check if main camera was updated and set dirty flag on dir lights
-	if (m_camera.has<DirtyCameraComponent>())
-	{
-		// TODO check if main camera moved only, add to all dir lights
-		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
-		for (entt::entity e : dirLightUpdate)
-			if (!m_world.registry().has<DirtyLightComponent>(e))
-				m_world.registry().emplace<DirtyLightComponent>(e);
-		m_camera.remove<DirtyCameraComponent>();
-	}
+	// Editor
+	for (EditorWindow* editor : m_editors)
+		editor->onUpdate(m_world);
 }
 
 // --- Shadows
@@ -580,7 +590,7 @@ void Viewer::onRender()
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	mat4f debugView = mat4f::inverse(mat4f::lookAt(m_bounds.center() + m_bounds.extent(), point3f(0.f)));
 	mat4f view = m_camera.get<Camera3DComponent>().view;
-	// TODO use camera (Arcball inherit camera ?)
+	// TODO get main camera
 	mat4f debugPerspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
 	mat4f perspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_projection.nearZ, m_projection.farZ);
 
@@ -891,177 +901,9 @@ void Viewer::onRender()
 
 	fxaaPass.execute();
 
-	// --- Debug pass
-	if (m_debug)
-	{
-		ImGuizmo::BeginFrame();
-		if (ImGui::Begin("Info"))
-		{
-			ImGuiIO& io = ImGui::GetIO();
-			ImGui::Text("Resolution : %ux%u", width(), height());
-			ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
-			ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
-			// TODO toggle fullscreen, vsync
-		}
-		ImGui::End();
-
-		if (ImGui::Begin("Camera"))
-		{
-			float fov = m_projection.hFov.radian();
-			if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
-				m_projection.hFov = anglef::radian(fov);
-			ImGui::SliderFloat("Near", &m_projection.nearZ, 0.001f, 10.f);
-			ImGui::SliderFloat("Far", &m_projection.farZ, 10.f, 1000.f);
-			//imguizmo
-		}
-		ImGui::End();
-
-		if (ImGui::Begin("Scene"))
-		{
-			auto graphView = m_world.registry().view<Transform3DComponent, Hierarchy3DComponent>();
-			// TODO do not compute child map every cycle
-			std::map<entt::entity, std::vector<entt::entity>> childrens;
-			std::vector<entt::entity> roots;
-			for (entt::entity entity : graphView)
-			{
-				const Hierarchy3DComponent& h = m_world.registry().get<Hierarchy3DComponent>(entity);
-				if (h.parent == Entity::null())
-					roots.push_back(entity);
-				else
-					childrens[h.parent.handle()].push_back(entity);
-			}
-			// --- Graph
-			static entt::entity selected = entt::null;
-			std::function<void(entt::entity)> recurse = [&](entt::entity entity)
-			{
-				const TagComponent& tag = m_world.registry().get<TagComponent>(entity);
-
-				auto it = childrens.find(entity);
-				if (it != childrens.end())
-				{
-					char buffer[256];
-					int err = snprintf(buffer, 256, "%s##%p", tag.name.cstr(), &tag);
-					ImGuiTreeNodeFlags flags = 0;
-					if (entity == selected)
-						flags |= ImGuiTreeNodeFlags_Selected;
-					if (ImGui::TreeNodeEx(buffer, flags))
-					{
-						if (ImGui::IsItemClicked())
-							selected = entity;
-						for (entt::entity e : it->second)
-							recurse(e);
-						ImGui::TreePop();
-					}
-				}
-				else
-				{
-					ImGui::Bullet();
-					bool isSelected = selected == entity;
-					if (ImGui::Selectable(tag.name.cstr(), &isSelected))
-						selected = entity;
-				}
-			};
-
-			ImGui::TextColored(ImVec4(0.93f, 0.04f, 0.26f, 1.f), "Graph");
-			if (ImGui::BeginChild("", ImVec2(0, 200), true))
-			{
-				for (entt::entity e : roots)
-					recurse(e);
-			}
-			ImGui::EndChild();
-
-			// --- Item info
-			if (selected != entt::null)
-			{
-				bool updated = false;
-				const TagComponent& tag = m_world.registry().get<TagComponent>(selected);
-				Transform3DComponent& transform = m_world.registry().get<Transform3DComponent>(selected);
-				const Hierarchy3DComponent& hierarchy = m_world.registry().get<Hierarchy3DComponent>(selected);
-				ImGui::TextColored(ImVec4(0.93f, 0.04f, 0.26f, 1.f), tag.name.cstr());
-				ImGui::Text("Transform");
-				updated |= ImGui::InputFloat4("##col0", transform.transform.cols[0].data);
-				updated |= ImGui::InputFloat4("##col1", transform.transform.cols[1].data);
-				updated |= ImGui::InputFloat4("##col2", transform.transform.cols[2].data);
-				updated |= ImGui::InputFloat4("##col3", transform.transform.cols[3].data);
-				ImGuizmo::OPERATION operation = ImGuizmo::OPERATION::TRANSLATE;
-				ImGuizmo::MODE mode = ImGuizmo::MODE::WORLD;
-				ImGuiIO& io = ImGui::GetIO();
-				ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-				updated |= ImGuizmo::Manipulate(view[0].data, perspective[0].data, operation, mode, transform.transform[0].data);
-
-				aabbox<> bounds;				
-				if (m_world.registry().has<MeshComponent>(selected) && m_world.registry().has<MaterialComponent>(selected))
-				{
-					const MeshComponent& mesh = m_world.registry().get<MeshComponent>(selected);
-					MaterialComponent& material = m_world.registry().get<MaterialComponent>(selected);
-					ImGui::Text("Mesh");
-					ImGui::Text("Vertices : %d", mesh.submesh.mesh->getVertexCount());
-					ImGui::Text("Indices : %d", mesh.submesh.mesh->getIndexCount());
-					// Material
-					ImGui::ColorEdit4("Color", material.color.data);
-					ImGui::Checkbox("Double sided", &material.doubleSided);
-					ImGui::Image((ImTextureID)(uintptr_t)material.colorTexture->handle(), ImVec2(100, 100));
-					ImGui::Image((ImTextureID)(uintptr_t)material.normalTexture->handle(), ImVec2(100, 100));
-					ImGui::Image((ImTextureID)(uintptr_t)material.roughnessTexture->handle(), ImVec2(100, 100));
-					bounds.include(transform.transform* mesh.bounds);
-				}
-				if (m_world.registry().has<DirectionalLightComponent>(selected))
-				{
-					DirectionalLightComponent& light = m_world.registry().get<DirectionalLightComponent>(selected);
-					ImGui::Text("Directional light");
-					if (ImGui::InputFloat3("Direction", light.direction.data))
-					{
-						updated = true;
-						light.direction = vec3f::normalize(light.direction);
-					}
-					ImGui::ColorEdit3("Color", light.color.data);
-					ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
-					bounds.include(transform.transform * point3f(1));
-					bounds.include(transform.transform * point3f(-1));
-					if (updated && !m_world.registry().has<DirtyLightComponent>(selected))
-						m_world.registry().emplace<DirtyLightComponent>(selected);
-				}
-				if (m_world.registry().has<PointLightComponent>(selected))
-				{
-					PointLightComponent& light = m_world.registry().get<PointLightComponent>(selected);
-					ImGui::Text("Point light");
-					ImGui::ColorEdit3("Color", light.color.data);
-					ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
-					bounds.include(transform.transform * point3f(1));
-					bounds.include(transform.transform * point3f(-1));
-					if (updated && !m_world.registry().has<DirtyLightComponent>(selected))
-						m_world.registry().emplace<DirtyLightComponent>(selected);
-				}
-				if (m_world.registry().has<Camera3DComponent>(selected))
-				{
-					Camera3DComponent& camera = m_world.registry().get<Camera3DComponent>(selected);
-					ImGui::Text("Camera");
-					CameraPerspective* p = dynamic_cast<CameraPerspective*>(camera.projection);
-					if (p != nullptr)
-					{
-						float fov = p->hFov.radian();
-						if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
-						{
-							p->hFov = anglef::radian(fov);
-							updated = true;
-						}
-						updated |= ImGui::SliderFloat("Near", &p->nearZ, 0.001f, 10.f);
-						updated |= ImGui::SliderFloat("Far", &p->farZ, 10.f, 1000.f);
-					}
-					
-					bounds.include(transform.transform * point3f(1));
-					bounds.include(transform.transform * point3f(-1));
-					if (updated && !m_world.registry().has<DirtyLightComponent>(selected))
-						m_world.registry().emplace<DirtyCameraComponent>(selected);
-				}
-				Renderer3D::drawAxis(transform.transform);
-				Renderer3D::drawTransform(mat4f::translate(vec3f(bounds.center()))* mat4f::scale(bounds.extent() / 2.f));
-				Renderer3D::render(GraphicBackend::backbuffer(), renderView, renderPerspective);
-				Renderer3D::clear();
-			}
-		}
-		ImGui::End();
-	}
+	// --- Editor pass
+	for (EditorWindow* editor : m_editors)
+		editor->onRender(m_world);
 }
 
 };
