@@ -45,7 +45,10 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 
 void AssimpImporter::process()
 {
-	processNode(Entity::null(), m_assimpScene->mRootNode);
+	Entity root = m_world.createEntity("Imported mesh");
+	root.add<Transform3DComponent>(Transform3DComponent{ mat4f::identity() });
+	root.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), mat4f::identity() });
+	processNode(root, m_assimpScene->mRootNode);
 }
 
 void AssimpImporter::processNode(Entity parent, aiNode* node)
@@ -59,8 +62,9 @@ void AssimpImporter::processNode(Entity parent, aiNode* node)
 	mat4f inverseParentTransform;
 	if (parent.valid())
 	{
-		transform = parent.get<Transform3DComponent>().transform * transform;
-		inverseParentTransform = mat4f::inverse(parent.get<Transform3DComponent>().transform);
+		mat4f parentTransform = parent.get<Transform3DComponent>().transform;
+		transform = parentTransform * transform;
+		inverseParentTransform = mat4f::inverse(parentTransform);
 	}
 	else
 	{
@@ -70,24 +74,16 @@ void AssimpImporter::processNode(Entity parent, aiNode* node)
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		Entity e = processMesh(m_assimpScene->mMeshes[node->mMeshes[i]]);
-		e.add<Transform3DComponent>();
-		e.add<Hierarchy3DComponent>();
-		e.get<Transform3DComponent>().transform = transform;
-		e.get<Hierarchy3DComponent>().parent = parent;
-		e.get<Hierarchy3DComponent>().inverseTransform = inverseParentTransform;
+		e.add<Transform3DComponent>(Transform3DComponent{ transform });
+		e.add<Hierarchy3DComponent>(Hierarchy3DComponent{ parent, inverseParentTransform });
 	}
-	// TODO if only one child, do not create intermediate entity
 	if (node->mNumChildren > 0)
 	{
 		Entity entity = m_world.createEntity(node->mName.C_Str());
-		entity.add<Hierarchy3DComponent>();
-		entity.add<Transform3DComponent>();
-		entity.get<Transform3DComponent>().transform = transform;
-		// then do the same for each of its children
+		entity.add<Hierarchy3DComponent>(Hierarchy3DComponent{ parent, inverseParentTransform });
+		entity.add<Transform3DComponent>(Transform3DComponent{ transform });
 		for (unsigned int i = 0; i < node->mNumChildren; i++)
-		{
 			processNode(entity, node->mChildren[i]);
-		}
 	}
 }
 

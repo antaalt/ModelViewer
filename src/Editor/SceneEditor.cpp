@@ -88,7 +88,8 @@ template <> bool ComponentNode<Transform3DComponent>::draw(Transform3DComponent&
 	updated |= ImGui::InputFloat3("Translation", translation);
 	updated |= ImGui::InputFloat3("Rotation", rotation);
 	updated |= ImGui::InputFloat3("Scale", scale);
-	ImGuizmo::RecomposeMatrixFromComponents(translation, rotation, scale, transform.transform.cols[0].data);
+	if (updated)
+		ImGuizmo::RecomposeMatrixFromComponents(translation, rotation, scale, transform.transform.cols[0].data);
 	return updated; 
 }
 
@@ -246,15 +247,22 @@ void SceneEditor::onDestroy(World& world)
 
 bool intersectBounds(const aabbox<>& bounds, const point3f& origin, const vec3f& direction, float& tmin, float& tmax)
 {
-	float tx1 = (bounds.min.x - origin.x) * -direction.x;
-	float tx2 = (bounds.max.x - origin.x) * -direction.x;
-	tmin = min(tx1, tx2);
-	tmax = max(tx1, tx2);
-	float ty1 = (bounds.min.y - origin.y) * -direction.y;
-	float ty2 = (bounds.max.y - origin.y) * -direction.y;
-	tmin = max(tmin, min(ty1, ty2));
-	tmax = min(tmax, max(ty1, ty2));
-	return tmax >= tmin;
+	tmin = (bounds.min.x - origin.x) / direction.x;
+	tmax = (bounds.max.x - origin.x) / direction.x;
+	if (tmin > tmax) std::swap(tmin, tmax);
+	float tymin = (bounds.min.y - origin.y) / direction.y;
+	float tymax = (bounds.max.y - origin.y) / direction.y;
+	if (tymin > tymax) std::swap(tymin, tymax);
+	if ((tmin > tymax) || (tymin > tmax)) return false;
+	if (tymin > tmin) tmin = tymin;
+	if (tymax < tmax) tmax = tymax;
+	float tzmin = (bounds.min.z - origin.z) / direction.z;
+	float tzmax = (bounds.max.z - origin.z) / direction.z;
+	if (tzmin > tzmax) std::swap(tzmin, tzmax);
+	if ((tmin > tzmax) || (tzmin > tmax)) return false;
+	if (tzmin > tmin) tmin = tzmin;
+	if (tzmax < tmax) tmax = tzmax;
+	return true;
 };
 
 Entity getMainCamera(World& world)
@@ -324,7 +332,10 @@ entt::entity pick(World& world)
 void SceneEditor::onUpdate(World& world)
 {
 	ImGuiIO& io = ImGui::GetIO();
-	if (ImGui::IsMouseDoubleClicked(0) && !io.WantCaptureMouse)
+	ImVec2 v = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+	float l = sqrt(v.x * v.x + v.y * v.y);
+	float threshold = 1.f;
+	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && l < threshold && !io.WantCaptureMouse)
 		m_currentEntity = pick(world);
 }
 
@@ -393,62 +404,20 @@ void SceneEditor::onRender(World& world)
 					ImGui::InputTextWithHint("Name", "entity name", buffer, 256);
 					if (ImGui::MenuItem("Mesh"))
 					{
-						Entity mesh = world.createEntity("New mesh");
-						mesh.add<Transform3DComponent>(Transform3DComponent{ id });
-						mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-						mesh.add<MeshComponent>(MeshComponent{ SubMesh{Mesh::create(), PrimitiveType::Triangles, 0, 0 }, aabbox<>() });
-						mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, nullptr, nullptr, nullptr });
-						m_currentEntity = mesh.handle();
+						// TODO load a mesh here
+						m_currentEntity = Scene::createMesh(world, nullptr, nullptr).handle();
 					}
 					if (ImGui::MenuItem("Point light"))
 					{
-						Entity light = world.createEntity("New point light");
-						light.add<Transform3DComponent>(Transform3DComponent{ id });
-						light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-						light.add<PointLightComponent>(PointLightComponent{
-							color3f(1.f),
-							1.f,
-							{ id, id, id, id, id, id },
-							Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest())
-						});
-						m_currentEntity = light.handle();
+						m_currentEntity = Scene::createPointLight(world).handle();
 					}
 					if (ImGui::MenuItem("Directional light"))
 					{
-						Entity light = world.createEntity("New point light");
-						light.add<Transform3DComponent>(Transform3DComponent{ id });
-						light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-						light.add<DirectionalLightComponent>(DirectionalLightComponent{ 
-							vec3f(0.f, 1.f, 0.f),
-							color3f(1.f),
-							1.f,
-							{ id, id, id },
-							{
-								Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
-								Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
-								Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest())
-							},
-							{ 1.f, 1.f, 1.f }
-						});
-						m_currentEntity = light.handle();
+						m_currentEntity = Scene::createDirectionalLight(world).handle();
 					}
 					if (ImGui::MenuItem("Camera"))
 					{
-						Entity camera = world.createEntity("New camera");
-						camera.add<Transform3DComponent>(Transform3DComponent{ id });
-						camera.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-						camera.add<Camera3DComponent>(Camera3DComponent{
-							id,
-							new CameraPerspective // TODO leak here
-						});
-						camera.add<ArcballCameraComponent>(ArcballCameraComponent{
-							point3f(1.f),
-							point3f(0.f),
-							norm3f(0.f, 1.f, 0.f),
-							1.f,
-							true
-						});
-						m_currentEntity = camera.handle();
+						m_currentEntity = Scene::createArcballCamera(world, new CameraPerspective).handle();// TODO leak here
 					}
 					ImGui::EndMenu();
 				}

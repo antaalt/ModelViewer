@@ -2,13 +2,6 @@
 
 namespace viewer {
 
-
-void onHierarchyAdd(entt::registry& registry, entt::entity entity)
-{
-	// Set id matrix.
-	registry.get<Hierarchy3DComponent>(entity).inverseTransform = mat4f::identity();
-	registry.get<Hierarchy3DComponent>(entity).parent = Entity::null();
-}
 void onHierarchyRemove(entt::registry& registry, entt::entity entity)
 {
 	if (!registry.has<Transform3DComponent>(entity))
@@ -21,13 +14,13 @@ void onHierarchyRemove(entt::registry& registry, entt::entity entity)
 
 void Scene::GraphSystem::create(World& world)
 {
-	world.registry().on_construct<Hierarchy3DComponent>().connect<&onHierarchyAdd>();
+	//world.registry().on_construct<Hierarchy3DComponent>().connect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().connect<&onHierarchyRemove>();
 	//world.registry().on_update<Hierarchy3DComponent>().connect<&onHierarchyUpdate>();
 }
 void Scene::GraphSystem::destroy(World& world)
 {
-	world.registry().on_construct<Hierarchy3DComponent>().disconnect<&onHierarchyAdd>();
+	//world.registry().on_construct<Hierarchy3DComponent>().disconnect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().disconnect<&onHierarchyRemove>();
 	//world.registry().on_update<Hierarchy3DComponent>().disconnect<&onHierarchyUpdate>();
 }
@@ -35,6 +28,7 @@ void Scene::GraphSystem::destroy(World& world)
 // The update is deferred.
 void Scene::GraphSystem::update(World& world, Time::Unit deltaTime)
 {
+	// TODO only update if a hierarchy node or transform node has been updated. use dirtyTransform ?
 	entt::registry& r = world.registry();
 	// Sort hierarchy to ensure correct order.
 	// https://skypjack.github.io/2019-08-20-ecs-baf-part-4-insights/
@@ -131,6 +125,81 @@ void ArcballCameraSystem::update(World& world, Time::Unit deltaTime)
 				world.registry().emplace<DirtyCameraComponent>(entity);
 		}
 	}
+}
+
+Entity Scene::createMesh(World& world, Buffer::Ptr vertexBuffer, Buffer::Ptr indexBuffer)
+{
+	Mesh::Ptr m = Mesh::create();
+	// TODO use buffer
+	mat4f id = mat4f::identity();
+	Entity mesh = world.createEntity("New mesh");
+	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
+	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
+	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, 0, 0 }, aabbox<>() });
+	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, nullptr, nullptr, nullptr });
+	return mesh;
+}
+
+Entity Scene::createPointLight(World& world)
+{
+	mat4f id = mat4f::identity();
+	Sampler shadowSampler{};
+	shadowSampler.filterMag = Sampler::Filter::Nearest;
+	shadowSampler.filterMin = Sampler::Filter::Nearest;
+	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
+	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
+	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	Entity light = world.createEntity("New point light");
+	light.add<Transform3DComponent>(Transform3DComponent{ id });
+	light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
+	light.add<PointLightComponent>(PointLightComponent{
+		color3f(1.f),
+		1.f,
+		{ id, id, id, id, id, id },
+		Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler)
+	});
+	return light;
+}
+
+Entity Scene::createDirectionalLight(World& world)
+{
+	mat4f id = mat4f::identity();
+	Entity light = world.createEntity("New directionnal light");
+	light.add<Transform3DComponent>(Transform3DComponent{ id });
+	light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
+	light.add<DirectionalLightComponent>(DirectionalLightComponent{
+		vec3f(0.f, 1.f, 0.f),
+		color3f(1.f),
+		1.f,
+		{ id, id, id },
+		{
+			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
+			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
+			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest())
+		},
+		{ 1.f, 1.f, 1.f }
+	});
+	return light;
+}
+
+Entity Scene::createArcballCamera(World& world, CameraProjection* projection)
+{
+	mat4f id = mat4f::identity();
+	Entity camera = world.createEntity("New arcball camera");
+	camera.add<Transform3DComponent>(Transform3DComponent{ id });
+	camera.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
+	camera.add<Camera3DComponent>(Camera3DComponent{
+		id,
+		projection
+	});
+	camera.add<ArcballCameraComponent>(ArcballCameraComponent{
+		point3f(1.f),
+		point3f(0.f),
+		norm3f(0.f, 1.f, 0.f),
+		1.f,
+		true
+	});
+	return camera;
 }
 
 };

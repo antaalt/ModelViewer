@@ -89,8 +89,11 @@ public:
 		void update(World& world, Time::Unit deltaTime) override;
 	};
 	static Entity getMainCamera(World& world) { return Entity::null(); }
-	static Entity createMesh() { return Entity::null(); }
-	static Entity createCamera() { return Entity::null(); }
+	// Factory
+	static Entity createMesh(World& world, Buffer::Ptr vertexBuffer, Buffer::Ptr indexBuffer);
+	static Entity createPointLight(World& world);
+	static Entity createDirectionalLight(World& world);
+	static Entity createArcballCamera(World& world, CameraProjection* projection);
 };
 
 class ArcballCameraSystem : public System
