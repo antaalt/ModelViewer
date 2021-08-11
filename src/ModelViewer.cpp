@@ -298,18 +298,32 @@ void Viewer::onCreate()
 	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
 
 	// --- Lighting pass
-	m_quad = Mesh::create();
-	VertexData dataQuad;
-	dataQuad.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec2 });
 	float quadVertices[] = {
 		-1, -1, // bottom left corner
-		 1, -1,  // bottom right corner
+		 1, -1, // bottom right corner
 		 1,  1, // top right corner
 		-1,  1, // top left corner
 	};
-	uint8_t indices[] = { 0,1,2,0,2,3 };
-	m_quad->vertices(dataQuad, quadVertices, 4);
-	m_quad->indices(IndexFormat::UnsignedByte, indices, 6);
+	uint8_t quadIndices[] = { 0,1,2,0,2,3 };
+	m_quad = Mesh::create();
+	VertexInfo quadVertexInfo{ {
+		VertexAttributeData {
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec2 },
+			SubBuffer{
+				Buffer::create(BufferType::VertexBuffer, sizeof(quadVertices), BufferUsage::Static, BufferAccess::ReadOnly, quadVertices),
+				0,
+				sizeof(quadVertices)
+			}, 
+			sizeof(float) * 2,
+			0
+		}
+	} };
+	IndexInfo quadIndexInfo{};
+	quadIndexInfo.format = IndexFormat::UnsignedByte;
+	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Static, BufferAccess::ReadOnly, quadIndices);
+	quadIndexInfo.subBuffer.offset = 0;
+	quadIndexInfo.subBuffer.size = quadIndexInfo.subBuffer.buffer->size();
+	m_quad->upload(quadVertexInfo, quadIndexInfo);
 
 	// --- Skybox pass
 	String cubemapPath[6] = {
@@ -344,9 +358,6 @@ void Viewer::onCreate()
 		cubemap[5].bytes.data()
 	);
 
-	m_cube = Mesh::create();
-	VertexData dataSkybox;
-	dataSkybox.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
 	float skyboxVertices[] = {
 		-1.0f,  1.0f, -1.0f,
 		-1.0f, -1.0f, -1.0f,
@@ -390,9 +401,21 @@ void Viewer::onCreate()
 		-1.0f, -1.0f,  1.0f,
 		 1.0f, -1.0f,  1.0f
 	};
-	m_cube->vertices(dataSkybox, skyboxVertices, 36);
+	m_cube = Mesh::create();
 
-	// --- Forward pass 
+	VertexInfo skyboxVertexInfo{ {
+		VertexAttributeData {
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
+			SubBuffer{
+				Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Static, BufferAccess::ReadOnly, skyboxVertices),
+				0,
+				sizeof(skyboxVertices)
+			},
+			sizeof(float) * 3,
+			0
+		}
+	} };
+	m_cube->upload(skyboxVertexInfo);
 
 	// --- Shadows
 	Sampler shadowSampler{};
@@ -639,8 +662,6 @@ void Viewer::onRender()
 
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.submesh.type = PrimitiveType::Triangles;
-		shadowPass.submesh.indexOffset = 0;
 		shadowPass.material = m_shadowPointMaterial;
 		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		shadowPass.blend = Blending::none();
@@ -684,8 +705,6 @@ void Viewer::onRender()
 
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.submesh.type = PrimitiveType::Triangles;
-		shadowPass.submesh.indexOffset = 0;
 		shadowPass.material = m_shadowMaterial;
 		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 		shadowPass.blend = Blending::none();
@@ -705,7 +724,7 @@ void Viewer::onRender()
 				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
 				shadowPass.submesh = mesh.submesh;
 				shadowPass.execute();
-				});
+			});
 		}
 		m_world.registry().remove<DirtyLightComponent>(e);
 	}
@@ -724,8 +743,6 @@ void Viewer::onRender()
 	// TODO depth prepass
 	RenderPass gbufferPass;
 	gbufferPass.framebuffer = m_gbuffer;
-	gbufferPass.submesh.type = PrimitiveType::Triangles;
-	gbufferPass.submesh.indexOffset = 0;
 	gbufferPass.material = m_gbufferMaterial;
 	gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
 	gbufferPass.blend = Blending::none();
@@ -782,8 +799,8 @@ void Viewer::onRender()
 	lightingPass.framebuffer = m_storageFramebuffer;
 	lightingPass.submesh.mesh = m_quad;
 	lightingPass.submesh.type = PrimitiveType::Triangles;
-	lightingPass.submesh.indexOffset = 0;
-	lightingPass.submesh.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
+	lightingPass.submesh.offset = 0;
+	lightingPass.submesh.count = 6;
 	lightingPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
 	lightingPass.blend.colorModeSrc = BlendMode::One;
 	lightingPass.blend.colorModeDst = BlendMode::One;
@@ -854,8 +871,8 @@ void Viewer::onRender()
 	RenderPass skyboxPass;
 	skyboxPass.framebuffer = m_storageFramebuffer;
 	skyboxPass.submesh.type = PrimitiveType::Triangles;
-	skyboxPass.submesh.indexOffset = 0;
-	skyboxPass.submesh.indexCount = m_cube->getIndexCount();
+	skyboxPass.submesh.offset = 0;
+	skyboxPass.submesh.count = m_cube->getVertexCount();
 	skyboxPass.submesh.mesh = m_cube;
 	skyboxPass.material = m_skyboxMaterial;
 	skyboxPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
@@ -876,8 +893,8 @@ void Viewer::onRender()
 	RenderPass postProcessPass;
 	postProcessPass.framebuffer = backbuffer;
 	postProcessPass.submesh.type = PrimitiveType::Triangles;
-	postProcessPass.submesh.indexOffset = 0;
-	postProcessPass.submesh.indexCount = m_quad->getIndexCount();
+	postProcessPass.submesh.offset = 0;
+	postProcessPass.submesh.count = m_quad->getIndexCount();
 	postProcessPass.submesh.mesh = m_quad;
 	postProcessPass.material = m_postprocessMaterial;
 	postProcessPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };

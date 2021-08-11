@@ -113,16 +113,19 @@ template <> bool ComponentNode<DirectionalLightComponent>::draw(DirectionalLight
 	}
 	ImGui::ColorEdit3("Color", light.color.data);
 	ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
+	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[0]->handle(), ImVec2(100, 100));
+	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[1]->handle(), ImVec2(100, 100));
+	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[2]->handle(), ImVec2(100, 100));
 	return updated;
 }
 
 template <> const char* ComponentNode<MeshComponent>::name() { return "Mesh"; }
 template <> bool ComponentNode<MeshComponent>::draw(MeshComponent& mesh) 
 { 
-	ImGui::Text("Vertices : %u", mesh.submesh.mesh->getVertexCount());
-	ImGui::Text("Indices : %u", mesh.submesh.mesh->getIndexCount());
-	ImGui::Text("Index count : %u", mesh.submesh.indexCount);
-	ImGui::Text("Index offset : %u", mesh.submesh.indexOffset);
+	static const uint32_t sizeOfVertex = 48;
+	ImGui::Text("Vertices : %u", mesh.submesh.mesh->getVertexBuffer(0).size / sizeOfVertex);
+	ImGui::Text("Index count : %u", mesh.submesh.count);
+	ImGui::Text("Index offset : %u", mesh.submesh.offset);
 	String type = "Undefined";
 	switch (mesh.submesh.type)
 	{
@@ -341,23 +344,24 @@ void SceneEditor::onUpdate(World& world)
 
 void recurse(World& world, entt::entity entity, const std::map<entt::entity, std::vector<entt::entity>>& childrens, entt::entity& current)
 {
+	char buffer[256];
 	const TagComponent& tag = world.registry().get<TagComponent>(entity);
 
 	auto it = childrens.find(entity);
 	if (it != childrens.end())
 	{
-		char buffer[256];
 		int err = snprintf(buffer, 256, "%s##%p", tag.name.cstr(), &tag);
 		ImGuiTreeNodeFlags flags = 0;
 		if (entity == current)
 			flags |= ImGuiTreeNodeFlags_Selected;
 		if (ImGui::TreeNodeEx(buffer, flags))
 		{
+			err = snprintf(buffer, 256, "ClosePopUp##%p", &tag);
 			if (ImGui::IsItemClicked())
 				current = entity;
 			if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(1))
-				ImGui::OpenPopup("ClosePopup");
-			if (ImGui::BeginPopupContextItem("ClosePopup"))
+				ImGui::OpenPopup(buffer);
+			if (ImGui::BeginPopupContextItem(buffer))
 			{
 				if (ImGui::MenuItem("Delete"))
 					world.registry().destroy(entity);
@@ -370,13 +374,14 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 	}
 	else
 	{
+		int err = snprintf(buffer, 256, "ClosePopUp##%p", &tag);
 		ImGui::Bullet();
 		bool isSelected = current == entity;
 		if (ImGui::Selectable(tag.name.cstr(), &isSelected))
 			current = entity;
 		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(1))
-			ImGui::OpenPopup("ClosePopup");
-		if (ImGui::BeginPopupContextItem("ClosePopup"))
+			ImGui::OpenPopup(buffer);
+		if (ImGui::BeginPopupContextItem(buffer))
 		{
 			if (ImGui::MenuItem("Delete"))
 				world.registry().destroy(entity);
@@ -387,6 +392,8 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 
 void SceneEditor::onRender(World& world)
 {
+	// TODO draw a grid here and origin of the world
+
 	ImGuizmo::BeginFrame();
 	if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_MenuBar))
 	{

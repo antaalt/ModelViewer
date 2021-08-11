@@ -92,12 +92,12 @@ struct Vertex {
 	norm3f normal;
 	uv2f uv;
 	color4f color;
-};
+}; 
 
 Entity AssimpImporter::processMesh(aiMesh* mesh)
 {
 	std::vector<Vertex> vertices(mesh->mNumVertices);
-	std::vector<unsigned int> indices;
+	std::vector<uint32_t> indices;
 
 	AKA_ASSERT(mesh->HasPositions(), "Mesh need positions");
 	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
@@ -262,17 +262,53 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.normalTexture = m_missingNormalTexture;
 		materialComponent.roughnessTexture = m_missingRoughnessTexture;
 	}
-	VertexData data;
-	data.attributes.push_back(VertexData::Attribute{ 0, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 1, VertexFormat::Float, VertexType::Vec3 });
-	data.attributes.push_back(VertexData::Attribute{ 2, VertexFormat::Float, VertexType::Vec2 });
-	data.attributes.push_back(VertexData::Attribute{ 3, VertexFormat::Float, VertexType::Vec4 });
+	Buffer::Ptr vertexBuffer = Buffer::create(
+		BufferType::VertexBuffer, 
+		vertices.size() * sizeof(Vertex), 
+		BufferUsage::Static, 
+		BufferAccess::ReadOnly, 
+		vertices.data()
+	);
+	VertexInfo dataVertex{ std::vector<VertexAttributeData>{
+		VertexAttributeData{
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
+			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) }, 
+			sizeof(Vertex), offsetof(Vertex, position)
+		},
+		VertexAttributeData{
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
+			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) },
+			sizeof(Vertex), offsetof(Vertex, normal)
+		},
+		VertexAttributeData{
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec2 },
+			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) }, 
+			sizeof(Vertex), offsetof(Vertex, uv)
+		},
+		VertexAttributeData{
+			VertexAttribute{ VertexFormat::Float, VertexType::Vec4 },
+			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) },
+			sizeof(Vertex), offsetof(Vertex, color)
+		}
+	} };
+
+	IndexInfo dataIndex;
+	dataIndex.format = IndexFormat::UnsignedInt;
+	dataIndex.subBuffer.buffer = Buffer::create(
+		BufferType::IndexBuffer, 
+		indices.size() * sizeof(uint32_t),
+		BufferUsage::Static,
+		BufferAccess::ReadOnly, 
+		indices.data()
+	);
+	dataIndex.subBuffer.offset = 0;
+	dataIndex.subBuffer.size = static_cast<uint32_t>(dataIndex.subBuffer.buffer->size());
+
 	meshComponent.submesh.mesh = Mesh::create();
-	meshComponent.submesh.mesh->vertices(data, vertices.data(), vertices.size());
-	meshComponent.submesh.mesh->indices(IndexFormat::UnsignedInt, indices.data(), indices.size());
+	meshComponent.submesh.mesh->upload(dataVertex, dataIndex);
 	meshComponent.submesh.type = PrimitiveType::Triangles;
-	meshComponent.submesh.indexCount = static_cast<uint32_t>(indices.size()); // TODO 0 means all
-	meshComponent.submesh.indexOffset = 0;
+	meshComponent.submesh.count = static_cast<uint32_t>(indices.size());
+	meshComponent.submesh.offset = 0;
 	return e;
 }
 

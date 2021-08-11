@@ -121,8 +121,7 @@ void ArcballCameraSystem::update(World& world, Time::Unit deltaTime)
 			// TODO make it scene graph compatible
 			transform.transform = mat4f::lookAt(controller.position, controller.target, controller.up);
 			camera.view = mat4f::inverse(transform.transform);
-			if (!world.registry().has<DirtyCameraComponent>(entity))
-				world.registry().emplace<DirtyCameraComponent>(entity);
+			world.registry().replace<Camera3DComponent>(entity, camera);
 		}
 	}
 }
