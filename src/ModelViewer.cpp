@@ -12,6 +12,11 @@ namespace viewer {
 
 void Viewer::loadShader()
 {
+	// TODO cache shader and do not delete them during program creation.
+	// TODO use custom file for handling multiple API (ASSET REWORK, JSON based ?)
+	// - a file indexing shader path depending on the api & the type (frag, vert...) (JSON)
+	// - a single file containing all the shaders from all the api delimited by # or json 
+	//	-> problem of linting.
 	{
 		std::vector<Attributes> attributes = { // HLSL only
 			Attributes{ AttributeID(0), "POS" },
@@ -44,47 +49,67 @@ void Viewer::loadShader()
 		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/shading.frag")), aka::ShaderType::Fragment);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")), aka::ShaderType::Fragment);
 #else
-		std::string str = File::readString(Asset::path("shaders/D3D/shading.hlsl"));
+		std::string str = File::readString(Asset::path("shaders/D3D/point.hlsl"));
 		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
-			aka::Logger::error("Failed to compile lighting shader");
+			aka::Logger::error("Failed to compile point light shader");
 		}
 		else
 		{
 			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
-				m_lightingMaterial = aka::ShaderMaterial::create(shader);
+				m_pointMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
 		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
+			Attributes{ AttributeID(0), "POS" }
 		};
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gltf.frag")), aka::ShaderType::Fragment);
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/directional.frag")), aka::ShaderType::Fragment);
 #else
-		std::string str = File::readString(Asset::path("shaders/D3D/shader.hlsl"));
+		std::string str = File::readString(Asset::path("shaders/D3D/directional.hlsl"));
 		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
-			aka::Logger::error("Failed to compile default shader");
+			aka::Logger::error("Failed to compile directional light shader");
 		}
 		else
 		{
 			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
-				m_material = aka::ShaderMaterial::create(shader);
+				m_dirMaterial = aka::ShaderMaterial::create(shader);
+		}
+	}
+	{
+		std::vector<Attributes> attributes = { // HLSL only
+			Attributes{ AttributeID(0), "POS" }
+		};
+#if defined(AKA_USE_OPENGL)
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/ambient.frag")), aka::ShaderType::Fragment);
+#else
+		std::string str = File::readString(Asset::path("shaders/D3D/ambient.hlsl"));
+		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
+		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+#endif
+		if (vert == ShaderID(0) || frag == ShaderID(0))
+		{
+			aka::Logger::error("Failed to compile ambient shader");
+		}
+		else
+		{
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			if (shader->valid())
+				m_ambientMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
@@ -170,21 +195,21 @@ void Viewer::loadShader()
 		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/fxaa.frag")), aka::ShaderType::Fragment);
+		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/postProcess.frag")), aka::ShaderType::Fragment);
 #else
-		std::string str = File::readString(Asset::path("shaders/D3D/fxaa.hlsl"));
+		std::string str = File::readString(Asset::path("shaders/D3D/postProcess.hlsl"));
 		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
 #endif
 		if (vert == ShaderID(0) || frag == ShaderID(0))
 		{
-			aka::Logger::error("Failed to compile fxaa shader");
+			aka::Logger::error("Failed to compile post process shader");
 		}
 		else
 		{
 			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
 			if (shader->valid())
-				m_fxaaMaterial = aka::ShaderMaterial::create(shader);
+				m_postprocessMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 }
@@ -204,10 +229,10 @@ void Viewer::onCreate()
 	StopWatch<> stopWatch;
 	// TODO use args & worker
 	bool loaded = false;
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
 		throw std::runtime_error("Could not load model.");
@@ -686,177 +711,145 @@ void Viewer::onRender()
 	}
 
 	// --- Shadow pass
-	const mat4f projectionToTextureCoordinateMatrix(
+	mat4f renderView = view;
+	mat4f renderPerspective = perspective;
+	auto renderableView = m_world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
+
+	// --- G-Buffer pass
+	if (Keyboard::pressed(KeyboardKey::ControlLeft))
+	{
+		renderView = debugView;
+		renderPerspective = debugPerspective;
+	}
+	// TODO depth prepass
+	RenderPass gbufferPass;
+	gbufferPass.framebuffer = m_gbuffer;
+	gbufferPass.submesh.type = PrimitiveType::Triangles;
+	gbufferPass.submesh.indexOffset = 0;
+	gbufferPass.material = m_gbufferMaterial;
+	gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+	gbufferPass.blend = Blending::none();
+	gbufferPass.depth = Depth{ DepthCompare::Less, true };
+	gbufferPass.stencil = Stencil::none();
+	gbufferPass.viewport = aka::Rect{ 0 };
+	gbufferPass.scissor = aka::Rect{ 0 };
+
+	m_gbufferMaterial->set<mat4f>("u_view", renderView);
+	m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
+
+	m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
+		
+	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+		frustum<>::planes p = frustum<>::extract(perspective * view);
+		// Check intersection in camera space
+		// https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
+		if (!p.intersect(transform.transform * mesh.bounds))
+			return;
+
+		aka::mat4f model = transform.transform;
+		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
+		aka::color4f color = material.color;
+		m_gbufferMaterial->set<mat4f>("u_model", model);
+		m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
+		m_gbufferMaterial->set<color4f>("u_color", color);
+		m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", material.roughnessTexture);
+		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
+		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
+
+		m_gbufferMaterial->set<mat4f>("u_model", model);
+		gbufferPass.submesh = mesh.submesh;
+		gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+
+		gbufferPass.execute();
+	});
+
+	// --- Lighting pass
+	// We need :
+	// A directional light pass into storage buffer (using quad)
+	// A point light pass into storage buffer (using volumetric sphere & culling)
+	// A tonemapping pass into storage buffer
+	// This way, we can handle an infinite amount of light
+	static const mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
 	);
-	mat4f renderView = view;
-	mat4f renderPerspective = perspective;
-	auto renderableView = m_world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
 
-	if (!Keyboard::pressed(KeyboardKey::AltLeft))
-	{
-		// --- G-Buffer pass
-		if (Keyboard::pressed(KeyboardKey::ControlLeft))
-		{
-			renderView = debugView;
-			renderPerspective = debugPerspective;
-		}
-		// TODO depth prepass
-		RenderPass gbufferPass;
-		gbufferPass.framebuffer = m_gbuffer;
-		gbufferPass.submesh.type = PrimitiveType::Triangles;
-		gbufferPass.submesh.indexOffset = 0;
-		gbufferPass.material = m_gbufferMaterial;
-		gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		gbufferPass.blend = Blending::none();
-		gbufferPass.depth = Depth{ DepthCompare::Less, true };
-		gbufferPass.stencil = Stencil::none();
-		gbufferPass.viewport = aka::Rect{ 0 };
-		gbufferPass.scissor = aka::Rect{ 0 };
+	m_storageFramebuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 1, ClearMask::Color);
 
-		m_gbufferMaterial->set<mat4f>("u_view", renderView);
-		m_gbufferMaterial->set<mat4f>("u_projection", renderPerspective);
+	RenderPass lightingPass;
+	lightingPass.framebuffer = m_storageFramebuffer;
+	lightingPass.submesh.mesh = m_quad;
+	lightingPass.submesh.type = PrimitiveType::Triangles;
+	lightingPass.submesh.indexOffset = 0;
+	lightingPass.submesh.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
+	lightingPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
+	lightingPass.blend.colorModeSrc = BlendMode::One;
+	lightingPass.blend.colorModeDst = BlendMode::One;
+	lightingPass.blend.colorOp = BlendOp::Add;
+	lightingPass.blend.alphaModeSrc = BlendMode::One;
+	lightingPass.blend.alphaModeDst = BlendMode::Zero;
+	lightingPass.blend.alphaOp = BlendOp::Add;
+	lightingPass.blend.mask = BlendMask::Rgb;
+	lightingPass.blend.blendColor = color32(255);
+	lightingPass.depth = Depth{ DepthCompare::None, false };
+	lightingPass.stencil = Stencil::none();
+	lightingPass.viewport = aka::Rect{ 0 };
+	lightingPass.scissor = aka::Rect{ 0 };
+	lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-		m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
-		
-		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
-			frustum<>::planes p = frustum<>::extract(perspective * view);
-			// Check intersection in camera space
-			// https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
-			if (!p.intersect(transform.transform * mesh.bounds))
-				return;
-
-			aka::mat4f model = transform.transform;
-			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = material.color;
-			m_gbufferMaterial->set<mat4f>("u_model", model);
-			m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
-			m_gbufferMaterial->set<color4f>("u_color", color);
-			m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", material.roughnessTexture);
-			m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
-			m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
-
-			m_gbufferMaterial->set<mat4f>("u_model", model);
-			gbufferPass.submesh = mesh.submesh;
-			gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-
-			gbufferPass.execute();
-		});
-
-		// --- Lighting pass
-		// TODO We can use compute here
-		RenderPass lightingPass;
-		lightingPass.framebuffer = m_storageFramebuffer;
-		lightingPass.submesh.type = PrimitiveType::Triangles;
-		lightingPass.submesh.indexOffset = 0;
-		lightingPass.material = m_lightingMaterial;
-		lightingPass.clear = Clear{ ClearMask::All, color4f(0.f), 1.f, 0 };
-		lightingPass.blend = Blending::none();
-		lightingPass.depth = Depth{ DepthCompare::None, false };
-		lightingPass.stencil = Stencil::none();
-		lightingPass.viewport = aka::Rect{ 0 };
-		lightingPass.scissor = aka::Rect{ 0 };
-		lightingPass.submesh.mesh = m_quad;
-		lightingPass.submesh.indexCount = m_quad->getIndexCount(); // TODO set zero means all ?
-		lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-
-		m_lightingMaterial->set<Texture::Ptr>("u_position", m_position);
-		m_lightingMaterial->set<Texture::Ptr>("u_albedo", m_albedo);
-		m_lightingMaterial->set<Texture::Ptr>("u_normal", m_normal);
-		m_lightingMaterial->set<Texture::Ptr>("u_depth", m_depth);
-		m_lightingMaterial->set<Texture::Ptr>("u_roughness", m_roughness);
-		m_lightingMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
-		m_lightingMaterial->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
-		m_lightingMaterial->set<float>("u_farPointLight", PointLightComponent::far);
-		int count = 0;
-		auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
-		directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
-			mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
-			for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
-				worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
-			std::string index = std::to_string(count);
-			m_lightingMaterial->set<vec3f>(("u_dirLights[" + index + "].direction").c_str(), light.direction);
-			m_lightingMaterial->set<float>(("u_dirLights[" + index + "].intensity").c_str(), light.intensity);
-			m_lightingMaterial->set<color3f>(("u_dirLights[" + index + "].color").c_str(), light.color);
-			m_lightingMaterial->set<mat4f>(("u_dirLights[" + index + "].worldToLightTextureSpace[0]").c_str(), worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
-			m_lightingMaterial->set<float>(("u_dirLights[" + index + "].cascadeEndClipSpace[0]").c_str(), light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
-			m_lightingMaterial->set<Texture::Ptr>(("u_dirLights[" + index + "].shadowMap[0]").c_str(), light.shadowMap, DirectionalLightComponent::cascadeCount);
-			count++;
-		});
-		m_lightingMaterial->set<int>("u_dirLightCount", count);
-		count = 0;
-		auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
-		pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
-			mat4f worldToLightTextureSpaceMatrix[6];
-			for (size_t i = 0; i < 6; i++)
-				worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
-			std::string index = std::to_string(count);
-			m_lightingMaterial->set<vec3f>(("u_pointLights[" + index + "].position").c_str(), vec3f(transform.transform.cols[3]));
-			m_lightingMaterial->set<float>(("u_pointLights[" + index + "].intensity").c_str(), light.intensity);
-			m_lightingMaterial->set<color3f>(("u_pointLights[" + index + "].color").c_str(), light.color);
-			//m_lightingMaterial->set<mat4f>(("u_pointLights[" + index + "].worldToLightTextureSpace[0]").c_str(), worldToLightTextureSpaceMatrix, 6);
-			m_lightingMaterial->set<Texture::Ptr>(("u_pointLights[" + index + "].shadowMap").c_str(), light.shadowMap);
-			count++;
-		});
-		m_lightingMaterial->set<int>("u_pointLightCount", count);
-
-		lightingPass.execute();
-
-		m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
-	}
-	else
-	{
-		// --- Forward pass
-		m_storageFramebuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 0, ClearMask::All);
-
-		if (Keyboard::pressed(KeyboardKey::ControlLeft))
-		{
-			renderView = debugView;
-			renderPerspective = debugPerspective;
-		}
+	// --- Ambient light
+	lightingPass.material = m_ambientMaterial;
+	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_skybox", m_skybox);
+	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
+	lightingPass.execute();
+	
+	// --- Directional lights
+	lightingPass.material = m_dirMaterial;
+	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_depth", m_depth);
+	lightingPass.material->set<Texture::Ptr>("u_roughness", m_roughness);
+	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
+	auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
+	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
 		mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
-			worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * m_sun.get<DirectionalLightComponent>().worldToLightSpaceMatrix[i];
-		m_material->set<mat4f>("u_view", renderView);
-		m_material->set<mat4f>("u_projection", renderPerspective);
-		m_material->set<mat4f>("u_light[0]", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
-		m_material->set<vec3f>("u_lightDir", m_sun.get<DirectionalLightComponent>().direction);
-		m_material->set<Texture::Ptr>("u_shadowTexture[0]", m_sun.get<DirectionalLightComponent>().shadowMap, DirectionalLightComponent::cascadeCount);
-		m_material->set<float>("u_cascadeEndClipSpace[0]", m_sun.get<DirectionalLightComponent>().cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
+			worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
+		lightingPass.material->set<vec3f>("u_lightDirection", light.direction);
+		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
+		lightingPass.material->set<color3f>("u_lightColor", light.color);
+		lightingPass.material->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
+		lightingPass.material->set<float>("u_cascadeEndClipSpace[0]", light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
+		lightingPass.material->set<Texture::Ptr>("u_shadowMap[0]", light.shadowMap, DirectionalLightComponent::cascadeCount);
+		lightingPass.execute();
+	});
 
-		RenderPass renderPass{};
-		renderPass.framebuffer = m_storageFramebuffer;
-		renderPass.submesh.type = PrimitiveType::Triangles;
-		renderPass.submesh.indexOffset = 0;
-		renderPass.material = m_material;
-		renderPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		renderPass.blend = Blending::nonPremultiplied();
-		renderPass.depth = Depth{ DepthCompare::Less, true };
-		renderPass.stencil = Stencil::none();
-		renderPass.viewport = aka::Rect{ 0 };
-		renderPass.scissor = aka::Rect{ 0 };
+	// --- Point lights
+	// TODO use volume intensity & culling
+	lightingPass.material = m_pointMaterial;
+	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_roughness", m_roughness);
+	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
+	lightingPass.material->set<float>("u_farPointLight", PointLightComponent::far);
+	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
+	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
+		lightingPass.material->set<vec3f>("u_lightPosition", vec3f(transform.transform.cols[3]));
+		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
+		lightingPass.material->set<color3f>("u_lightColor", light.color);
+		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap);
+		lightingPass.execute();
+	});
 
-		renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
-			frustum<>::planes p = frustum<>::extract(perspective * view);
-			if (!p.intersect(transform.transform * mesh.bounds))
-				return;
-			aka::mat4f model = transform.transform;
-			aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-			aka::color4f color = material.color;
-			m_material->set<mat4f>("u_model", model);
-			m_material->set<mat3f>("u_normalMatrix", normal);
-			m_material->set<color4f>("u_color", color);
-			m_material->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
-			m_material->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
-			renderPass.submesh = mesh.submesh;
-			renderPass.cull = material.doubleSided ? Culling{ CullMode::None, CullOrder::CounterClockWise } : Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-
-			renderPass.execute();
-		});
-	}
+	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+	
 	// --- Skybox pass
 	RenderPass skyboxPass;
 	skyboxPass.framebuffer = m_storageFramebuffer;
@@ -873,33 +866,33 @@ void Viewer::onRender()
 	skyboxPass.scissor = aka::Rect{ 0 };
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	m_skyboxMaterial->set<Texture::Ptr>("u_skybox", m_skybox);
-	m_skyboxMaterial->set<mat4f>("u_view", mat4f(mat3f(renderView)));
-	m_skyboxMaterial->set<mat4f>("u_projection", renderPerspective);
+	skyboxPass.material->set<Texture::Ptr>("u_skybox", m_skybox);
+	skyboxPass.material->set<mat4f>("u_view", mat4f(mat3f(renderView)));
+	skyboxPass.material->set<mat4f>("u_projection", renderPerspective);
 
 	skyboxPass.execute();
 
-	// --- FXAA pass
-	RenderPass fxaaPass;
-	fxaaPass.framebuffer = backbuffer;
-	fxaaPass.submesh.type = PrimitiveType::Triangles;
-	fxaaPass.submesh.indexOffset = 0;
-	fxaaPass.submesh.indexCount = m_quad->getIndexCount();
-	fxaaPass.submesh.mesh = m_quad;
-	fxaaPass.material = m_fxaaMaterial;
-	fxaaPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
-	fxaaPass.blend = Blending::none();
-	fxaaPass.depth = Depth{ DepthCompare::None, false };
-	fxaaPass.stencil = Stencil::none();
-	fxaaPass.viewport = aka::Rect{ 0 };
-	fxaaPass.scissor = aka::Rect{ 0 };
-	fxaaPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	// --- Post process pass
+	RenderPass postProcessPass;
+	postProcessPass.framebuffer = backbuffer;
+	postProcessPass.submesh.type = PrimitiveType::Triangles;
+	postProcessPass.submesh.indexOffset = 0;
+	postProcessPass.submesh.indexCount = m_quad->getIndexCount();
+	postProcessPass.submesh.mesh = m_quad;
+	postProcessPass.material = m_postprocessMaterial;
+	postProcessPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
+	postProcessPass.blend = Blending::none();
+	postProcessPass.depth = Depth{ DepthCompare::None, false };
+	postProcessPass.stencil = Stencil::none();
+	postProcessPass.viewport = aka::Rect{ 0 };
+	postProcessPass.scissor = aka::Rect{ 0 };
+	postProcessPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	m_fxaaMaterial->set<Texture::Ptr>("u_input", m_storage);
-	m_fxaaMaterial->set<uint32_t>("u_width", width());
-	m_fxaaMaterial->set<uint32_t>("u_height", height());
+	postProcessPass.material->set<Texture::Ptr>("u_input", m_storage);
+	postProcessPass.material->set<uint32_t>("u_width", width());
+	postProcessPass.material->set<uint32_t>("u_height", height());
 
-	fxaaPass.execute();
+	postProcessPass.execute();
 
 	// --- Editor pass
 	for (EditorWindow* editor : m_editors)

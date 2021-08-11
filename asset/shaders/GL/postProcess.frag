@@ -58,7 +58,27 @@ vec3 fxaa()
 		return rgbB;
 }
 
+vec3 ACESFilm(vec3 x)
+{
+	const float a = 2.51f;
+	const float b = 0.03f;
+	const float c = 2.43f;
+	const float d = 0.59f;
+	const float e = 0.14f;
+	return vec3(clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1));
+}
+
 void main()
 {
-	o_color = vec4(fxaa(), 1.0);
+	vec3 antialiased = fxaa();
+	// Tonemapping
+	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+	vec3 color = ACESFilm(antialiased); // ACES approximation tonemapping
+	//color = color / (color + vec3(1.0)); // Reinhard operator
+
+	// Gamma correction
+	color = pow(color, vec3(1.0/2.2));
+
+	// Output
+	o_color = vec4(color, 1.0);
 }

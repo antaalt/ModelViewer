@@ -34,17 +34,16 @@ private:
 	aka::Framebuffer::Ptr m_gbuffer;
 	aka::ShaderMaterial::Ptr m_gbufferMaterial;
 
-	// compose pass
+	// Lighing pass
 	aka::Mesh::Ptr m_quad;
-	aka::ShaderMaterial::Ptr m_lightingMaterial;
+	aka::ShaderMaterial::Ptr m_ambientMaterial;
+	aka::ShaderMaterial::Ptr m_pointMaterial;
+	aka::ShaderMaterial::Ptr m_dirMaterial;
 
 	// Skybox
 	aka::Mesh::Ptr m_cube;
 	aka::Texture::Ptr m_skybox;
 	aka::ShaderMaterial::Ptr m_skyboxMaterial;
-
-	// Forward pass
-	aka::ShaderMaterial::Ptr m_material;
 
 	// Scene
 	aka::aabbox<> m_bounds;
@@ -53,11 +52,11 @@ private:
 	aka::Entity m_camera;
 	aka::CameraPerspective m_projection;
 
-	// FXAA pass
+	// Post process pass
 	aka::Texture::Ptr m_storageDepth;
 	aka::Texture::Ptr m_storage;
 	aka::Framebuffer::Ptr m_storageFramebuffer;
-	aka::ShaderMaterial::Ptr m_fxaaMaterial;
+	aka::ShaderMaterial::Ptr m_postprocessMaterial;
 
 };
 
