@@ -499,11 +499,11 @@ void SceneEditor::onRender(World& world)
 					{
 						if (ImGui::MenuItem("Cube"))
 						{
-							m_currentEntity = Scene::createCubeMesh(world).handle();
+							m_currentEntity = Scene::createCube(world).handle();
 						}
 						if (ImGui::MenuItem("UV Sphere"))
 						{
-							m_currentEntity = Scene::createSphereMesh(world, 32, 16).handle();
+							m_currentEntity = Scene::createSphere(world, 32, 16).handle();
 						}
 						ImGui::EndMenu();
 					}
@@ -720,6 +720,14 @@ void SceneEditor::onRender(World& world)
 				if (world.registry().has<Camera3DComponent>(m_currentEntity))
 				{
 					// Draw a camera ?
+				}
+
+				if (world.registry().has<PointLightComponent>(m_currentEntity))
+				{
+					const PointLightComponent& l = world.registry().get<PointLightComponent>(m_currentEntity);
+					mat4f model = transform.transform * mat4f::scale(vec3f(l.radius));
+					// TODO render a sphere instead.
+					Renderer3D::drawTransform(model);
 				}
 				if (world.registry().has<DirectionalLightComponent>(m_currentEntity))
 				{

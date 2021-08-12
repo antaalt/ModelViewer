@@ -37,6 +37,7 @@ private:
 
 	// Lighing pass
 	aka::Mesh::Ptr m_quad;
+	aka::Mesh::Ptr m_sphere;
 	aka::ShaderMaterial::Ptr m_ambientMaterial;
 	aka::ShaderMaterial::Ptr m_pointMaterial;
 	aka::ShaderMaterial::Ptr m_dirMaterial;

@@ -4,7 +4,12 @@ layout(location = 0) out vec4 o_color;
 
 const float PI = 3.14159265359;
 
+#if 0 // When using quad.vert
 in vec2 v_uv;
+#else // When using point.vert
+uniform vec2 u_screen;
+#define v_uv (gl_FragCoord.xy / u_screen)
+#endif
 
 uniform sampler2D u_position;
 uniform sampler2D u_albedo;

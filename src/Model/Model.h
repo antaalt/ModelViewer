@@ -45,9 +45,9 @@ struct PointLightComponent {
 	color3f color;
 	float intensity;
 	// Rendering
-	static constexpr float far = 40.f;
 	mat4f worldToLightSpaceMatrix[6];
 	Texture::Ptr shadowMap;
+	float radius;
 };
 
 /*struct Camera3DController {
@@ -90,8 +90,11 @@ public:
 	};
 	static Entity getMainCamera(World& world) { return Entity::null(); }
 	// Factory
-	static Entity createCubeMesh(World& world);
-	static Entity createSphereMesh(World& world, uint32_t segmentCount, uint32_t ringCount);
+	static Mesh::Ptr createCubeMesh(const point3f& position, float size);
+	static Mesh::Ptr createSphereMesh(const point3f& position, float radius, uint32_t segmentCount, uint32_t ringCount);
+
+	static Entity createCube(World& world);
+	static Entity createSphere(World& world, uint32_t segmentCount, uint32_t ringCount);
 	static Entity createPointLight(World& world);
 	static Entity createDirectionalLight(World& world);
 	static Entity createArcballCamera(World& world, CameraProjection* projection);

@@ -48,7 +48,7 @@ void Viewer::loadShader()
 			Attributes{ AttributeID(0), "POS" }
 		};
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
+		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/point.hlsl"));
@@ -229,10 +229,10 @@ void Viewer::onCreate()
 	StopWatch<> stopWatch;
 	// TODO use args & worker
 	bool loaded = false;
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
 		throw std::runtime_error("Could not load model.");
@@ -322,8 +322,10 @@ void Viewer::onCreate()
 	quadIndexInfo.format = IndexFormat::UnsignedByte;
 	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Static, BufferAccess::ReadOnly, quadIndices);
 	quadIndexInfo.subBuffer.offset = 0;
-	quadIndexInfo.subBuffer.size = quadIndexInfo.subBuffer.buffer->size();
+	quadIndexInfo.subBuffer.size = (uint32_t)quadIndexInfo.subBuffer.buffer->size();
 	m_quad->upload(quadVertexInfo, quadIndexInfo);
+	
+	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
 
 	// --- Skybox pass
 	String cubemapPath[6] = {
@@ -656,7 +658,7 @@ void Viewer::onRender()
 		PointLightComponent& light = m_world.registry().get<PointLightComponent>(e);
 
 		// Generate shadow cascades
-		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 1.f, PointLightComponent::far);
+		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 0.1f, light.radius);
 		point3f lightPos = point3f(transform.transform.cols[3]);
 		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
 		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
@@ -680,7 +682,7 @@ void Viewer::onRender()
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		m_shadowPointMaterial->set<mat4f>("u_lights[0]", light.worldToLightSpaceMatrix, 6);
 		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
-		m_shadowPointMaterial->set<float>("u_far", PointLightComponent::far);
+		m_shadowPointMaterial->set<float>("u_far", light.radius);
 		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
 			m_shadowPointMaterial->set<mat4f>("u_model", transform.transform);
@@ -853,20 +855,26 @@ void Viewer::onRender()
 	});
 
 	// --- Point lights
-	// TODO use volume intensity & culling
+	// Using light volumes
+	lightingPass.submesh = SubMesh{ m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0 };
+	lightingPass.cull = Culling{ CullMode::FrontFace, CullOrder::CounterClockWise}; // Important to avoid rendering 2 times or clipping
 	lightingPass.material = m_pointMaterial;
 	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
 	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
 	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
 	lightingPass.material->set<Texture::Ptr>("u_roughness", m_roughness);
+	lightingPass.material->set<vec2f>("u_screen", vec2f(m_storage->width(), m_storage->height()));
 	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
-	lightingPass.material->set<float>("u_farPointLight", PointLightComponent::far);
 	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
 	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
+		// TODO use frustum culling;
+		mat4f model = transform.transform * mat4f::scale(vec3f(light.radius));
+		lightingPass.material->set<mat4f>("u_mvp", perspective * view * model);
 		lightingPass.material->set<vec3f>("u_lightPosition", vec3f(transform.transform.cols[3]));
 		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
 		lightingPass.material->set<color3f>("u_lightColor", light.color);
 		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap);
+		lightingPass.material->set<float>("u_farPointLight", light.radius);
 		lightingPass.execute();
 	});
 
