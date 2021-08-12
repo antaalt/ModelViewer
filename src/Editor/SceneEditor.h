@@ -13,8 +13,13 @@ public:
 	void onUpdate(aka::World& world) override;
 	void onRender(aka::World& world) override;
 private:
+	void drawWireFrame(const aka::mat4f& model, const aka::mat4f& view, const aka::mat4f& projection, const aka::SubMesh& submesh);
+private:
 	entt::entity m_currentEntity;
 	uint32_t m_gizmoOperation;
+
+	aka::Shader::Ptr m_wireframeShader;
+	aka::ShaderMaterial::Ptr m_wireframeMaterial;
 };
 
 };

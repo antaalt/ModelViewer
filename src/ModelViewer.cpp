@@ -229,10 +229,10 @@ void Viewer::onCreate()
 	StopWatch<> stopWatch;
 	// TODO use args & worker
 	bool loaded = false;
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
 		throw std::runtime_error("Could not load model.");
@@ -560,7 +560,7 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	}
 
 	// Reset
-	if (Keyboard::down(KeyboardKey::R))
+	if (Keyboard::down(KeyboardKey::R) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		m_camera.get<ArcballCameraComponent>().set(m_bounds);
 		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
@@ -568,22 +568,22 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 			if (!m_world.registry().has<DirtyLightComponent>(e))
 				m_world.registry().emplace<DirtyLightComponent>(e);
 	}
-	if (Keyboard::down(KeyboardKey::D))
+	if (Keyboard::down(KeyboardKey::D) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		m_debug = !m_debug;
 	}
-	if (Keyboard::down(KeyboardKey::PrintScreen))
+	if (Keyboard::down(KeyboardKey::PrintScreen) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		GraphicBackend::screenshot("screen.png");
 	}
 	// Hot reload
-	if (Keyboard::down(KeyboardKey::Space))
+	if (Keyboard::down(KeyboardKey::Space) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		Logger::info("Reloading shaders...");
 		loadShader();
 	}
 	// Quit the app if requested
-	if (Keyboard::pressed(KeyboardKey::Escape))
+	if (Keyboard::pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
@@ -591,6 +591,11 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	// Editor
 	for (EditorWindow* editor : m_editors)
 		editor->onUpdate(m_world);
+}
+
+void Viewer::onResize(uint32_t width, uint32_t height)
+{
+	m_projection.ratio = width / (float)height;
 }
 
 // --- Shadows
@@ -640,7 +645,7 @@ void Viewer::onRender()
 	mat4f view = m_camera.get<Camera3DComponent>().view;
 	// TODO get main camera
 	mat4f debugPerspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), 0.01f, 1000.f);
-	mat4f perspective = mat4f::perspective(m_projection.hFov, (float)backbuffer->width() / (float)backbuffer->height(), m_projection.nearZ, m_projection.farZ);
+	mat4f perspective = m_camera.get<Camera3DComponent>().projection->projection();
 
 	// --- Shadow map system
 	auto pointLightUpdate = m_world.registry().view<DirtyLightComponent, PointLightComponent>();
@@ -911,9 +916,15 @@ void Viewer::onRender()
 
 	postProcessPass.execute();
 
-	// --- Editor pass
-	for (EditorWindow* editor : m_editors)
-		editor->onRender(m_world);
+	if (m_debug)
+	{
+		// Blit depth to be used by debug pass
+		backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+
+		// --- Editor pass
+		for (EditorWindow* editor : m_editors)
+			editor->onRender(m_world);
+	}
 }
 
 };

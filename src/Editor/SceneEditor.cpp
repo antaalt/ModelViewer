@@ -9,6 +9,33 @@
 
 namespace viewer {
 
+void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size)
+{
+	// TODO open a window on click for a complete texture inspector ?
+	if (texture == nullptr)
+	{
+		// TODO add texture loading here ?
+		ImGui::Text("Missing texture : %s.", name.cstr());
+	}
+	else
+	{
+		ImTextureID textureID = (ImTextureID)(uintptr_t)texture->handle();
+		ImGui::Text("%s", name.cstr());
+		ImGui::Image(textureID, size);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			float ratio = texture->width() / (float)texture->height();
+			bool rescale = texture->width() > 512;
+			ImGui::Image(textureID, ImVec2(
+				static_cast<float>(rescale ? 512 : texture->width()),
+				static_cast<float>(rescale ? 512 * ratio : texture->height())
+			));
+			ImGui::EndTooltip();
+		}
+	}
+}
+
 template <typename T>
 struct ComponentNode {
 	static const char* name() { return "Unknown"; }
@@ -97,8 +124,8 @@ template <> const char* ComponentNode<PointLightComponent>::name() { return "Poi
 template <> bool ComponentNode<PointLightComponent>::draw(PointLightComponent& light)
 {
 	bool updated = false;
-	ImGui::ColorEdit3("Color", light.color.data);
-	ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
+	updated |= ImGui::ColorEdit3("Color", light.color.data);
+	updated |= ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
 	return updated;
 }
 
@@ -111,50 +138,59 @@ template <> bool ComponentNode<DirectionalLightComponent>::draw(DirectionalLight
 		updated = true;
 		light.direction = vec3f::normalize(light.direction);
 	}
-	ImGui::ColorEdit3("Color", light.color.data);
-	ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
-	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[0]->handle(), ImVec2(100, 100));
-	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[1]->handle(), ImVec2(100, 100));
-	ImGui::Image((ImTextureID)(uintptr_t)light.shadowMap[2]->handle(), ImVec2(100, 100));
+	updated |= ImGui::ColorEdit3("Color", light.color.data);
+	updated |= ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
+	TextureDisplay("CSM 0", light.shadowMap[0], ImVec2(100, 100));
+	TextureDisplay("CSM 1", light.shadowMap[1], ImVec2(100, 100));
+	TextureDisplay("CSM 2", light.shadowMap[2], ImVec2(100, 100));
 	return updated;
 }
 
 template <> const char* ComponentNode<MeshComponent>::name() { return "Mesh"; }
 template <> bool ComponentNode<MeshComponent>::draw(MeshComponent& mesh) 
 { 
-	static const uint32_t sizeOfVertex = 48;
-	ImGui::Text("Vertices : %u", mesh.submesh.mesh->getVertexBuffer(0).size / sizeOfVertex);
-	ImGui::Text("Index count : %u", mesh.submesh.count);
-	ImGui::Text("Index offset : %u", mesh.submesh.offset);
-	String type = "Undefined";
-	switch (mesh.submesh.type)
+	if (mesh.submesh.mesh != nullptr)
 	{
-	case PrimitiveType::Lines:
-		type = "Lines";
-		break;
-	case PrimitiveType::Triangles:
-		type = "Triangles";
-		break;
-	case PrimitiveType::Points:
-		type = "Points";
-		break;
+		uint32_t sizeOfVertex = 0;
+		for (uint32_t i = 0; i < mesh.submesh.mesh->getVertexAttributeCount(); i++)
+			sizeOfVertex += mesh.submesh.mesh->getVertexAttribute(i).size();
+		ImGui::Text("Vertices : %u", mesh.submesh.mesh->getVertexBuffer(0).size / sizeOfVertex);
+		ImGui::Text("Index count : %u", mesh.submesh.count);
+		ImGui::Text("Index offset : %u", mesh.submesh.offset);
+		String type = "Undefined";
+		switch (mesh.submesh.type)
+		{
+		case PrimitiveType::Lines:
+			type = "Lines";
+			break;
+		case PrimitiveType::Triangles:
+			type = "Triangles";
+			break;
+		case PrimitiveType::Points:
+			type = "Points";
+			break;
+		}
+		ImGui::Text("Primitive : %s", type.cstr());
+		ImGui::Text("Bounds min : (%f, %f, %f)", mesh.bounds.min.x, mesh.bounds.min.y, mesh.bounds.min.z);
+		ImGui::Text("Bounds max : (%f, %f, %f)", mesh.bounds.max.x, mesh.bounds.max.y, mesh.bounds.max.z);
 	}
-	ImGui::Text("Primitive : %s", type.cstr());
-	ImGui::Text("Bounds min : (%f, %f, %f)", mesh.bounds.min.x, mesh.bounds.min.y, mesh.bounds.min.z);
-	ImGui::Text("Bounds max : (%f, %f, %f)", mesh.bounds.max.x, mesh.bounds.max.y, mesh.bounds.max.z);
+	else
+	{
+		ImGui::Text("No mesh data");
+	}
 	return false;
 }
 
 template <> const char* ComponentNode<MaterialComponent>::name() { return "Material"; }
 template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& material) 
 {
-	ImGui::ColorEdit4("Color", material.color.data);
-	ImGui::Checkbox("Double sided", &material.doubleSided);
-	// TODO improve texture display
-	ImGui::Image((ImTextureID)(uintptr_t)material.colorTexture->handle(), ImVec2(100, 100));
-	ImGui::Image((ImTextureID)(uintptr_t)material.normalTexture->handle(), ImVec2(100, 100));
-	ImGui::Image((ImTextureID)(uintptr_t)material.roughnessTexture->handle(), ImVec2(100, 100));
-	return false; 
+	bool updated = false;
+	updated |= ImGui::ColorEdit4("Color", material.color.data);
+	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
+	TextureDisplay("Color", material.colorTexture, ImVec2(100, 100));
+	TextureDisplay("Normal", material.normalTexture, ImVec2(100, 100));
+	TextureDisplay("Material", material.roughnessTexture, ImVec2(100, 100));
+	return updated; 
 }
 
 
@@ -226,6 +262,31 @@ void onTransformUpdate(entt::registry& registry, entt::entity entity)
 	// TODO handle empty node that hold meshes
 }
 
+static const char* vertShader =
+"#version 330\n"
+"layout (location = 0) in vec3 a_position;\n"
+"layout (location = 1) in vec3 a_normal;\n"
+"layout (location = 2) in vec2 a_uv;\n"
+"layout (location = 3) in vec4 a_color;\n"
+"uniform mat4 u_model;\n"
+"uniform mat4 u_view;\n"
+"uniform mat4 u_projection;\n"
+"out vec4 v_color; \n"
+"void main(void) {\n"
+"	gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);\n"
+"	v_color = a_color;\n"
+"}"
+"";
+static const char* fragShader =
+"#version 330\n"
+"in vec3 v_position;\n"
+"in vec4 v_color;\n"
+"out vec4 o_color;\n"
+"void main(void) {\n"
+"	o_color = v_color;\n"
+"}"
+"";
+
 SceneEditor::SceneEditor() :
 	m_currentEntity(entt::null),
 	m_gizmoOperation(ImGuizmo::TRANSLATE)
@@ -238,6 +299,9 @@ void SceneEditor::onCreate(World& world)
 	world.registry().on_update<DirectionalLightComponent>().connect<&onDirLightUpdate>();
 	world.registry().on_update<PointLightComponent>().connect<&onPointLightUpdate>();
 	world.registry().on_update<Camera3DComponent>().connect<&onCameraUpdate>();
+
+	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), std::vector<Attributes>());
+	m_wireframeMaterial = ShaderMaterial::create(m_wireframeShader);
 }
 
 void SceneEditor::onDestroy(World& world)
@@ -390,6 +454,29 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 	}
 }
 
+void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat4f& projection, const SubMesh& submesh)
+{
+	RenderPass r;
+	r.framebuffer = GraphicBackend::backbuffer();
+	r.material = m_wireframeMaterial;
+	r.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
+	r.blend = Blending::none();
+	r.depth = Depth{ DepthCompare::LessOrEqual, false };
+	r.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	r.stencil = Stencil::none();
+	r.viewport = aka::Rect{ 0 };
+	r.scissor = aka::Rect{ 0 };
+	r.submesh = submesh;
+	if (r.submesh.type == PrimitiveType::Triangles)
+	{
+		r.submesh.type = PrimitiveType::LineStrip;
+		r.material->set<mat4f>("u_model", model);
+		r.material->set<mat4f>("u_view", view);
+		r.material->set<mat4f>("u_projection", projection);
+		r.execute();
+	}
+}
+
 void SceneEditor::onRender(World& world)
 {
 	// TODO draw a grid here and origin of the world
@@ -408,23 +495,38 @@ void SceneEditor::onRender(World& world)
 				{
 					static char buffer[256];
 					mat4f id = mat4f::identity();
-					ImGui::InputTextWithHint("Name", "entity name", buffer, 256);
-					if (ImGui::MenuItem("Mesh"))
+					if (ImGui::BeginMenu("Mesh"))
 					{
-						// TODO load a mesh here
-						m_currentEntity = Scene::createMesh(world, nullptr, nullptr).handle();
+						if (ImGui::MenuItem("Cube"))
+						{
+							m_currentEntity = Scene::createCubeMesh(world).handle();
+						}
+						if (ImGui::MenuItem("UV Sphere"))
+						{
+							m_currentEntity = Scene::createSphereMesh(world, 32, 16).handle();
+						}
+						ImGui::EndMenu();
 					}
-					if (ImGui::MenuItem("Point light"))
+					if (ImGui::BeginMenu("Light"))
 					{
-						m_currentEntity = Scene::createPointLight(world).handle();
+						if (ImGui::MenuItem("Point light"))
+						{
+							m_currentEntity = Scene::createPointLight(world).handle();
+						}
+						if (ImGui::MenuItem("Directional light"))
+						{
+							m_currentEntity = Scene::createDirectionalLight(world).handle();
+						}
+						ImGui::EndMenu();
 					}
-					if (ImGui::MenuItem("Directional light"))
-					{
-						m_currentEntity = Scene::createDirectionalLight(world).handle();
-					}
+					
 					if (ImGui::MenuItem("Camera"))
 					{
-						m_currentEntity = Scene::createArcballCamera(world, new CameraPerspective).handle();// TODO leak here
+						m_currentEntity = Scene::createArcballCamera(world, new CameraPerspective(anglef::degree(60.f), 1.f)).handle();// TODO leak here
+					}
+					if (ImGui::MenuItem("Empty"))
+					{
+						m_currentEntity = world.createEntity("New empty").handle();
 					}
 					ImGui::EndMenu();
 				}
@@ -436,22 +538,39 @@ void SceneEditor::onRender(World& world)
 			{
 				if (ImGui::BeginMenu("Add", e.valid()))
 				{
+					color4f c;
+					color4f d{};
+					color4f z = {};
+					color4f f = color4f();
+					color4f g = color4f{};
+					color4f h = color4f(0.f);
+
 					if (ImGui::MenuItem("Transform", nullptr, nullptr, !e.has<Transform3DComponent>()))
-						e.add<Transform3DComponent>();
+						e.add<Transform3DComponent>(Transform3DComponent{ mat4f::identity() });
 					if (ImGui::MenuItem("Hierarchy", nullptr, nullptr, !e.has<Hierarchy3DComponent>()))
-						e.add<Hierarchy3DComponent>();
+						e.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), mat4f::identity() });
 					if (ImGui::MenuItem("Camera", nullptr, nullptr, !e.has<Camera3DComponent>()))
-						e.add<Camera3DComponent>();
+						e.add<Camera3DComponent>(Camera3DComponent{ mat4f::identity(), new CameraPerspective(anglef::degree(60.f), 1.f) }); // TODO leak here
 					if (ImGui::MenuItem("Arcball", nullptr, nullptr, !e.has<ArcballCameraComponent>()))
-						e.add<ArcballCameraComponent>();
+						e.add<ArcballCameraComponent>(ArcballCameraComponent{});
 					if (ImGui::MenuItem("Mesh", nullptr, nullptr, !e.has<MeshComponent>()))
-						e.add<MeshComponent>();
+						e.add<MeshComponent>(MeshComponent{});
 					if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
-						e.add<MaterialComponent>();
+						e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, nullptr, nullptr, nullptr });
 					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
-						e.add<PointLightComponent>();
+						e.add<PointLightComponent>(PointLightComponent{ 
+							color3f(1.f), 1.f, {}, 
+							Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{})
+						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
-						e.add<DirectionalLightComponent>();
+						e.add<DirectionalLightComponent>(DirectionalLightComponent{
+						vec3f(0,1,0),
+						color3f(1.f), 1.f, {}, {
+							Texture::create2D(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{}),
+							Texture::create2D(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{}),
+							Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{})
+						}, {} }
+					);
 					ImGui::EndMenu();
 				}
 				if (ImGui::BeginMenu("Remove", e.valid()))
@@ -596,8 +715,7 @@ void SceneEditor::onRender(World& world)
 				// Draw debug views
 				if (world.registry().has<MeshComponent>(m_currentEntity))
 				{
-					aabbox<> bounds(transform.transform * world.registry().get<MeshComponent>(m_currentEntity).bounds);
-					Renderer3D::drawTransform(mat4f::translate(vec3f(bounds.center()))* mat4f::scale(bounds.extent() / 2.f));
+					drawWireFrame(transform.transform, view, projection, world.registry().get<MeshComponent>(m_currentEntity).submesh);
 				}
 				if (world.registry().has<Camera3DComponent>(m_currentEntity))
 				{

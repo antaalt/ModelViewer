@@ -126,16 +126,200 @@ void ArcballCameraSystem::update(World& world, Time::Unit deltaTime)
 	}
 }
 
-Entity Scene::createMesh(World& world, Buffer::Ptr vertexBuffer, Buffer::Ptr indexBuffer)
+Entity Scene::createSphereMesh(World& world, uint32_t segmentCount, uint32_t ringCount)
 {
+	struct Vertex {
+		point3f position;
+		norm3f normal;
+		uv2f uv;
+		color4f color;
+	};
+	// http://www.songho.ca/opengl/gl_sphere.html
 	Mesh::Ptr m = Mesh::create();
-	// TODO use buffer
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+
+	float radius = 1.f;
+	float length = 1.f / radius;
+	anglef sectorStep = 2.f * pi<float> / (float)ringCount;
+	anglef stackStep = pi<float> / (float)segmentCount;
+	anglef ringAngle, segmentAngle;
+	aabbox<> bounds;
+
+	for (uint32_t i = 0; i <= segmentCount; ++i)
+	{
+		segmentAngle = pi<float> / 2.f - (float)i * stackStep; // starting from pi/2 to -pi/2
+		float xy = radius * cos(segmentAngle); // r * cos(u)
+		float z = radius * sin(segmentAngle); // r * sin(u)
+
+		// add (ringCount+1) vertices per segment
+		// the first and last vertices have same position and normal, but different uv
+		for (uint32_t j = 0; j <= ringCount; ++j)
+		{
+			Vertex v;
+			ringAngle = (float)j * sectorStep; // starting from 0 to 2pi
+
+			v.position.x = xy * cos(ringAngle); // r * cos(u) * cos(v)
+			v.position.y = xy * sin(ringAngle); // r * cos(u) * sin(v)
+			v.position.z = z;
+
+			v.normal = norm3f(v.position / radius);
+
+			v.uv.u = (float)j / ringCount;
+			v.uv.v = (float)i / segmentCount;
+			v.color = color4f(1.f);
+			vertices.push_back(v);
+			bounds.include(v.position);
+		}
+	}
+	for (uint32_t i = 0; i < segmentCount; ++i)
+	{
+		uint32_t k1 = i * (ringCount + 1);     // beginning of current stack
+		uint32_t k2 = k1 + ringCount + 1;      // beginning of next stack
+
+		for (uint32_t j = 0; j < ringCount; ++j, ++k1, ++k2)
+		{
+			// 2 triangles per sector excluding first and last stacks
+			// k1 => k2 => k1+1
+			if (i != 0)
+			{
+				indices.push_back(k1);
+				indices.push_back(k2);
+				indices.push_back(k1 + 1);
+			}
+			// k1+1 => k2 => k2+1
+			if (i != (segmentCount - 1))
+			{
+				indices.push_back(k1 + 1);
+				indices.push_back(k2);
+				indices.push_back(k2 + 1);
+			}
+		}
+	}
+	VertexAttribute att[4] = {
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec2},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec4}
+	};
+	m->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size(), IndexFormat::UnsignedInt, indices.data(), (uint32_t)indices.size());
+	uint8_t data[4]{ 255, 255, 255, 255 };
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, data);
+	uint8_t n[4]{ 128, 128, 255, 255 };
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, n);
+
 	mat4f id = mat4f::identity();
-	Entity mesh = world.createEntity("New mesh");
+	Entity mesh = world.createEntity("New uv sphere");
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, 0, 0 }, aabbox<>() });
-	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, nullptr, nullptr, nullptr });
+	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)indices.size(), 0 }, bounds });
+	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, blank, normal, blank });
+	return mesh;
+}
+
+Entity Scene::createCubeMesh(World& world)
+{
+	struct Vertex {
+		point3f position;
+		norm3f normal;
+		uv2f uv;
+		color4f color;
+	};
+	Mesh::Ptr m = Mesh::create();
+	std::vector<Vertex> vertices;
+	//std::vector<uint32_t> indices;
+	// FRONT     BACK
+	// 2______3__4______5
+	// |      |  |      |
+	// |      |  |      |
+	// |      |  |      |
+	// 0______1__6______7
+	point3f p[8] = {
+		point3f(-1, -1,  1),
+		point3f(1, -1,  1),
+		point3f(-1,  1,  1),
+		point3f(1,  1,  1),
+		point3f(-1,  1, -1),
+		point3f(1,  1, -1),
+		point3f(-1, -1, -1),
+		point3f(1, -1, -1)
+	};
+	norm3f n[6] = {
+		norm3f(0.f,  0.f,  1.f),
+		norm3f(0.f,  1.f,  0.f),
+		norm3f(0.f,  0.f, -1.f),
+		norm3f(0.f, -1.f,  0.f),
+		norm3f(1.f,  0.f,  0.f),
+		norm3f(-1.f,  0.f,  0.f)
+	};
+	uv2f u[4] = {
+		uv2f(0.f, 0.f),
+		uv2f(1.f, 0.f),
+		uv2f(0.f, 1.f),
+		uv2f(1.f, 1.f)
+	};
+	color4f color = color4f(1.f);
+	// Face 1
+	vertices.push_back(Vertex{ p[0], n[0], u[0], color });
+	vertices.push_back(Vertex{ p[1], n[0], u[1], color });
+	vertices.push_back(Vertex{ p[2], n[0], u[2], color });
+	vertices.push_back(Vertex{ p[2], n[0], u[2], color });
+	vertices.push_back(Vertex{ p[1], n[0], u[1], color });
+	vertices.push_back(Vertex{ p[3], n[0], u[3], color });
+	// Face 2
+	vertices.push_back(Vertex{ p[2], n[1], u[0], color });
+	vertices.push_back(Vertex{ p[3], n[1], u[1], color });
+	vertices.push_back(Vertex{ p[4], n[1], u[2], color });
+	vertices.push_back(Vertex{ p[4], n[1], u[2], color });
+	vertices.push_back(Vertex{ p[3], n[1], u[1], color });
+	vertices.push_back(Vertex{ p[5], n[1], u[3], color });
+	// Face 3
+	vertices.push_back(Vertex{ p[4], n[2], u[0], color });
+	vertices.push_back(Vertex{ p[5], n[2], u[1], color });
+	vertices.push_back(Vertex{ p[6], n[2], u[2], color });
+	vertices.push_back(Vertex{ p[6], n[2], u[2], color });
+	vertices.push_back(Vertex{ p[5], n[2], u[1], color });
+	vertices.push_back(Vertex{ p[7], n[2], u[3], color });
+	// Face 4
+	vertices.push_back(Vertex{ p[6], n[3], u[0], color });
+	vertices.push_back(Vertex{ p[7], n[3], u[1], color });
+	vertices.push_back(Vertex{ p[0], n[3], u[2], color });
+	vertices.push_back(Vertex{ p[0], n[3], u[2], color });
+	vertices.push_back(Vertex{ p[7], n[3], u[1], color });
+	vertices.push_back(Vertex{ p[1], n[3], u[3], color });
+	// Face 5
+	vertices.push_back(Vertex{ p[1], n[4], u[0], color });
+	vertices.push_back(Vertex{ p[7], n[4], u[1], color });
+	vertices.push_back(Vertex{ p[3], n[4], u[2], color });
+	vertices.push_back(Vertex{ p[3], n[4], u[2], color });
+	vertices.push_back(Vertex{ p[7], n[4], u[1], color });
+	vertices.push_back(Vertex{ p[5], n[4], u[3], color });
+	// Face 6
+	vertices.push_back(Vertex{ p[6], n[5], u[0], color });
+	vertices.push_back(Vertex{ p[0], n[5], u[1], color });
+	vertices.push_back(Vertex{ p[4], n[5], u[2], color });
+	vertices.push_back(Vertex{ p[4], n[5], u[2], color });
+	vertices.push_back(Vertex{ p[0], n[5], u[1], color });
+	vertices.push_back(Vertex{ p[2], n[5], u[3], color });
+
+	VertexAttribute att[4] = {
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec2},
+		VertexAttribute{ VertexFormat::Float, VertexType::Vec4}
+	};
+	m->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size());
+	uint8_t colorData[4]{ 255, 255, 255, 255 };
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, colorData);
+	uint8_t normalData[4]{ 128, 128, 255, 255 };
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, normalData);
+
+	mat4f id = mat4f::identity();
+	Entity mesh = world.createEntity("New cube");
+	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
+	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
+	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)vertices.size(), 0 }, aabbox<>(point3f(-1), point3f(1)) });
+	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, blank, normal, blank });
 	return mesh;
 }
 

@@ -90,7 +90,8 @@ public:
 	};
 	static Entity getMainCamera(World& world) { return Entity::null(); }
 	// Factory
-	static Entity createMesh(World& world, Buffer::Ptr vertexBuffer, Buffer::Ptr indexBuffer);
+	static Entity createCubeMesh(World& world);
+	static Entity createSphereMesh(World& world, uint32_t segmentCount, uint32_t ringCount);
 	static Entity createPointLight(World& world);
 	static Entity createDirectionalLight(World& world);
 	static Entity createArcballCamera(World& world, CameraProjection* projection);
