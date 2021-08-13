@@ -727,7 +727,9 @@ void Viewer::onRender()
 			m_shadowMaterial->set<mat4f>("u_light", light.worldToLightSpaceMatrix[i]);
 			auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-				// TODO separate light view matrix to be able to perform culling here
+				frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
+				if (!p.intersect(transform.transform * mesh.bounds))
+					return;
 				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
 				shadowPass.submesh = mesh.submesh;
 				shadowPass.execute();
@@ -788,11 +790,6 @@ void Viewer::onRender()
 	});
 
 	// --- Lighting pass
-	// We need :
-	// A directional light pass into storage buffer (using quad)
-	// A point light pass into storage buffer (using volumetric sphere & culling)
-	// A tonemapping pass into storage buffer
-	// This way, we can handle an infinite amount of light
 	static const mat4f projectionToTextureCoordinateMatrix(
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
@@ -867,10 +864,14 @@ void Viewer::onRender()
 	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
 	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
 	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
-		// TODO use frustum culling;
+		point3f position(transform.transform.cols[3]);
+		aabbox<> bounds(position + vec3f(-light.radius), position + vec3f(light.radius));
+		frustum<>::planes p = frustum<>::extract(perspective * view);
+		if (!p.intersect(transform.transform * bounds))
+			return;
 		mat4f model = transform.transform * mat4f::scale(vec3f(light.radius));
 		lightingPass.material->set<mat4f>("u_mvp", perspective * view * model);
-		lightingPass.material->set<vec3f>("u_lightPosition", vec3f(transform.transform.cols[3]));
+		lightingPass.material->set<vec3f>("u_lightPosition", vec3f(position));
 		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
 		lightingPass.material->set<color3f>("u_lightColor", light.color);
 		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap);
