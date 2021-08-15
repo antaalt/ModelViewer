@@ -143,7 +143,7 @@ void Viewer::loadShader()
 			Attributes{ AttributeID(0), "POS" },
 			Attributes{ AttributeID(0), "NORM" },
 			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
+			Attributes{ AttributeID(0), "COLOR" }
 		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")), ShaderType::Vertex);
@@ -229,10 +229,10 @@ void Viewer::onCreate()
 	StopWatch<> stopWatch;
 	// TODO use args & worker
 	bool loaded = false;
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
+	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
+	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
 	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
 	if (!loaded)
 		throw std::runtime_error("Could not load model.");
@@ -268,14 +268,14 @@ void Viewer::onCreate()
 	// 
 	// ao | roughness | metalness | _
 	// R  | G         | B         | A
-	m_depth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
+	m_depth = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
 	m_position = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_albedo = Texture::create2D(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
 	m_normal = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	m_roughness = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
-			FramebufferAttachmentType::DepthStencil,
+			FramebufferAttachmentType::Depth,
 			m_depth
 		},
 		FramebufferAttachment{
@@ -310,7 +310,7 @@ void Viewer::onCreate()
 		VertexAttributeData {
 			VertexAttribute{ VertexFormat::Float, VertexType::Vec2 },
 			SubBuffer{
-				Buffer::create(BufferType::VertexBuffer, sizeof(quadVertices), BufferUsage::Static, BufferAccess::ReadOnly, quadVertices),
+				Buffer::create(BufferType::VertexBuffer, sizeof(quadVertices), BufferUsage::Immutable, BufferCPUAccess::None, quadVertices),
 				0,
 				sizeof(quadVertices)
 			}, 
@@ -320,7 +320,7 @@ void Viewer::onCreate()
 	} };
 	IndexInfo quadIndexInfo{};
 	quadIndexInfo.format = IndexFormat::UnsignedByte;
-	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Static, BufferAccess::ReadOnly, quadIndices);
+	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
 	quadIndexInfo.subBuffer.offset = 0;
 	quadIndexInfo.subBuffer.size = (uint32_t)quadIndexInfo.subBuffer.buffer->size();
 	m_quad->upload(quadVertexInfo, quadIndexInfo);
@@ -409,7 +409,7 @@ void Viewer::onCreate()
 		VertexAttributeData {
 			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
 			SubBuffer{
-				Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Static, BufferAccess::ReadOnly, skyboxVertices),
+				Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
 				0,
 				sizeof(skyboxVertices)
 			},
@@ -494,11 +494,11 @@ void Viewer::onCreate()
 	}
 
 	// --- FXAA pass
-	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::UnsignedInt248, TextureComponent::Depth24Stencil8, TextureFlag::RenderTarget, gbufferSampler);
+	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
 	m_storage = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment storageAttachment[] = {
 		FramebufferAttachment{
-			FramebufferAttachmentType::DepthStencil,
+			FramebufferAttachmentType::Depth,
 			m_storageDepth
 		},
 		FramebufferAttachment{
@@ -879,7 +879,7 @@ void Viewer::onRender()
 		lightingPass.execute();
 	});
 
-	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::Depth, Sampler::Filter::Nearest);
 	
 	// --- Skybox pass
 	RenderPass skyboxPass;
@@ -928,7 +928,7 @@ void Viewer::onRender()
 	if (m_debug)
 	{
 		// Blit depth to be used by debug pass
-		backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+		backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::Depth, Sampler::Filter::Nearest);
 
 		// --- Editor pass
 		for (EditorWindow* editor : m_editors)

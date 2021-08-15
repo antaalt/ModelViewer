@@ -265,8 +265,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	Buffer::Ptr vertexBuffer = Buffer::create(
 		BufferType::VertexBuffer, 
 		vertices.size() * sizeof(Vertex), 
-		BufferUsage::Static, 
-		BufferAccess::ReadOnly, 
+		BufferUsage::Immutable, 
+		BufferCPUAccess::None,
 		vertices.data()
 	);
 	VertexInfo dataVertex{ std::vector<VertexAttributeData>{
@@ -297,8 +297,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	dataIndex.subBuffer.buffer = Buffer::create(
 		BufferType::IndexBuffer, 
 		indices.size() * sizeof(uint32_t),
-		BufferUsage::Static,
-		BufferAccess::ReadOnly, 
+		BufferUsage::Immutable,
+		BufferCPUAccess::None,
 		indices.data()
 	);
 	dataIndex.subBuffer.offset = 0;

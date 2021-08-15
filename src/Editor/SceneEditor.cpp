@@ -262,6 +262,7 @@ void onTransformUpdate(entt::registry& registry, entt::entity entity)
 	// TODO handle empty node that hold meshes
 }
 
+#if defined(AKA_USE_OPENGL)
 static const char* vertShader =
 "#version 330\n"
 "layout (location = 0) in vec3 a_position;\n"
@@ -286,6 +287,42 @@ static const char* fragShader =
 "	o_color = v_color;\n"
 "}"
 "";
+#elif defined(AKA_USE_D3D11)
+
+static const char* shader = ""
+"cbuffer constants : register(b0)\n"
+"{\n"
+"	row_major float4x4 u_model;\n"
+"	row_major float4x4 u_view;\n"
+"	row_major float4x4 u_projection;\n"
+"}\n"
+"struct vs_in\n"
+"{\n"
+"	float3 position : POS;\n"
+"	float3 normal : NORM;\n"
+"	float2 texcoord : TEX;\n"
+"	float4 color : COL;\n"
+"};\n"
+"struct vs_out\n"
+"{\n"
+"	float4 position : SV_POSITION;\n"
+"	float2 texcoord : TEX;\n"
+"	float4 color : COL;\n"
+"};\n"
+"vs_out vs_main(vs_in input)\n"
+"{\n"
+"	vs_out output;\n"
+"	output.position = mul(mul(mul(float4(input.position, 1.0f), u_model), u_view), u_projection);\n"
+"	output.color = input.color;\n"
+"	return output;\n"
+"}\n"
+"float4 ps_main(vs_out input) : SV_TARGET\n"
+"{\n"
+"	return input.color;\n"
+"}\n";
+static const char* vertShader = shader;
+static const char* fragShader = shader;
+#endif
 
 SceneEditor::SceneEditor() :
 	m_currentEntity(entt::null),
