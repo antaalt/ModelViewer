@@ -4,7 +4,7 @@ layout(location = 0) out vec4 o_color;
 
 in vec2 v_uv;
 
-uniform sampler2D u_input;
+uniform sampler2D u_inputTexture;
 uniform uint u_width;
 uniform uint u_height;
 
@@ -22,11 +22,11 @@ vec3 fxaa()
 	vec2 pos = v_uv - (rcpFrame * (0.5 + FXAA_SUBPIX_SHIFT));
 
 	// Color must be sRGB.
-	vec3 rgbNW = textureLod(u_input, pos, 0.0).xyz;
-	vec3 rgbNE = textureLod(u_input, pos + ivec2(1,0) * rcpFrame, 0.0).xyz;
-	vec3 rgbSW = textureLod(u_input, pos + ivec2(0,1) * rcpFrame, 0.0).xyz;
-	vec3 rgbSE = textureLod(u_input, pos + ivec2(1,1) * rcpFrame, 0.0).xyz;
-	vec3 rgbM  = textureLod(u_input, v_uv, 0.0).xyz;
+	vec3 rgbNW = textureLod(u_inputTexture, pos, 0.0).xyz;
+	vec3 rgbNE = textureLod(u_inputTexture, pos + ivec2(1,0) * rcpFrame, 0.0).xyz;
+	vec3 rgbSW = textureLod(u_inputTexture, pos + ivec2(0,1) * rcpFrame, 0.0).xyz;
+	vec3 rgbSE = textureLod(u_inputTexture, pos + ivec2(1,1) * rcpFrame, 0.0).xyz;
+	vec3 rgbM  = textureLod(u_inputTexture, v_uv, 0.0).xyz;
 
 	vec3 luma = vec3(0.299, 0.587, 0.114);
 	float lumaNW = dot(rgbNW, luma);
@@ -47,8 +47,8 @@ vec3 fxaa()
 
 	dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), dir * rcpDirMin)) * rcpFrame.xy;
 
-	vec3 rgbA = (1.0/2.0) * (textureLod(u_input, v_uv + dir * (1.0/3.0 - 0.5), 0.0).xyz + textureLod(u_input, v_uv + dir * (2.0/3.0 - 0.5), 0.0).xyz);
-	vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (textureLod(u_input, v_uv + dir * (0.0/3.0 - 0.5), 0.0).xyz + textureLod(u_input, v_uv + dir * (3.0/3.0 - 0.5), 0.0).xyz);
+	vec3 rgbA = (1.0/2.0) * (textureLod(u_inputTexture, v_uv + dir * (1.0/3.0 - 0.5), 0.0).xyz + textureLod(u_inputTexture, v_uv + dir * (2.0/3.0 - 0.5), 0.0).xyz);
+	vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (textureLod(u_inputTexture, v_uv + dir * (0.0/3.0 - 0.5), 0.0).xyz + textureLod(u_inputTexture, v_uv + dir * (3.0/3.0 - 0.5), 0.0).xyz);
 
 	float lumaB = dot(rgbB, luma);
 

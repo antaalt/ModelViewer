@@ -189,7 +189,7 @@ template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& mater
 	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
 	TextureDisplay("Color", material.colorTexture, ImVec2(100, 100));
 	TextureDisplay("Normal", material.normalTexture, ImVec2(100, 100));
-	TextureDisplay("Material", material.roughnessTexture, ImVec2(100, 100));
+	TextureDisplay("Material", material.materialTexture, ImVec2(100, 100));
 	return updated; 
 }
 
@@ -336,8 +336,13 @@ void SceneEditor::onCreate(World& world)
 	world.registry().on_update<DirectionalLightComponent>().connect<&onDirLightUpdate>();
 	world.registry().on_update<PointLightComponent>().connect<&onPointLightUpdate>();
 	world.registry().on_update<Camera3DComponent>().connect<&onCameraUpdate>();
-
-	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), std::vector<Attributes>());
+	std::vector<Attributes> attributes = {
+		Attributes{ AttributeID(0), "POS" },
+		Attributes{ AttributeID(0), "NORM" },
+		Attributes{ AttributeID(0), "TEX" },
+		Attributes{ AttributeID(0), "COL" }
+	};
+	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), attributes);
 	m_wireframeMaterial = ShaderMaterial::create(m_wireframeShader);
 }
 
@@ -597,15 +602,15 @@ void SceneEditor::onRender(World& world)
 					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
 						e.add<PointLightComponent>(PointLightComponent{ 
 							color3f(1.f), 1.f, {}, 
-							Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{})
+							Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{})
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 						vec3f(0,1,0),
 						color3f(1.f), 1.f, {}, {
-							Texture::create2D(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{}),
-							Texture::create2D(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{}),
-							Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler{})
+							Texture::create2D(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{}),
+							Texture::create2D(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{}),
+							Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{})
 						}, {} }
 					);
 					ImGui::EndMenu();

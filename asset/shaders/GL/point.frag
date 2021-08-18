@@ -11,10 +11,10 @@ uniform vec2 u_screen;
 #define v_uv (gl_FragCoord.xy / u_screen)
 #endif
 
-uniform sampler2D u_position;
-uniform sampler2D u_albedo;
-uniform sampler2D u_normal;
-uniform sampler2D u_roughness;
+uniform sampler2D u_positionTexture;
+uniform sampler2D u_albedoTexture;
+uniform sampler2D u_normalTexture;
+uniform sampler2D u_materialTexture;
 
 uniform vec3 u_cameraPos; // use u_view
 uniform float u_farPointLight;
@@ -99,10 +99,10 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main(void)
 {
-	vec3 position = texture(u_position, v_uv).rgb; // TODO get position from depth buffer ? to save memory
-	vec3 normal   = texture(u_normal, v_uv).rgb;
-	vec3 albedo   = pow(texture(u_albedo, v_uv).rgb, vec3(2.2)); // To Linear space
-	vec3 material = texture(u_roughness, v_uv).rgb; // AO / roughness / metalness
+	vec3 position = texture(u_positionTexture, v_uv).rgb; // TODO get position from depth buffer ? to save memory
+	vec3 normal   = texture(u_normalTexture, v_uv).rgb;
+	vec3 albedo   = pow(texture(u_albedoTexture, v_uv).rgb, vec3(2.2)); // To Linear space
+	vec3 material = texture(u_materialTexture, v_uv).rgb; // AO / roughness / metalness
 	float ao = material.r;
 	float roughness = material.g;
 	float metalness = material.b;

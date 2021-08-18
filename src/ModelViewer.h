@@ -31,7 +31,7 @@ private:
 	aka::Texture::Ptr m_albedo;
 	aka::Texture::Ptr m_normal;
 	aka::Texture::Ptr m_depth;
-	aka::Texture::Ptr m_roughness;
+	aka::Texture::Ptr m_material;
 	aka::Framebuffer::Ptr m_gbuffer;
 	aka::ShaderMaterial::Ptr m_gbufferMaterial;
 

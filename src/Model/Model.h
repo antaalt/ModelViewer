@@ -25,7 +25,7 @@ struct MaterialComponent {
 	bool doubleSided;
 	Texture::Ptr colorTexture;
 	Texture::Ptr normalTexture;
-	Texture::Ptr roughnessTexture;
+	Texture::Ptr materialTexture;
 	//Texture::Ptr emissiveTexture;
 };
 

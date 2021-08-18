@@ -8,6 +8,7 @@ uniform mat4 u_model;
 uniform mat4 u_view;
 uniform mat4 u_projection;
 uniform mat3 u_normalMatrix;
+uniform vec4 u_color;
 
 out vec3 v_position; // world space
 out vec3 v_normal; // world space
@@ -21,5 +22,5 @@ void main(void)
 	v_position = vec3(u_model * vec4(a_position, 1.0));
 	v_normal = normalize(u_normalMatrix * a_normal);
 	v_uv = a_uv;
-	v_color = a_color;
+	v_color = u_color * a_color;
 }

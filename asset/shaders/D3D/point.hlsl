@@ -1,6 +1,6 @@
 cbuffer constants : register(b0)
 {
-	row_major float4x4 u_mvp;
+	float4x4 u_mvp;
 }
 
 struct vs_in
@@ -10,7 +10,7 @@ struct vs_in
 
 float4 vs_main(vs_in input) : SV_POSITION
 {
-	return mul(float4(input.position, 1.0), u_mvp);
+	return mul(u_mvp, float4(input.position, 1.0));
 }
 
 float4 ps_main(float4 input : SV_POSITION) : SV_TARGET

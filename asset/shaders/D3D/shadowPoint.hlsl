@@ -1,7 +1,7 @@
 cbuffer constants : register(b0)
 {
-	row_major float4x4 u_lights[6];
-	row_major float4x4 u_model;
+	float4x4 u_lights[6];
+	float4x4 u_model;
 	float3 u_lightPos;
 	float u_far;
 }

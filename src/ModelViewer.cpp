@@ -45,7 +45,10 @@ void Viewer::loadShader()
 	}
 	{
 		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" }
+			Attributes{ AttributeID(0), "POS" },
+			Attributes{ AttributeID(0), "NORM" },
+			Attributes{ AttributeID(0), "TEX" },
+			Attributes{ AttributeID(0), "COL" }
 		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")), aka::ShaderType::Vertex);
@@ -143,7 +146,7 @@ void Viewer::loadShader()
 			Attributes{ AttributeID(0), "POS" },
 			Attributes{ AttributeID(0), "NORM" },
 			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COLOR" }
+			Attributes{ AttributeID(0), "COL" }
 		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")), ShaderType::Vertex);
@@ -268,14 +271,14 @@ void Viewer::onCreate()
 	// 
 	// ao | roughness | metalness | _
 	// R  | G         | B         | A
-	m_depth = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
-	m_position = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
-	m_albedo = Texture::create2D(width(), height(), TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::RenderTarget, gbufferSampler);
-	m_normal = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
-	m_roughness = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_depth = Texture::create2D(width(), height(), TextureFormat::DepthStencil, TextureFlag::RenderTarget, gbufferSampler);
+	m_position = Texture::create2D(width(), height(), TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_albedo = Texture::create2D(width(), height(), TextureFormat::RGBA8, TextureFlag::RenderTarget, gbufferSampler);
+	m_normal = Texture::create2D(width(), height(), TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_material = Texture::create2D(width(), height(), TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
+			FramebufferAttachmentType::DepthStencil,
 			m_depth
 		},
 		FramebufferAttachment{
@@ -292,7 +295,7 @@ void Viewer::onCreate()
 		},
 		FramebufferAttachment{
 			FramebufferAttachmentType::Color3,
-			m_roughness
+			m_material
 		}
 	};
 	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
@@ -304,7 +307,7 @@ void Viewer::onCreate()
 		 1,  1, // top right corner
 		-1,  1, // top left corner
 	};
-	uint8_t quadIndices[] = { 0,1,2,0,2,3 };
+	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
 	VertexInfo quadVertexInfo{ {
 		VertexAttributeData {
@@ -319,7 +322,7 @@ void Viewer::onCreate()
 		}
 	} };
 	IndexInfo quadIndexInfo{};
-	quadIndexInfo.format = IndexFormat::UnsignedByte;
+	quadIndexInfo.format = IndexFormat::UnsignedShort;
 	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
 	quadIndexInfo.subBuffer.offset = 0;
 	quadIndexInfo.subBuffer.size = (uint32_t)quadIndexInfo.subBuffer.buffer->size();
@@ -350,7 +353,7 @@ void Viewer::onCreate()
 	cubeSampler.wrapW = Sampler::Wrap::ClampToEdge;
 	m_skybox = Texture::createCubemap(
 		cubemap[0].width, cubemap[0].height,
-		TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, 
+		TextureFormat::RGBA8, TextureFlag::None, 
 		cubeSampler, 
 		cubemap[0].bytes.data(),
 		cubemap[1].bytes.data(),
@@ -439,9 +442,9 @@ void Viewer::onCreate()
 	sun.color = color3f(1.f);
 	sun.intensity = 10.f;
 	sunTransform.transform = mat4f::identity();
-	sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-	sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+	sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+	sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+	sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
 	// TODO texture atlas & single shader execution
 	for (size_t i = 0; i < 3; i++)
 		sun.worldToLightSpaceMatrix[i] = mat4f::identity();
@@ -468,9 +471,9 @@ void Viewer::onCreate()
 		l.color = color3f(1.f, 0.1f, 0.2f);
 		l.intensity = 1.f;
 		t.transform = mat4f::identity();
-		l.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-		l.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
-		l.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
 		// TODO texture atlas & single shader execution
 		for (size_t i = 0; i < 3; i++)
 			l.worldToLightSpaceMatrix[i] = mat4f::identity();
@@ -488,17 +491,17 @@ void Viewer::onCreate()
 		l.color = color3f(0.2f, 1.f, 0.2f);
 		l.intensity = 10.f;
 		t.transform = mat4f::translate(vec3f(0, 1, 0));
-		l.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler);
+		l.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
 		for (size_t i = 0; i < 6; i++)
 			l.worldToLightSpaceMatrix[i] = mat4f::identity();
 	}
 
 	// --- FXAA pass
-	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, gbufferSampler);
-	m_storage = Texture::create2D(width(), height(), TextureFormat::Float, TextureComponent::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_storageDepth = Texture::create2D(width(), height(), TextureFormat::DepthStencil, TextureFlag::RenderTarget, gbufferSampler);
+	m_storage = Texture::create2D(width(), height(), TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
 	FramebufferAttachment storageAttachment[] = {
 		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
+			FramebufferAttachmentType::DepthStencil,
 			m_storageDepth
 		},
 		FramebufferAttachment{
@@ -680,7 +683,7 @@ void Viewer::onRender()
 
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-		m_shadowPointMaterial->set<mat4f>("u_lights[0]", light.worldToLightSpaceMatrix, 6);
+		m_shadowPointMaterial->set<mat4f>("u_lights", light.worldToLightSpaceMatrix, 6);
 		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
 		m_shadowPointMaterial->set<float>("u_far", light.radius);
 		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
@@ -738,7 +741,6 @@ void Viewer::onRender()
 		m_world.registry().remove<DirtyLightComponent>(e);
 	}
 
-	// --- Shadow pass
 	mat4f renderView = view;
 	mat4f renderPerspective = perspective;
 	auto renderableView = m_world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
@@ -778,11 +780,9 @@ void Viewer::onRender()
 		m_gbufferMaterial->set<mat4f>("u_model", model);
 		m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
 		m_gbufferMaterial->set<color4f>("u_color", color);
-		m_gbufferMaterial->set<Texture::Ptr>("u_roughnessTexture", material.roughnessTexture);
+		m_gbufferMaterial->set<Texture::Ptr>("u_materialTexture", material.materialTexture);
 		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
 		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
-
-		m_gbufferMaterial->set<mat4f>("u_model", model);
 		gbufferPass.submesh = mesh.submesh;
 		gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
@@ -822,20 +822,21 @@ void Viewer::onRender()
 
 	// --- Ambient light
 	lightingPass.material = m_ambientMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_skybox", m_skybox);
+	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_skyboxTexture", m_skybox);
+	//lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
 	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
 	lightingPass.execute();
 	
 	// --- Directional lights
 	lightingPass.material = m_dirMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_depth", m_depth);
-	lightingPass.material->set<Texture::Ptr>("u_roughness", m_roughness);
+	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_depthTexture", m_depth);
+	lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
 	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
 	auto directionalShadows = m_world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
@@ -845,9 +846,9 @@ void Viewer::onRender()
 		lightingPass.material->set<vec3f>("u_lightDirection", light.direction);
 		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
 		lightingPass.material->set<color3f>("u_lightColor", light.color);
-		lightingPass.material->set<mat4f>("u_worldToLightTextureSpace[0]", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
-		lightingPass.material->set<float>("u_cascadeEndClipSpace[0]", light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
-		lightingPass.material->set<Texture::Ptr>("u_shadowMap[0]", light.shadowMap, DirectionalLightComponent::cascadeCount);
+		lightingPass.material->set<mat4f>("u_worldToLightTextureSpace", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
+		lightingPass.material->set<float>("u_cascadeEndClipSpace", light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
+		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap, DirectionalLightComponent::cascadeCount);
 		lightingPass.execute();
 	});
 
@@ -856,10 +857,10 @@ void Viewer::onRender()
 	lightingPass.submesh = SubMesh{ m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0 };
 	lightingPass.cull = Culling{ CullMode::FrontFace, CullOrder::CounterClockWise}; // Important to avoid rendering 2 times or clipping
 	lightingPass.material = m_pointMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_position", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedo", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normal", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_roughness", m_roughness);
+	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
+	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
+	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
+	lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
 	lightingPass.material->set<vec2f>("u_screen", vec2f(m_storage->width(), m_storage->height()));
 	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(m_camera.get<Transform3DComponent>().transform[3]));
 	auto pointShadows = m_world.registry().view<Transform3DComponent, PointLightComponent>();
@@ -879,7 +880,7 @@ void Viewer::onRender()
 		lightingPass.execute();
 	});
 
-	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::Depth, Sampler::Filter::Nearest);
+	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 	
 	// --- Skybox pass
 	RenderPass skyboxPass;
@@ -897,8 +898,8 @@ void Viewer::onRender()
 	skyboxPass.scissor = aka::Rect{ 0 };
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	skyboxPass.material->set<Texture::Ptr>("u_skybox", m_skybox);
-	skyboxPass.material->set<mat4f>("u_view", mat4f(mat3f(renderView)));
+	skyboxPass.material->set<Texture::Ptr>("u_skyboxTexture", m_skybox);
+	skyboxPass.material->set<mat4f>("u_view", mat4f(mat3f(renderView))); // TODO mvp
 	skyboxPass.material->set<mat4f>("u_projection", renderPerspective);
 
 	skyboxPass.execute();
@@ -919,7 +920,7 @@ void Viewer::onRender()
 	postProcessPass.scissor = aka::Rect{ 0 };
 	postProcessPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	postProcessPass.material->set<Texture::Ptr>("u_input", m_storage);
+	postProcessPass.material->set<Texture::Ptr>("u_inputTexture", m_storage);
 	postProcessPass.material->set<uint32_t>("u_width", width());
 	postProcessPass.material->set<uint32_t>("u_height", height());
 
@@ -928,7 +929,7 @@ void Viewer::onRender()
 	if (m_debug)
 	{
 		// Blit depth to be used by debug pass
-		backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::Depth, Sampler::Filter::Nearest);
+		backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
 
 		// --- Editor pass
 		for (EditorWindow* editor : m_editors)

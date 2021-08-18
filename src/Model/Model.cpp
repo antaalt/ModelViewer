@@ -313,9 +313,9 @@ Entity Scene::createSphere(World& world, uint32_t segmentCount, uint32_t ringCou
 {
 	Mesh::Ptr m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, data);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, n);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, n);
 
 	mat4f id = mat4f::identity();
 	Entity mesh = world.createEntity("New uv sphere");
@@ -329,9 +329,9 @@ Entity Scene::createSphere(World& world, uint32_t segmentCount, uint32_t ringCou
 Entity Scene::createCube(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, colorData);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, Sampler{}, normalData);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, normalData);
 
 	Mesh::Ptr m = createCubeMesh(point3f(0.f), 1.f);
 	mat4f id = mat4f::identity();
@@ -359,7 +359,7 @@ Entity Scene::createPointLight(World& world)
 		color3f(1.f),
 		1.f,
 		{ id, id, id, id, id, id },
-		Texture::createCubemap(1024, 1024, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, shadowSampler)
+		Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, shadowSampler)
 	});
 	return light;
 }
@@ -376,9 +376,9 @@ Entity Scene::createDirectionalLight(World& world)
 		1.f,
 		{ id, id, id },
 		{
-			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
-			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest()),
-			Texture::create2D(2048, 2048, TextureFormat::Float, TextureComponent::Depth, TextureFlag::RenderTarget, Sampler::nearest())
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest()),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest()),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest())
 		},
 		{ 1.f, 1.f, 1.f }
 	});

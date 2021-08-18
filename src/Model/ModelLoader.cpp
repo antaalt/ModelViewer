@@ -37,10 +37,10 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
 	uint8_t bytesNormal[4] = { 128,128,255,255 };
 	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesMissingColor);
-	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesBlankColor);
-	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesNormal);
-	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::UnsignedByte, TextureComponent::RGBA, TextureFlag::None, defaultSampler, bytesRoughness);
+	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesMissingColor);
+	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesBlankColor);
+	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesNormal);
+	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesRoughness);
 }
 
 void AssimpImporter::process()
@@ -229,9 +229,9 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, 0, &str);
-				materialComponent.roughnessTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.roughnessTexture == nullptr)
-					materialComponent.roughnessTexture = m_missingRoughnessTexture;
+				materialComponent.materialTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
+				if (materialComponent.materialTexture == nullptr)
+					materialComponent.materialTexture = m_missingRoughnessTexture;
 				//break; // Ignore others textures for now.
 			}
 		}
@@ -242,15 +242,15 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.roughnessTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.roughnessTexture == nullptr)
-					materialComponent.roughnessTexture = m_missingRoughnessTexture;
+				materialComponent.materialTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
+				if (materialComponent.materialTexture == nullptr)
+					materialComponent.materialTexture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.roughnessTexture = m_missingRoughnessTexture;
+			materialComponent.materialTexture = m_missingRoughnessTexture;
 		}
 	}
 	else
@@ -260,7 +260,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.doubleSided = true;
 		materialComponent.colorTexture = m_blankColorTexture;
 		materialComponent.normalTexture = m_missingNormalTexture;
-		materialComponent.roughnessTexture = m_missingRoughnessTexture;
+		materialComponent.materialTexture = m_missingRoughnessTexture;
 	}
 	Buffer::Ptr vertexBuffer = Buffer::create(
 		BufferType::VertexBuffer, 
@@ -323,8 +323,7 @@ Texture::Ptr AssimpImporter::loadTexture(const Path& path, const Sampler& sample
 			Texture::Ptr texture = Texture::create2D(
 				img.width,
 				img.height,
-				TextureFormat::UnsignedByte,
-				img.components == 4 ? TextureComponent::RGBA : TextureComponent::RGB,
+				img.components == 4 ? TextureFormat::RGBA8 : TextureFormat::RGB8,
 				TextureFlag::None,
 				sampler,
 				img.bytes.data()
@@ -347,7 +346,12 @@ bool ModelLoader::load(const Path& path, aka::World& world)
 	const aiScene* aiScene = assimpImporter.ReadFile(path.cstr(),
 		aiProcess_Triangulate | 
 		//aiProcess_CalcTangentSpace |
-		//aiProcess_FlipUVs |
+#if defined(AKA_ORIGIN_TOP_LEFT)
+		aiProcess_FlipUVs |
+#endif
+#if defined(GEOMETRY_LEFT_HANDED)
+		aiProcess_MakeLeftHanded |
+#endif
 		aiProcess_GenSmoothNormals
 	);
 	if (!aiScene || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !aiScene->mRootNode)
