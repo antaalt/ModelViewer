@@ -16,6 +16,10 @@ add_executable(AkaViewer
 	"src/Editor/SceneEditor.cpp"
 	"src/Editor/InfoEditor.cpp" 
 	"src/Editor/AssetEditor.cpp"
+
+	"src/System/RenderSystem.cpp"
+	"src/System/ShadowMapSystem.cpp"
+	"src/System/SceneSystem.cpp"
 )
 
 target_link_libraries(AkaViewer Aka)

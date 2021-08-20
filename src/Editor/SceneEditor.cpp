@@ -374,21 +374,10 @@ bool intersectBounds(const aabbox<>& bounds, const point3f& origin, const vec3f&
 	return true;
 };
 
-Entity getMainCamera(World& world)
-{
-	Entity cameraEntity = Entity::null();
-	world.each([&cameraEntity](Entity entity) {
-		// TODO get main camera
-		if (entity.has<Camera3DComponent>())
-			cameraEntity = entity;
-	});
-	return cameraEntity;
-}
-
 entt::entity pick(World& world)
 {
 	// Find a valid camera
-	Entity cameraEntity = getMainCamera(world);
+	Entity cameraEntity = Scene::getMainCamera(world);
 	if (!cameraEntity.valid())
 		return entt::null;
 
@@ -541,11 +530,11 @@ void SceneEditor::onRender(World& world)
 					{
 						if (ImGui::MenuItem("Cube"))
 						{
-							m_currentEntity = Scene::createCube(world).handle();
+							m_currentEntity = Scene::createCubeEntity(world).handle();
 						}
 						if (ImGui::MenuItem("UV Sphere"))
 						{
-							m_currentEntity = Scene::createSphere(world, 32, 16).handle();
+							m_currentEntity = Scene::createSphereEntity(world, 32, 16).handle();
 						}
 						ImGui::EndMenu();
 					}
@@ -553,18 +542,18 @@ void SceneEditor::onRender(World& world)
 					{
 						if (ImGui::MenuItem("Point light"))
 						{
-							m_currentEntity = Scene::createPointLight(world).handle();
+							m_currentEntity = Scene::createPointLightEntity(world).handle();
 						}
 						if (ImGui::MenuItem("Directional light"))
 						{
-							m_currentEntity = Scene::createDirectionalLight(world).handle();
+							m_currentEntity = Scene::createDirectionalLightEntity(world).handle();
 						}
 						ImGui::EndMenu();
 					}
 					
 					if (ImGui::MenuItem("Camera"))
 					{
-						m_currentEntity = Scene::createArcballCamera(world, new CameraPerspective(anglef::degree(60.f), 1.f)).handle();// TODO leak here
+						m_currentEntity = Scene::createArcballCameraEntity(world, new CameraPerspective(anglef::degree(60.f), 1.f)).handle();// TODO leak here
 					}
 					if (ImGui::MenuItem("Empty"))
 					{
@@ -739,7 +728,7 @@ void SceneEditor::onRender(World& world)
 				component<ArcballCameraComponent>(world, m_currentEntity);
 			}
 			// --- Gizmo
-			Entity cameraEntity = getMainCamera(world);
+			Entity cameraEntity = Scene::getMainCamera(world);
 			if (cameraEntity.valid() && world.registry().has<Transform3DComponent>(m_currentEntity))
 			{
 				// Get camera data for rendering on screen

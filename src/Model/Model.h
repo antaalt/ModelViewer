@@ -77,33 +77,18 @@ struct DirtyLightComponent {};
 struct DirtyCameraComponent {};
 struct DirtyTransformComponent {};
 
-class Scene
+struct Scene
 {
-public:
-	class GraphSystem : public System
-	{
-	public:
-		void create(World& world) override;
-		void destroy(World& world) override;
-		// The update is deferred.
-		void update(World& world, Time::Unit deltaTime) override;
-	};
-	static Entity getMainCamera(World& world) { return Entity::null(); }
+	static Entity getMainCamera(World& world);
 	// Factory
 	static Mesh::Ptr createCubeMesh(const point3f& position, float size);
 	static Mesh::Ptr createSphereMesh(const point3f& position, float radius, uint32_t segmentCount, uint32_t ringCount);
 
-	static Entity createCube(World& world);
-	static Entity createSphere(World& world, uint32_t segmentCount, uint32_t ringCount);
-	static Entity createPointLight(World& world);
-	static Entity createDirectionalLight(World& world);
-	static Entity createArcballCamera(World& world, CameraProjection* projection);
-};
-
-class ArcballCameraSystem : public System
-{
-public:
-	void update(World& world, Time::Unit deltaTime) override;
+	static Entity createCubeEntity(World& world);
+	static Entity createSphereEntity(World& world, uint32_t segmentCount, uint32_t ringCount);
+	static Entity createPointLightEntity(World& world);
+	static Entity createDirectionalLightEntity(World& world);
+	static Entity createArcballCameraEntity(World& world, CameraProjection* projection);
 };
 
 };
