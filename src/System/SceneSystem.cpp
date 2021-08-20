@@ -69,6 +69,7 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 	}
 
 	// --- Update arball camera
+	// TODO move to separate camera system, rename this HierarchySystem
 	auto arcballView = world.registry().view<Transform3DComponent, Camera3DComponent, ArcballCameraComponent>();
 	for (entt::entity entity : arcballView)
 	{
@@ -76,7 +77,7 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 		ArcballCameraComponent& controller = world.registry().get<ArcballCameraComponent>(entity);
 		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
 		if (!controller.active)
-			return;
+			continue;
 		bool dirty = false;
 		// https://gamedev.stackexchange.com/questions/53333/how-to-implement-a-basic-arcball-camera-in-opengl-with-glm
 		if (Mouse::pressed(MouseButton::ButtonLeft) && (Mouse::delta().x != 0.f || Mouse::delta().y != 0.f))
@@ -96,7 +97,7 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 		{
 			float x = -Mouse::delta().x * deltaTime.seconds();
 			float y = -Mouse::delta().y * deltaTime.seconds();
-			vec3f upCamera = vec3f(0, 1, 0);
+			vec3f upCamera = vec3f(0, 1, 0); // TODO change it when close to up
 			vec3f forwardCamera = vec3f::normalize(controller.target - controller.position);
 			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
 			vec3f move = rightCamera * x * controller.speed / 2.f + upCamera * y * controller.speed / 2.f;
@@ -118,8 +119,18 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 		}
 		if (dirty)
 		{
-			// TODO make it scene graph compatible
-			transform.transform = mat4f::lookAt(controller.position, controller.target, controller.up);
+			mat4f parentMatrix;
+			if (world.registry().has<Hierarchy3DComponent>(entity))
+			{
+				Hierarchy3DComponent& h = world.registry().get<Hierarchy3DComponent>(entity);
+				if (h.parent != Entity::null() && world.registry().valid(h.parent.handle()))
+					parentMatrix = h.parent.get<Transform3DComponent>().transform;
+				else
+					parentMatrix = mat4f::identity();
+			}
+			else
+				parentMatrix = mat4f::identity();
+			transform.transform = parentMatrix * mat4f::lookAt(controller.position, controller.target, controller.up);
 			camera.view = mat4f::inverse(transform.transform);
 			world.registry().replace<Camera3DComponent>(entity, camera);
 		}
