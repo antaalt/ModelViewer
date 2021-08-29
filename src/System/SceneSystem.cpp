@@ -4,6 +4,47 @@
 
 namespace viewer {
 
+void onDirLightUpdate(entt::registry& registry, entt::entity entity)
+{
+	if (!registry.has<DirtyLightComponent>(entity))
+		registry.emplace<DirtyLightComponent>(entity);
+}
+
+void onPointLightUpdate(entt::registry& registry, entt::entity entity)
+{
+	if (!registry.has<DirtyLightComponent>(entity))
+		registry.emplace<DirtyLightComponent>(entity);
+}
+
+void onCameraUpdate(entt::registry& registry, entt::entity entity)
+{
+	auto dirLights = registry.view<DirectionalLightComponent>();
+	for (entt::entity e : dirLights)
+		if (!registry.has<DirtyLightComponent>(e))
+			registry.emplace<DirtyLightComponent>(e);
+}
+
+void onTransformUpdate(entt::registry& registry, entt::entity entity)
+{
+	// Update point light if we moved it
+	if (registry.has<PointLightComponent>(entity))
+		registry.replace<PointLightComponent>(entity, registry.get<PointLightComponent>(entity));
+	// Update lights if we changed the scene
+	if (registry.has<MeshComponent>(entity))
+	{
+		auto dirLightUpdate = registry.view<DirectionalLightComponent>();
+		for (entt::entity e : dirLightUpdate)
+			if (!registry.has<DirtyLightComponent>(e))
+				registry.emplace<DirtyLightComponent>(e);
+		// TODO only update light affected by mesh bounds
+		auto pointLightUpdate = registry.view<PointLightComponent>();
+		for (entt::entity e : pointLightUpdate)
+			if (!registry.has<DirtyLightComponent>(e))
+				registry.emplace<DirtyLightComponent>(e);
+	}
+	// TODO handle empty node that hold meshes
+}
+
 void onHierarchyRemove(entt::registry& registry, entt::entity entity)
 {
 	if (!registry.has<Transform3DComponent>(entity))
@@ -16,16 +57,22 @@ void onHierarchyRemove(entt::registry& registry, entt::entity entity)
 
 void SceneSystem::onCreate(aka::World& world)
 {
-	//world.registry().on_construct<Hierarchy3DComponent>().connect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().connect<&onHierarchyRemove>();
-	//world.registry().on_update<Hierarchy3DComponent>().connect<&onHierarchyUpdate>();
+
+	world.registry().on_update<Transform3DComponent>().connect<&onTransformUpdate>();
+	world.registry().on_update<DirectionalLightComponent>().connect<&onDirLightUpdate>();
+	world.registry().on_update<PointLightComponent>().connect<&onPointLightUpdate>();
+	world.registry().on_update<Camera3DComponent>().connect<&onCameraUpdate>();
 }
 
 void SceneSystem::onDestroy(aka::World& world)
 {
-	//world.registry().on_construct<Hierarchy3DComponent>().disconnect<&onHierarchyAdd>();
 	world.registry().on_destroy<Hierarchy3DComponent>().disconnect<&onHierarchyRemove>();
-	//world.registry().on_update<Hierarchy3DComponent>().disconnect<&onHierarchyUpdate>();
+
+	world.registry().on_update<Transform3DComponent>().disconnect<&onTransformUpdate>();
+	world.registry().on_update<DirectionalLightComponent>().disconnect<&onDirLightUpdate>();
+	world.registry().on_update<PointLightComponent>().disconnect<&onPointLightUpdate>();
+	world.registry().on_update<Camera3DComponent>().disconnect<&onCameraUpdate>();
 }
 
 void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
@@ -134,6 +181,17 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 			camera.view = mat4f::inverse(transform.transform);
 			world.registry().replace<Camera3DComponent>(entity, camera);
 		}
+	}
+	
+	// --- Update camera ratio
+	auto cameraView = world.registry().view<Camera3DComponent>();
+	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
+	for (entt::entity entity : cameraView)
+	{
+		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
+		aka::CameraPerspective* proj = dynamic_cast<aka::CameraPerspective*>(camera.projection);
+		if (proj != nullptr)
+			proj->ratio = backbuffer->width() / (float)backbuffer->height();
 	}
 }
 

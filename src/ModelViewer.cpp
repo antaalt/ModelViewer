@@ -200,9 +200,6 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 
 void Viewer::onResize(uint32_t width, uint32_t height)
 {
-	// --- Camera
-	// TODO handle this in camera system
-	m_projection.ratio = width / (float)height;
 }
 
 void Viewer::onRender()

@@ -222,46 +222,6 @@ void component(World& world, entt::entity entity)
 	}
 }
 
-void onDirLightUpdate(entt::registry& registry, entt::entity entity)
-{
-	if (!registry.has<DirtyLightComponent>(entity))
-		registry.emplace<DirtyLightComponent>(entity);
-}
-
-void onPointLightUpdate(entt::registry& registry, entt::entity entity)
-{
-	if (!registry.has<DirtyLightComponent>(entity))
-		registry.emplace<DirtyLightComponent>(entity);
-}
-
-void onCameraUpdate(entt::registry& registry, entt::entity entity)
-{
-	auto dirLightUpdate = registry.view<DirectionalLightComponent>();
-	for (entt::entity e : dirLightUpdate)
-		if (!registry.has<DirtyLightComponent>(e))
-			registry.emplace<DirtyLightComponent>(e);
-}
-
-void onTransformUpdate(entt::registry& registry, entt::entity entity)
-{
-	// Update point light if we moved it
-	if (registry.has<PointLightComponent>(entity))
-		registry.replace<PointLightComponent>(entity, registry.get<PointLightComponent>(entity));
-	// Update lights if we changed the scene
-	if (registry.has<MeshComponent>(entity))
-	{
-		auto dirLightUpdate = registry.view<DirectionalLightComponent>();
-		for (entt::entity e : dirLightUpdate)
-			if (!registry.has<DirtyLightComponent>(e))
-				registry.emplace<DirtyLightComponent>(e);
-		auto pointLightUpdate = registry.view<PointLightComponent>();
-		for (entt::entity e : pointLightUpdate)
-			if (!registry.has<DirtyLightComponent>(e))
-				registry.emplace<DirtyLightComponent>(e);
-	}
-	// TODO handle empty node that hold meshes
-}
-
 #if defined(AKA_USE_OPENGL)
 static const char* vertShader =
 "#version 330\n"
@@ -332,10 +292,6 @@ SceneEditor::SceneEditor() :
 
 void SceneEditor::onCreate(World& world)
 {
-	world.registry().on_update<Transform3DComponent>().connect<&onTransformUpdate>();
-	world.registry().on_update<DirectionalLightComponent>().connect<&onDirLightUpdate>();
-	world.registry().on_update<PointLightComponent>().connect<&onPointLightUpdate>();
-	world.registry().on_update<Camera3DComponent>().connect<&onCameraUpdate>();
 	std::vector<Attributes> attributes = {
 		Attributes{ AttributeID(0), "POS" },
 		Attributes{ AttributeID(0), "NORM" },
@@ -348,10 +304,6 @@ void SceneEditor::onCreate(World& world)
 
 void SceneEditor::onDestroy(World& world)
 {
-	world.registry().on_update<Transform3DComponent>().disconnect<&onTransformUpdate>();
-	world.registry().on_update<DirectionalLightComponent>().disconnect<&onDirLightUpdate>();
-	world.registry().on_update<PointLightComponent>().disconnect<&onPointLightUpdate>();
-	world.registry().on_update<Camera3DComponent>().connect<&onCameraUpdate>();
 }
 
 bool intersectBounds(const aabbox<>& bounds, const point3f& origin, const vec3f& direction, float& tmin, float& tmax)
