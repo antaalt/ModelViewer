@@ -107,10 +107,10 @@ Mesh::Ptr Scene::createCubeMesh(const point3f& position, float size)
 	vertices.push_back(Vertex{ p[2], n[5], u[3], color });
 
 	VertexAttribute att[4] = {
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec2},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec4}
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2},
+		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4}
 	};
 	Mesh::Ptr mesh = Mesh::create();
 	mesh->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size());
@@ -186,10 +186,10 @@ Mesh::Ptr Scene::createSphereMesh(const point3f& position, float radius, uint32_
 		}
 	}
 	VertexAttribute att[4] = {
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec2},
-		VertexAttribute{ VertexFormat::Float, VertexType::Vec4}
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3},
+		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2},
+		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4}
 	};
 	Mesh::Ptr mesh = Mesh::create();
 	mesh->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size(), IndexFormat::UnsignedInt, indices.data(), (uint32_t)indices.size());

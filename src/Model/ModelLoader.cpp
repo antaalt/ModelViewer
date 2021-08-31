@@ -269,43 +269,45 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		BufferCPUAccess::None,
 		vertices.data()
 	);
-	VertexInfo dataVertex{ std::vector<VertexAttributeData>{
-		VertexAttributeData{
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
-			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) }, 
-			sizeof(Vertex), offsetof(Vertex, position)
+	VertexBufferView view = { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()), sizeof(Vertex) };
+	std::vector<VertexAccessor> vertexAccessor = { {
+		VertexAccessor{
+			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+			view,
+			offsetof(Vertex, position), static_cast<uint32_t>(vertices.size())
 		},
-		VertexAttributeData{
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
-			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) },
-			sizeof(Vertex), offsetof(Vertex, normal)
+		VertexAccessor{
+			VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+			view,
+			offsetof(Vertex, normal), static_cast<uint32_t>(vertices.size())
 		},
-		VertexAttributeData{
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec2 },
-			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) }, 
-			sizeof(Vertex), offsetof(Vertex, uv)
+		VertexAccessor{
+			VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+			view,
+			offsetof(Vertex, uv), static_cast<uint32_t>(vertices.size())
 		},
-		VertexAttributeData{
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec4 },
-			SubBuffer { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()) },
-			sizeof(Vertex), offsetof(Vertex, color)
+		VertexAccessor{
+			VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
+			view,
+			offsetof(Vertex, color), static_cast<uint32_t>(vertices.size())
 		}
 	} };
 
-	IndexInfo dataIndex;
-	dataIndex.format = IndexFormat::UnsignedInt;
-	dataIndex.subBuffer.buffer = Buffer::create(
+	IndexAccessor indexAccessor;
+	indexAccessor.format = IndexFormat::UnsignedInt;
+	indexAccessor.bufferView.buffer = Buffer::create(
 		BufferType::IndexBuffer, 
 		indices.size() * sizeof(uint32_t),
 		BufferUsage::Immutable,
 		BufferCPUAccess::None,
 		indices.data()
 	);
-	dataIndex.subBuffer.offset = 0;
-	dataIndex.subBuffer.size = static_cast<uint32_t>(dataIndex.subBuffer.buffer->size());
+	indexAccessor.count = static_cast<uint32_t>(indices.size());
+	indexAccessor.bufferView.offset = 0;
+	indexAccessor.bufferView.size = static_cast<uint32_t>(indexAccessor.bufferView.buffer->size());
 
 	meshComponent.submesh.mesh = Mesh::create();
-	meshComponent.submesh.mesh->upload(dataVertex, dataIndex);
+	meshComponent.submesh.mesh->upload(vertexAccessor.data(), vertexAccessor.size(), indexAccessor);
 	meshComponent.submesh.type = PrimitiveType::Triangles;
 	meshComponent.submesh.count = static_cast<uint32_t>(indices.size());
 	meshComponent.submesh.offset = 0;

@@ -22,24 +22,26 @@ void RenderSystem::onCreate(aka::World& world)
 	};
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
-	VertexInfo quadVertexInfo{ {
-		VertexAttributeData {
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec2 },
-			SubBuffer{
+	std::vector<VertexAccessor> quadVertexInfo = {{
+		VertexAccessor{
+			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
+			VertexBufferView{
 				Buffer::create(BufferType::VertexBuffer, sizeof(quadVertices), BufferUsage::Immutable, BufferCPUAccess::None, quadVertices),
-				0,
-				sizeof(quadVertices)
+				0, // offset
+				sizeof(quadVertices), // size
+				sizeof(float) * 2 // stride
 			},
-			sizeof(float) * 2,
-			0
+			0,
+			8
 		}
 	} };
-	IndexInfo quadIndexInfo{};
+	IndexAccessor quadIndexInfo{};
 	quadIndexInfo.format = IndexFormat::UnsignedShort;
-	quadIndexInfo.subBuffer.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
-	quadIndexInfo.subBuffer.offset = 0;
-	quadIndexInfo.subBuffer.size = (uint32_t)quadIndexInfo.subBuffer.buffer->size();
-	m_quad->upload(quadVertexInfo, quadIndexInfo);
+	quadIndexInfo.count = 6;
+	quadIndexInfo.bufferView.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
+	quadIndexInfo.bufferView.offset = 0;
+	quadIndexInfo.bufferView.size = (uint32_t)quadIndexInfo.bufferView.buffer->size();
+	m_quad->upload(quadVertexInfo.data(), quadVertexInfo.size(), quadIndexInfo);
 
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
 
@@ -122,19 +124,18 @@ void RenderSystem::onCreate(aka::World& world)
 	};
 	m_cube = Mesh::create();
 
-	VertexInfo skyboxVertexInfo{ {
-		VertexAttributeData {
-			VertexAttribute{ VertexFormat::Float, VertexType::Vec3 },
-			SubBuffer{
-				Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
-				0,
-				sizeof(skyboxVertices)
-			},
-			sizeof(float) * 3,
-			0
-		}
-	} };
-	m_cube->upload(skyboxVertexInfo);
+	VertexAccessor skyboxVertexInfo = {
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+		VertexBufferView{
+			Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
+			0, // offset
+			sizeof(skyboxVertices), // size
+			sizeof(float) * 3 // stride
+		},
+		0, // offset
+		sizeof(skyboxVertices) / sizeof(float) // count
+	};
+	m_cube->upload(&skyboxVertexInfo, 1);
 }
 
 void RenderSystem::onDestroy(aka::World& world)
@@ -317,7 +318,7 @@ void RenderSystem::onRender(aka::World& world)
 	skyboxPass.framebuffer = m_storageFramebuffer;
 	skyboxPass.submesh.type = PrimitiveType::Triangles;
 	skyboxPass.submesh.offset = 0;
-	skyboxPass.submesh.count = m_cube->getVertexCount();
+	skyboxPass.submesh.count = m_cube->getVertexCount(0);
 	skyboxPass.submesh.mesh = m_cube;
 	skyboxPass.material = m_skyboxMaterial;
 	skyboxPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
