@@ -172,13 +172,13 @@ void ShadowMapSystem::onReceive(const ShaderHotReloadEvent& e)
 
 void ShadowMapSystem::createShaders()
 {
+	std::vector<VertexAttribute> defaultAttributes = {
+		   VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+		   VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+		   VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+		   VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
+	};
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
-		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")), ShaderType::Vertex);
 		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")), ShaderType::Fragment);
@@ -193,18 +193,12 @@ void ShadowMapSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
 			if (shader->valid())
 				m_shadowMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
-		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")), ShaderType::Vertex);
 		ShaderID geo = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.geo")), ShaderType::Geometry);
@@ -221,7 +215,7 @@ void ShadowMapSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::createGeometry(vert, frag, geo, attributes);
+			aka::Shader::Ptr shader = aka::Shader::createGeometry(vert, frag, geo, defaultAttributes.data(), defaultAttributes.size());
 			if (shader->valid())
 				m_shadowPointMaterial = aka::ShaderMaterial::create(shader);
 		}

@@ -292,13 +292,13 @@ SceneEditor::SceneEditor() :
 
 void SceneEditor::onCreate(World& world)
 {
-	std::vector<Attributes> attributes = {
-		Attributes{ AttributeID(0), "POS" },
-		Attributes{ AttributeID(0), "NORM" },
-		Attributes{ AttributeID(0), "TEX" },
-		Attributes{ AttributeID(0), "COL" }
+	std::vector<VertexAttribute> att{
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), attributes);
+	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), att.data(), att.size());
 	m_wireframeMaterial = ShaderMaterial::create(m_wireframeShader);
 }
 

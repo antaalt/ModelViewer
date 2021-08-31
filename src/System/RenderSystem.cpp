@@ -378,13 +378,19 @@ void RenderSystem::createShaders()
 	// - a file indexing shader path depending on the api & the type (frag, vert...) (JSON)
 	// - a single file containing all the shaders from all the api delimited by # or json 
 	//	-> problem of linting.
+	std::vector<VertexAttribute> defaultAttributes = {
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
+	};
+	std::vector<VertexAttribute> quadAttribute = {
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 }
+	};
+	std::vector<VertexAttribute> cubeAttribute = {
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 }
+	};
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
-		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")), aka::ShaderType::Fragment);
@@ -399,18 +405,12 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
 			if (shader->valid())
 				m_gbufferMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-			Attributes{ AttributeID(0), "NORM" },
-			Attributes{ AttributeID(0), "TEX" },
-			Attributes{ AttributeID(0), "COL" }
-		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")), aka::ShaderType::Fragment);
@@ -425,15 +425,12 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
 			if (shader->valid())
 				m_pointMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" }
-		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/directional.frag")), aka::ShaderType::Fragment);
@@ -448,15 +445,12 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
 			if (shader->valid())
 				m_dirMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" }
-		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/ambient.frag")), aka::ShaderType::Fragment);
@@ -471,15 +465,12 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
 			if (shader->valid())
 				m_ambientMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" },
-		};
 #if defined(AKA_USE_OPENGL)
 		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")), ShaderType::Vertex);
 		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")), ShaderType::Fragment);
@@ -494,15 +485,12 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, cubeAttribute.data(), cubeAttribute.size());
 			if (shader->valid())
 				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
-		std::vector<Attributes> attributes = { // HLSL only
-			Attributes{ AttributeID(0), "POS" }
-		};
 #if defined(AKA_USE_OPENGL)
 		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
 		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/postProcess.frag")), aka::ShaderType::Fragment);
@@ -517,7 +505,7 @@ void RenderSystem::createShaders()
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, attributes);
+			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
 			if (shader->valid())
 				m_postprocessMaterial = aka::ShaderMaterial::create(shader);
 		}

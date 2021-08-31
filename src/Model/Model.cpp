@@ -225,7 +225,7 @@ Entity Scene::createCubeEntity(World& world)
 	Entity mesh = world.createEntity("New cube");
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getVertexCount(), 0 }, aabbox<>(point3f(-1), point3f(1)) });
+	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getVertexCount(0), 0 }, aabbox<>(point3f(-1), point3f(1)) });
 	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, blank, normal, blank });
 	return mesh;
 }
