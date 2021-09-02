@@ -472,6 +472,18 @@ void SceneEditor::onRender(World& world)
 		Entity e = Entity(m_currentEntity, &world);
 		if (ImGui::BeginMenuBar())
 		{
+			if (ImGui::BeginMenu("World"))
+			{
+				if (ImGui::MenuItem("Save"))
+				{
+					Scene::save("./scene/test.json", world);
+				}
+				if (ImGui::MenuItem("Load"))
+				{
+					Scene::load(world, "./scene/test.json");
+				}
+				ImGui::EndMenu();
+			}
 			if (ImGui::BeginMenu("Entity"))
 			{
 				if (ImGui::BeginMenu("Create"))
@@ -632,7 +644,7 @@ void SceneEditor::onRender(World& world)
 			if (world.registry().has<Hierarchy3DComponent>(entity))
 			{
 				const Hierarchy3DComponent& h = world.registry().get<Hierarchy3DComponent>(entity);
-				if (h.parent == Entity::null())
+				if (!h.parent.valid())
 					roots.push_back(entity);
 				else
 					childrens[h.parent.handle()].push_back(entity);

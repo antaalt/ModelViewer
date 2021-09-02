@@ -89,6 +89,9 @@ struct Scene
 	static Entity createPointLightEntity(World& world);
 	static Entity createDirectionalLightEntity(World& world);
 	static Entity createArcballCameraEntity(World& world, CameraProjection* projection);
+
+	static void save(const Path& path, const World& world);
+	static void load(World& world, const Path& path);
 };
 
 };

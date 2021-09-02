@@ -94,7 +94,7 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 	{
 		Transform3DComponent& t = r.get<Transform3DComponent>(entity);
 		Hierarchy3DComponent& h = r.get<Hierarchy3DComponent>(entity);
-		if (h.parent != Entity::null())
+		if (h.parent.valid())
 		{
 			mat4f localTransform = h.inverseTransform * t.transform;
 			t.transform = h.parent.get<Transform3DComponent>().transform * localTransform;
