@@ -5,6 +5,8 @@
 #include <assimp/postprocess.h>
 #include <assimp/pbrmaterial.h>
 
+#include <filesystem>
+
 namespace viewer {
 
 struct AssimpImporter {
@@ -20,7 +22,6 @@ private:
 	const aiScene* m_assimpScene;
 	aka::World& m_world;
 private:
-	std::map<String, Texture::Ptr> m_textureCache;
 	Texture::Ptr m_missingColorTexture;
 	Texture::Ptr m_blankColorTexture;
 	Texture::Ptr m_missingNormalTexture;
@@ -87,6 +88,7 @@ void AssimpImporter::processNode(Entity parent, aiNode* node)
 	}
 }
 
+// TODO move to engine.
 struct Vertex {
 	point3f position;
 	norm3f normal;
@@ -96,57 +98,149 @@ struct Vertex {
 
 Entity AssimpImporter::processMesh(aiMesh* mesh)
 {
-	std::vector<Vertex> vertices(mesh->mNumVertices);
-	std::vector<uint32_t> indices;
-
 	AKA_ASSERT(mesh->HasPositions(), "Mesh need positions");
 	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
 
-	Entity e = m_world.createEntity(mesh->mName.C_Str());
+	String meshName = mesh->mName.C_Str();
+	Entity e = m_world.createEntity(meshName);
 	e.add<MeshComponent>();
 	e.add<MaterialComponent>();
 	MeshComponent& meshComponent = e.get<MeshComponent>();
 	MaterialComponent& materialComponent = e.get<MaterialComponent>();
 
-	for (unsigned int i = 0; i < mesh->mNumVertices; i++)
+	if (!ResourceManager::has<Mesh>(meshName))
 	{
-		Vertex& vertex = vertices[i];
-		// process vertex positions, normals and texture coordinates
-		vertex.position.x = mesh->mVertices[i].x;
-		vertex.position.y = mesh->mVertices[i].y;
-		vertex.position.z = mesh->mVertices[i].z;
-		meshComponent.bounds.include(vertex.position);
+		std::vector<Vertex> vertices(mesh->mNumVertices);
+		std::vector<uint32_t> indices;
+		// process vertices
+		for (unsigned int i = 0; i < mesh->mNumVertices; i++)
+		{
+			Vertex& vertex = vertices[i];
+			// process vertex positions, normals and texture coordinates
+			vertex.position.x = mesh->mVertices[i].x;
+			vertex.position.y = mesh->mVertices[i].y;
+			vertex.position.z = mesh->mVertices[i].z;
+			meshComponent.bounds.include(vertex.position);
 
-		vertex.normal.x = mesh->mNormals[i].x;
-		vertex.normal.y = mesh->mNormals[i].y;
-		vertex.normal.z = mesh->mNormals[i].z;
-		if (mesh->HasTextureCoords(0))
-		{
-			vertex.uv.u = mesh->mTextureCoords[0][i].x;
-			vertex.uv.v = mesh->mTextureCoords[0][i].y;
+			vertex.normal.x = mesh->mNormals[i].x;
+			vertex.normal.y = mesh->mNormals[i].y;
+			vertex.normal.z = mesh->mNormals[i].z;
+			if (mesh->HasTextureCoords(0))
+			{
+				vertex.uv.u = mesh->mTextureCoords[0][i].x;
+				vertex.uv.v = mesh->mTextureCoords[0][i].y;
+			}
+			else
+				vertex.uv = uv2f(0.f);
+			if (mesh->HasVertexColors(0))
+			{
+				vertex.color.r = mesh->mColors[0][i].r;
+				vertex.color.g = mesh->mColors[0][i].g;
+				vertex.color.b = mesh->mColors[0][i].b;
+				vertex.color.a = mesh->mColors[0][i].a;
+			}
+			else
+				vertex.color = color4f(1.f);
+			mesh->mTangents;
+			mesh->mBitangents;
 		}
-		else
-			vertex.uv = uv2f(0.f);
-		if (mesh->HasVertexColors(0))
+		// process indices
+		for (unsigned int i = 0; i < mesh->mNumFaces; i++)
 		{
-			vertex.color.r = mesh->mColors[0][i].r;
-			vertex.color.g = mesh->mColors[0][i].g;
-			vertex.color.b = mesh->mColors[0][i].b;
-			vertex.color.a = mesh->mColors[0][i].a;
+			aiFace face = mesh->mFaces[i];
+			for (unsigned int j = 0; j < face.mNumIndices; j++)
+				indices.push_back(face.mIndices[j]);
 		}
-		else
-			vertex.color = color4f(1.f);
-		mesh->mTangents;
-		mesh->mBitangents;
+		// Import resources
+		// Index buffer
+		String indexBufferName = meshName + "-indices";
+		Path indexBufferPath = "library/buffer/" + indexBufferName + ".buffer";
+		{
+			BufferStorage indexBuffer;
+			indexBuffer.type = BufferType::VertexBuffer;
+			indexBuffer.access = BufferCPUAccess::None;
+			indexBuffer.usage = BufferUsage::Immutable;
+			indexBuffer.bytes.resize(indices.size() * sizeof(uint32_t));
+			memcpy(indexBuffer.bytes.data(), indices.data(), indexBuffer.bytes.size());
+			if (!indexBuffer.save(indexBufferPath))
+				Logger::error("Failed to save buffer");
+		}
+		Buffer::Ptr indexBuffer = ResourceManager::load<Buffer>(indexBufferName, indexBufferPath).resource;
+		
+		// Vertex buffer
+		String vertexBufferName = meshName + "-vertices";
+		Path vertexBufferPath = "library/buffer/" + vertexBufferName + ".buffer";
+		{
+			BufferStorage vertexBuffer;
+			vertexBuffer.type = BufferType::VertexBuffer;
+			vertexBuffer.access = BufferCPUAccess::None;
+			vertexBuffer.usage = BufferUsage::Immutable;
+			vertexBuffer.bytes.resize(vertices.size() * sizeof(Vertex));
+			memcpy(vertexBuffer.bytes.data(), vertices.data(), vertexBuffer.bytes.size());
+			if (!vertexBuffer.save(vertexBufferPath))
+				Logger::error("Failed to save buffer");
+		}
+		Buffer::Ptr vertexBuffer = ResourceManager::load<Buffer>(vertexBufferName, vertexBufferPath).resource;
+
+		// Mesh
+		Path meshPath = "library/mesh/" + meshName + ".mesh";
+		{
+			uint32_t vertexCount = (uint32_t)vertices.size();
+			uint32_t vertexBufferSize = (uint32_t)(vertices.size() * sizeof(Vertex));
+			MeshStorage storage;
+			storage.vertices = { {
+				MeshStorage::Vertex {
+					VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+					vertexBufferName,
+					vertexCount, // count
+					offsetof(Vertex, position), // offset
+					0,
+					vertexBufferSize, // size
+					sizeof(Vertex), // stride
+				},
+				MeshStorage::Vertex {
+					VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+					vertexBufferName,
+					vertexCount, // count
+					offsetof(Vertex, normal), // offset
+					0,
+					vertexBufferSize, // size
+					sizeof(Vertex), // stride
+				},
+				MeshStorage::Vertex {
+					VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+					vertexBufferName,
+					vertexCount, // count
+					offsetof(Vertex, uv), // offset
+					0,
+					vertexBufferSize, // size
+					sizeof(Vertex), // stride
+				},
+				MeshStorage::Vertex {
+					VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
+					vertexBufferName,
+					vertexCount, // count
+					offsetof(Vertex, color), // offset
+					0,
+					vertexBufferSize, // size
+					sizeof(Vertex), // stride
+				}
+			} };
+			storage.indexBufferName = indexBufferName;
+			storage.indexBufferOffset = 0;
+			storage.indexCount = (uint32_t)indices.size();
+			storage.indexFormat = IndexFormat::UnsignedInt;
+			if (!storage.save(meshPath))
+				Logger::error("Failed to save mesh");
+			ResourceManager::load<Mesh>(meshName, meshPath);
+		}
 	}
 
-	// process indices
-	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
-	{
-		aiFace face = mesh->mFaces[i];
-		for (unsigned int j = 0; j < face.mNumIndices; j++)
-			indices.push_back(face.mIndices[j]);
-	}
+	meshComponent.submesh.mesh = ResourceManager::get<Mesh>(meshName);
+	meshComponent.submesh.type = PrimitiveType::Triangles;
+	meshComponent.submesh.count = meshComponent.submesh.mesh->getIndexCount();
+	meshComponent.submesh.offset = 0;
+	
 	// process material
 	if (mesh->mMaterialIndex >= 0)
 	{
@@ -160,7 +254,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
 		material->Get(AI_MATKEY_TWOSIDED, materialComponent.doubleSided);
 		materialComponent.color = color4f(c.r, c.g, c.b, c.a);
-		// TODO create unordered_map to avoid duplicating textures on GPU
 		if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
 		{
 			aiTextureType type = aiTextureType_BASE_COLOR;
@@ -262,91 +355,36 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.normalTexture = m_missingNormalTexture;
 		materialComponent.materialTexture = m_missingRoughnessTexture;
 	}
-	Buffer::Ptr vertexBuffer = Buffer::create(
-		BufferType::VertexBuffer, 
-		vertices.size() * sizeof(Vertex), 
-		BufferUsage::Immutable, 
-		BufferCPUAccess::None,
-		vertices.data()
-	);
-	VertexBufferView view = { vertexBuffer, 0, static_cast<uint32_t>(vertexBuffer->size()), sizeof(Vertex) };
-	std::vector<VertexAccessor> vertexAccessor = { {
-		VertexAccessor{
-			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-			view,
-			offsetof(Vertex, position), static_cast<uint32_t>(vertices.size())
-		},
-		VertexAccessor{
-			VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
-			view,
-			offsetof(Vertex, normal), static_cast<uint32_t>(vertices.size())
-		},
-		VertexAccessor{
-			VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
-			view,
-			offsetof(Vertex, uv), static_cast<uint32_t>(vertices.size())
-		},
-		VertexAccessor{
-			VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
-			view,
-			offsetof(Vertex, color), static_cast<uint32_t>(vertices.size())
-		}
-	} };
-
-	IndexAccessor indexAccessor;
-	indexAccessor.format = IndexFormat::UnsignedInt;
-	indexAccessor.bufferView.buffer = Buffer::create(
-		BufferType::IndexBuffer, 
-		indices.size() * sizeof(uint32_t),
-		BufferUsage::Immutable,
-		BufferCPUAccess::None,
-		indices.data()
-	);
-	indexAccessor.count = static_cast<uint32_t>(indices.size());
-	indexAccessor.bufferView.offset = 0;
-	indexAccessor.bufferView.size = static_cast<uint32_t>(indexAccessor.bufferView.buffer->size());
-
-	meshComponent.submesh.mesh = Mesh::create();
-	meshComponent.submesh.mesh->upload(vertexAccessor.data(), vertexAccessor.size(), indexAccessor);
-	meshComponent.submesh.type = PrimitiveType::Triangles;
-	meshComponent.submesh.count = static_cast<uint32_t>(indices.size());
-	meshComponent.submesh.offset = 0;
 	return e;
 }
 
 Texture::Ptr AssimpImporter::loadTexture(const Path& path, const Sampler& sampler)
 {
-	auto it = m_textureCache.find(path.str());
-	if (it == m_textureCache.end())
+	String name = file::name(path);
+	if (ResourceManager::has<Texture>(name))
+		return ResourceManager::get<Texture>(name);
+	if (Importer::importTexture2D(name, path))
 	{
-		Image img = Image::load(path);
-		if (img.bytes.size() > 0)
-		{
-			Texture::Ptr texture = Texture::create2D(
-				img.width,
-				img.height,
-				img.components == 4 ? TextureFormat::RGBA8 : TextureFormat::RGB8,
-				TextureFlag::None,
-				sampler,
-				img.bytes.data()
-			);
-			m_textureCache.insert(std::make_pair(path.str(), texture));
-			return texture;
-		}
-		else
-			return nullptr;
+		//res.resource->setSampler(sampler); // TODO sampler, might have multiple sampler for single texture
+		return ResourceManager::get<Texture>(name);
 	}
 	else
 	{
-		return it->second;
+		Logger::error("Failed to import texture2D");
+		return nullptr;
 	}
 }
 
 bool ModelLoader::load(const Path& path, aka::World& world)
 {
+	return Importer::importScene(path, world);
+}
+
+bool Importer::importScene(const Path& path, aka::World& world)
+{
 	Assimp::Importer assimpImporter;
 	const aiScene* aiScene = assimpImporter.ReadFile(path.cstr(),
-		aiProcess_Triangulate | 
+		aiProcess_Triangulate |
 		//aiProcess_CalcTangentSpace |
 #if defined(AKA_ORIGIN_TOP_LEFT)
 		aiProcess_FlipUVs |
@@ -364,6 +402,99 @@ bool ModelLoader::load(const Path& path, aka::World& world)
 	String directory = path.str().substr(0, path.str().findLast('/'));
 	AssimpImporter importer(directory, aiScene, world);
 	importer.process();
+	return true;
+}
+
+bool Importer::importMesh(const aka::String& name, const aka::Path& path)
+{
+	return false;
+}
+
+bool Importer::importTexture2D(const aka::String& name, const aka::Path& path)
+{
+	if (!ResourceManager::has<Texture>(name))
+	{
+		String libPath = "library/texture/" + name + ".tex";
+
+		// Convert and save
+		TextureStorage storage;
+		storage.type = TextureType::Texture2D;
+		storage.flags = TextureFlag::None;
+		storage.format = TextureFormat::RGBA8;
+		storage.images.push_back(Image::load(path));
+
+		// blabla
+		if (!storage.save(libPath))
+			return false;
+		// Load
+		ResourceManager::load<Texture>(name, libPath);
+	}
+	else
+	{
+		Logger::warn("Texture already imported : ", name);
+	}
+	return true;
+}
+
+bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px, const aka::Path& py, const aka::Path& pz, const aka::Path& nx, const aka::Path& ny, const aka::Path& nz)
+{
+	if (!ResourceManager::has<Texture>(name))
+	{
+		String libPath = "library/texture/" + name + ".tex";
+
+		// Convert and save
+		TextureStorage storage;
+		storage.type = TextureType::TextureCubemap;
+		storage.flags = TextureFlag::None;
+		storage.format = TextureFormat::RGBA8;
+		storage.images.push_back(Image::load(px));
+		storage.images.push_back(Image::load(py));
+		storage.images.push_back(Image::load(pz));
+		storage.images.push_back(Image::load(nx));
+		storage.images.push_back(Image::load(ny));
+		storage.images.push_back(Image::load(nz));
+
+		// blabla
+		if (!storage.save(libPath))
+			return false;
+		// Load
+		ResourceManager::load<Texture>(name, libPath);
+	}
+	else
+	{
+		Logger::warn("Texture already imported : ", name);
+	}
+	return true;
+}
+
+bool Importer::importTextureEnvmap(const aka::String& name, const aka::Path& path)
+{
+	Logger::error("not implemented");
+	// TODO
+	return false;
+}
+
+bool Importer::importAudio(const aka::String& name, const aka::Path& path)
+{
+	String libPath = "library/audio/" + name + ".audio";
+	// Convert and save (only copy for now)
+	if (!file::create(libPath))
+		Logger::error("Failed to create file");
+	std::filesystem::copy(path.cstr(), libPath.cstr());
+	// Load
+	ResourceManager::load<AudioStream>(name, libPath);
+	return true;
+}
+
+bool Importer::importFont(const aka::String& name, const aka::Path& path)
+{
+	String libPath = "library/font/" + name + ".font";
+	// Convert and save (only copy for now)
+	if (!file::create(libPath))
+		Logger::error("Failed to create file");
+	std::filesystem::copy(path.cstr(), libPath.cstr());
+	// Load
+	ResourceManager::load<Font>(name, libPath);
 	return true;
 }
 

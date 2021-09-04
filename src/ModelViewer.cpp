@@ -27,25 +27,7 @@ void Viewer::onCreate()
 	for (EditorWindow* editor : m_editors)
 		editor->onCreate(m_world);
 
-	StopWatch<> stopWatch;
-	// TODO use args & worker
-	bool loaded = false;
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf"), m_world);
-	loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/Lantern/glTF/Lantern.gltf"), m_world);
-	//loaded = ModelLoader::load(Asset::path("glTF-Sample-Models/2.0/EnvironmentTest/glTF/EnvironmentTest.gltf"), m_world);
-	if (!loaded)
-		throw std::runtime_error("Could not load model.");
-	// Compute scene bounds.
-	auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
-	view.each([this](Transform3DComponent& t, MeshComponent& mesh) {
-		m_bounds.include(t.transform * mesh.bounds);
-	});
-	aka::Logger::info("Model loaded : ", stopWatch.elapsed(), "ms");
-	aka::Logger::info("Scene Bounding box : ", m_bounds.min, " - ", m_bounds.max);
-
-	// --- Shadows
+	// --- Lights
 	Sampler shadowSampler{};
 	shadowSampler.filterMag = Sampler::Filter::Nearest;
 	shadowSampler.filterMin = Sampler::Filter::Nearest;
@@ -53,65 +35,28 @@ void Viewer::onCreate()
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
 
-	m_sun = m_world.createEntity("Sun");
-	m_sun.add<Transform3DComponent>();
-	m_sun.add<Hierarchy3DComponent>();
-	m_sun.add<DirectionalLightComponent>();
-	m_sun.add<DirtyLightComponent>();
-	Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
-	Hierarchy3DComponent& h = m_sun.get<Hierarchy3DComponent>();
-	DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
-	sun.direction = vec3f::normalize(vec3f(0.1f, 1.f, 0.1f));
-	sun.color = color3f(1.f);
-	sun.intensity = 10.f;
-	sunTransform.transform = mat4f::identity();
-	sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-	sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-	sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-	// TODO texture atlas & single shader execution
-	for (size_t i = 0; i < 3; i++)
-		sun.worldToLightSpaceMatrix[i] = mat4f::identity();
-	
-	{
-		// Second dir light
-		Entity e = m_world.createEntity("Sun2");
-		e.add<Transform3DComponent>();
-		e.add<Hierarchy3DComponent>();
-		e.add<DirectionalLightComponent>();
-		e.add<DirtyLightComponent>();
-		Transform3DComponent& t = e.get<Transform3DComponent>();
-		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
-		DirectionalLightComponent& l = e.get<DirectionalLightComponent>();
-		l.direction = vec3f::normalize(vec3f(0.2f, 1.f, 0.2f));
-		l.color = color3f(1.f, 0.1f, 0.2f);
-		l.intensity = 1.f;
-		t.transform = mat4f::identity();
-		l.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-		l.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-		l.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+	{ // Sun
+		m_sun = m_world.createEntity("Sun");
+		m_sun.add<Transform3DComponent>();
+		m_sun.add<Hierarchy3DComponent>();
+		m_sun.add<DirectionalLightComponent>();
+		m_sun.add<DirtyLightComponent>();
+		Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
+		Hierarchy3DComponent& h = m_sun.get<Hierarchy3DComponent>();
+		DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
+		sun.direction = vec3f::normalize(vec3f(0.1f, 1.f, 0.1f));
+		sun.color = color3f(1.f);
+		sun.intensity = 10.f;
+		sunTransform.transform = mat4f::identity();
+		sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+		sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+		sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
 		// TODO texture atlas & single shader execution
 		for (size_t i = 0; i < 3; i++)
-			l.worldToLightSpaceMatrix[i] = mat4f::identity();
-	}
-	{
-		// Point light
-		Entity e = m_world.createEntity("Light");
-		e.add<Transform3DComponent>();
-		e.add<Hierarchy3DComponent>();
-		e.add<PointLightComponent>();
-		e.add<DirtyLightComponent>();
-		Transform3DComponent& t = e.get<Transform3DComponent>();
-		Hierarchy3DComponent& h = e.get<Hierarchy3DComponent>();
-		PointLightComponent& l = e.get<PointLightComponent>();
-		l.color = color3f(0.2f, 1.f, 0.2f);
-		l.intensity = 10.f;
-		t.transform = mat4f::translate(vec3f(0, 1, 0));
-		l.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-		for (size_t i = 0; i < 6; i++)
-			l.worldToLightSpaceMatrix[i] = mat4f::identity();
+			sun.worldToLightSpaceMatrix[i] = mat4f::identity();
 	}
 
-	// --- Camera
+	// --- Editor Camera
 	{
 		m_camera = m_world.createEntity("Camera");
 		m_camera.add<Transform3DComponent>();
@@ -122,7 +67,7 @@ void Viewer::onCreate()
 		ArcballCameraComponent& controller = m_camera.get<ArcballCameraComponent>();
 		Transform3DComponent& transform = m_camera.get<Transform3DComponent>();
 		Camera3DComponent& camera = m_camera.get<Camera3DComponent>();
-		controller.set(m_bounds);
+		controller.set(aabbox<>(point3f(0.f), point3f(1.f)));
 		transform.transform = mat4f::lookAt(controller.position, controller.target, controller.up);
 		camera.projection = &m_projection;
 		camera.view = mat4f::inverse(transform.transform);
@@ -167,7 +112,13 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	// Reset
 	if (Keyboard::down(KeyboardKey::R) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
-		m_camera.get<ArcballCameraComponent>().set(m_bounds);
+		// Compute scene bounds.
+		aabbox<> bounds;
+		auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+		view.each([&](Transform3DComponent& t, MeshComponent& mesh) {
+			bounds.include(t.transform * mesh.bounds);
+		});
+		m_camera.get<ArcballCameraComponent>().set(bounds);
 		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
 		for (entt::entity e : dirLightUpdate)
 			if (!m_world.registry().has<DirtyLightComponent>(e))

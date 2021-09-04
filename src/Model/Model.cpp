@@ -294,48 +294,18 @@ Entity Scene::createArcballCameraEntity(World& world, CameraProjection* projecti
 	return camera;
 }
 
-static uint16_t major = 0;
-static uint16_t minor = 1;
-
-struct BufferView {
-	uint32_t bufferID;
-	uint32_t offset;
-	uint32_t size;
-	uint32_t stride;
-	bool operator()(const BufferView& lhs, const BufferView& rhs) const {
-		return (lhs.bufferID < rhs.bufferID) ||
-			((lhs.bufferID == rhs.bufferID) && (lhs.offset < rhs.offset)) ||
-			((lhs.bufferID == rhs.bufferID) && (lhs.offset == rhs.offset) && (lhs.size < rhs.size)) ||
-			((lhs.bufferID == rhs.bufferID) && (lhs.offset == rhs.offset) && (lhs.size == rhs.size) && (lhs.stride < rhs.stride));
-	}
-};
-
-struct JSONSerializer
-{
-	JSONSerializer(const Path& directory) : directory(directory) {}
-
-	nlohmann::json serialize(const entt::registry& r);
-
-private:
-	template <typename T>
-	nlohmann::json serialize(const entt::registry& r, entt::entity e);
-
-private:
-	Path directory;
-	std::set<Mesh::Ptr> meshes;
-	std::set<Texture::Ptr> textures;
-	std::set<Buffer::Ptr> buffers;
-	std::set<BufferView, BufferView> bufferViews;
-};
 
 template <typename T>
-nlohmann::json JSONSerializer::serialize(const entt::registry& r, entt::entity e)
+nlohmann::json serialize(const entt::registry& r, entt::entity e);
+
+template <typename T>
+nlohmann::json serialize(const entt::registry& r, entt::entity e)
 {
 	Logger::error("Component serialization not implemented");
 	return nlohmann::json();
 }
 template <>
-nlohmann::json JSONSerializer::serialize<TagComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<TagComponent>(const entt::registry& r, entt::entity e)
 {
 	const TagComponent& h = r.get<TagComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -343,7 +313,7 @@ nlohmann::json JSONSerializer::serialize<TagComponent>(const entt::registry& r, 
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<Transform3DComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<Transform3DComponent>(const entt::registry& r, entt::entity e)
 {
 	const Transform3DComponent& t = r.get<Transform3DComponent>(e);
 	mat4f local;
@@ -361,7 +331,7 @@ nlohmann::json JSONSerializer::serialize<Transform3DComponent>(const entt::regis
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<Hierarchy3DComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<Hierarchy3DComponent>(const entt::registry& r, entt::entity e)
 {
 	const Hierarchy3DComponent& h = r.get<Hierarchy3DComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -373,29 +343,29 @@ nlohmann::json JSONSerializer::serialize<Hierarchy3DComponent>(const entt::regis
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<MeshComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<MeshComponent>(const entt::registry& r, entt::entity e)
 {
 	const MeshComponent& m = r.get<MeshComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["bounds"]["min"] = { m.bounds.min.x, m.bounds.min.y, m.bounds.min.z };
 	json["bounds"]["max"] = { m.bounds.max.x, m.bounds.max.y, m.bounds.max.z };
-	json["mesh"] = (uint32_t)std::distance(meshes.begin(), meshes.find(m.submesh.mesh));
+	json["mesh"] = ResourceManager::name<Mesh>(m.submesh.mesh).cstr();
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<MaterialComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entity e)
 {
 	const MaterialComponent& m = r.get<MaterialComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["color"] = { m.color.r, m.color.g, m.color.b, m.color.a };
 	json["doublesided"] = m.doubleSided;
-	json["textures"]["color"] = (uint32_t)std::distance(textures.begin(), textures.find(m.colorTexture));
-	json["textures"]["normal"] = (uint32_t)std::distance(textures.begin(), textures.find(m.normalTexture));
-	json["textures"]["material"] = (uint32_t)std::distance(textures.begin(), textures.find(m.materialTexture));
+	json["textures"]["color"] = ResourceManager::name<Texture>(m.colorTexture).cstr();
+	json["textures"]["normal"] = ResourceManager::name<Texture>(m.normalTexture).cstr();
+	json["textures"]["material"] = ResourceManager::name<Texture>(m.materialTexture).cstr();
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<DirectionalLightComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<DirectionalLightComponent>(const entt::registry& r, entt::entity e)
 {
 	const DirectionalLightComponent& l = r.get<DirectionalLightComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -405,7 +375,7 @@ nlohmann::json JSONSerializer::serialize<DirectionalLightComponent>(const entt::
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<PointLightComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<PointLightComponent>(const entt::registry& r, entt::entity e)
 {
 	const PointLightComponent& l = r.get<PointLightComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -414,7 +384,7 @@ nlohmann::json JSONSerializer::serialize<PointLightComponent>(const entt::regist
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<Camera3DComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entity e)
 {
 	const Camera3DComponent& c = r.get<Camera3DComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -437,7 +407,7 @@ nlohmann::json JSONSerializer::serialize<Camera3DComponent>(const entt::registry
 	return json;
 }
 template <>
-nlohmann::json JSONSerializer::serialize<ArcballCameraComponent>(const entt::registry& r, entt::entity e)
+nlohmann::json serialize<ArcballCameraComponent>(const entt::registry& r, entt::entity e)
 {
 	const ArcballCameraComponent& c = r.get<ArcballCameraComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
@@ -449,42 +419,17 @@ nlohmann::json JSONSerializer::serialize<ArcballCameraComponent>(const entt::reg
 	return json;
 }
 
-nlohmann::json JSONSerializer::serialize(const entt::registry& r)
+static uint16_t major = 0;
+static uint16_t minor = 1;
+
+void Scene::save(const Path& path, const World& world)
 {
+	const entt::registry& r = world.registry();
 	nlohmann::json json = nlohmann::json::object();
 	// --- Version
 	json["asset"] = nlohmann::json::object();
 	json["asset"]["version"] = std::to_string(major) + "." + std::to_string(minor);
 	json["asset"]["exporter"] = "aka engine";
-	// --- Meshes data
-	const auto meshView = r.view<const MeshComponent>();
-	meshView.each([&](const MeshComponent& m) {
-		meshes.insert(m.submesh.mesh);
-		for (uint32_t i = 0; i < m.submesh.mesh->getVertexAttributeCount(); i++)
-			buffers.insert(m.submesh.mesh->getVertexBuffer(i).buffer);
-		buffers.insert(m.submesh.mesh->getIndexBuffer().buffer);
-	});
-	meshView.each([&](const MeshComponent& m) {
-		meshes.insert(m.submesh.mesh);
-		for (uint32_t i = 0; i < m.submesh.mesh->getVertexAttributeCount(); i++)
-		{
-			const VertexBufferView& view = m.submesh.mesh->getVertexBuffer(i);
-			uint32_t bufferID = (uint32_t)std::distance(buffers.begin(), buffers.find(view.buffer));
-			bufferViews.insert(BufferView{ bufferID, view.offset, view.size, view.stride });
-		}
-		const IndexBufferView& view = m.submesh.mesh->getIndexBuffer();
-		uint32_t bufferID = (uint32_t)std::distance(buffers.begin(), buffers.find(view.buffer));
-		bufferViews.insert(BufferView{ bufferID, view.offset, view.size, 0 });
-	});
-	// --- Textures
-	const auto materialView = r.view<const MaterialComponent>();
-	materialView.each([&](const MaterialComponent& m) {
-		textures.insert(m.colorTexture);
-		textures.insert(m.normalTexture);
-		textures.insert(m.materialTexture);
-	});
-
-	uint32_t dist = (uint32_t)std::distance(textures.begin(), textures.find(nullptr));
 	// --- Entities
 	json["entities"] = nlohmann::json::object();
 	r.each([&](entt::entity e) {
@@ -501,114 +446,12 @@ nlohmann::json JSONSerializer::serialize(const entt::registry& r)
 		if (r.has<ArcballCameraComponent>(e))    entity["components"]["arcball"] = serialize<ArcballCameraComponent>(r, e);
 		std::string id = std::to_string((entt::id_type)e);
 		json["entities"][id] = entity;
-	});
+		});
 
-	// --- Buffers
-	json["buffers"] = nlohmann::json::array();
-	uint32_t id = 0;
-	for (const Buffer::Ptr& buffer : buffers)
-	{
-		String file = String::format("%s/buffer%d.bin", directory.cstr(), id++);
-		nlohmann::json b = nlohmann::json::object();
-		b["size"] = buffer->size();
-		b["type"] = (uint32_t)buffer->type();
-		b["usage"] = (uint32_t)buffer->usage();
-		b["access"] = (uint32_t)buffer->access();
-		b["file"] = file.cstr();
-		json["buffers"].push_back(b);
-
-		std::vector<uint8_t> data(buffer->size());
-		buffer->download(data.data());
-		if (!File::writeBinary(file.cstr(), data))
-			Logger::error("Failed to write buffer.");
-	}
-
-	// --- Views
-	json["views"] = nlohmann::json::array();
-	for (const BufferView& view : bufferViews)
-	{
-		nlohmann::json v = nlohmann::json::object();
-		v["buffer"] = view.bufferID;
-		v["offset"] = view.offset;
-		v["size"] = view.size;
-		v["stride"] = view.stride;
-		json["views"].push_back(v);
-	}
-
-	// --- Meshes
-	json["meshes"] = nlohmann::json::array();
-	for (const Mesh::Ptr& mesh : meshes)
-	{
-		nlohmann::json m = nlohmann::json::object();
-		m["attributes"] = nlohmann::json::array();
-		for (uint32_t iAtt = 0; iAtt < mesh->getVertexAttributeCount(); iAtt++)
-		{
-			nlohmann::json jsonAttribute = nlohmann::json::object();
-			const VertexAttribute& attribute = mesh->getVertexAttribute(iAtt);
-			const VertexBufferView& view = mesh->getVertexBuffer(iAtt);
-			uint32_t bufferID = (uint32_t)std::distance(buffers.begin(), buffers.find(view.buffer));
-			jsonAttribute["view"] = (uint32_t)std::distance(bufferViews.begin(), bufferViews.find(BufferView{ bufferID, view.offset, view.size, view.stride }));
-			jsonAttribute["format"] = (uint32_t)attribute.format;
-			jsonAttribute["type"] = (uint32_t)attribute.type;
-			jsonAttribute["semantic"] = (uint32_t)attribute.semantic;
-			jsonAttribute["count"] = mesh->getVertexCount(iAtt);
-			jsonAttribute["offset"] = mesh->getVertexOffset(iAtt);
-			m["attributes"].push_back(jsonAttribute);
-		}
-		const IndexBufferView& view = mesh->getIndexBuffer();
-		uint32_t bufferID = (uint32_t)std::distance(buffers.begin(), buffers.find(view.buffer));
-		m["indices"]["view"] = (uint32_t)std::distance(bufferViews.begin(), bufferViews.find(BufferView{ bufferID, view.offset, view.size, 0 }));
-		m["indices"]["count"] = mesh->getIndexCount();
-		m["indices"]["format"] = (uint32_t)mesh->getIndexFormat();
-		json["meshes"].push_back(m);
-	}
-	// --- Textures
-	json["textures"] = nlohmann::json::array();
-	id = 0;
-	for (const Texture::Ptr& texture : textures)
-	{
-		String file = String::format("%s/image%d.png", directory.cstr(), id++);
-		nlohmann::json t = nlohmann::json::object();
-		t["width"] = texture->width();
-		t["height"] = texture->height();
-		t["flags"] = (uint32_t)texture->flags();
-		t["type"] = (uint32_t)texture->type();
-		t["format"] = (uint32_t)texture->format();
-		t["file"] = file.cstr();
-		
-		Image image;
-		image.width = texture->width();
-		image.height = texture->height();
-		image.components = 4;
-		// TODO handle specific format
-		image.bytes = std::vector<uint8_t>(image.width * image.height * image.components);
-		texture->download(image.bytes.data());
-		
-		image.save(file);
-		// TODO store sampler separately ?
-		const Sampler& sampler = texture->sampler();
-		json["textures"].push_back(t);
-	}
-	return json;
-}
-
-void Scene::save(const Path& path, const World& world)
-{
-	JSONSerializer serializer(path.up());
-	nlohmann::json json = serializer.serialize(world.registry());
-
-#if 0
-	std::vector<uint8_t> data = nlohmann::json::to_bson(json);
-	if (!File::writeBinary(path, data))
-	{
-		Logger::error("Failed to write scene.");
-	}
-#else
 	if (!File::writeString(path, json.dump()))
 	{
 		Logger::error("Failed to write scene.");
 	}
-#endif
 }
 
 void Scene::load(World& world, const Path& path)
@@ -620,76 +463,6 @@ void Scene::load(World& world, const Path& path)
 	{
 		Logger::error("Unsupported version");
 		return;
-	}
-	// --- Buffers
-	std::vector<Buffer::Ptr> buffers;
-	for (nlohmann::json& buffer : json["buffers"])
-	{
-		std::vector<uint8_t> bytes = File::readBinary(String(buffer["file"].get<std::string>()));
-		uint32_t size = buffer["size"].get<uint32_t>();
-		BufferType type = (BufferType)buffer["type"].get<uint32_t>();
-		BufferUsage usage = (BufferUsage)buffer["usage"].get<uint32_t>();
-		BufferCPUAccess access = (BufferCPUAccess)buffer["access"].get<uint32_t>();
-		AKA_ASSERT(bytes.size() == size, "Invalid size");
-		buffers.push_back(Buffer::create(type, size, usage, access, bytes.data()));
-	}
-	// --- Views
-	std::vector<BufferView> views;
-	for (nlohmann::json& view : json["views"]) 
-	{
-		BufferView v;
-		v.bufferID = view["buffer"];
-		v.offset = view["offset"];
-		v.size = view["size"];
-		v.stride = view["stride"];
-		views.push_back(v);
-	}
-	// --- Meshes
-	std::vector<Mesh::Ptr> meshes;
-	for (nlohmann::json& mesh : json["meshes"])
-	{
-		std::vector<VertexAccessor> accessors(mesh["attributes"].size());
-		for (size_t i = 0; i < mesh["attributes"].size(); i++)
-		{
-			const nlohmann::json& attribute = mesh["attributes"][i];
-			const BufferView& view = views[attribute["view"].get<uint32_t>()];
-			VertexAccessor& accessor = accessors[i];
-			accessor.count = attribute["count"].get<uint32_t>();
-			accessor.offset = attribute["offset"].get<uint32_t>();
-			accessor.attribute.format = (VertexFormat)attribute["format"].get<uint32_t>();
-			accessor.attribute.semantic = (VertexSemantic)attribute["semantic"].get<uint32_t>();
-			accessor.attribute.type = (VertexType)attribute["type"].get<uint32_t>();
-			accessor.bufferView.buffer = buffers[view.bufferID];
-			accessor.bufferView.offset = view.offset;
-			accessor.bufferView.size = view.size;
-			accessor.bufferView.stride = view.stride;
-		}
-		const BufferView& view = views[mesh["indices"]["view"].get<uint32_t>()];
-		IndexAccessor indexAccessor;
-		indexAccessor.bufferView.buffer = buffers[view.bufferID];
-		indexAccessor.bufferView.offset = view.offset;
-		indexAccessor.bufferView.size = view.size;
-		indexAccessor.count = mesh["indices"]["count"].get<uint32_t>();
-		indexAccessor.format = (IndexFormat)mesh["indices"]["format"].get<uint32_t>();
-		Mesh::Ptr mesh = Mesh::create();
-		mesh->upload(accessors.data(), accessors.size(), indexAccessor);
-		meshes.push_back(mesh);
-	}
-	// --- Textures
-	std::vector<Texture::Ptr> textures;
-	for (nlohmann::json& texture : json["textures"]) 
-	{
-		uint32_t width = texture["width"].get<uint32_t>();
-		uint32_t height = texture["height"].get<uint32_t>();
-		TextureFlag flags = (TextureFlag)texture["flags"].get<uint32_t>();
-		TextureType type = (TextureType)texture["type"].get<uint32_t>();
-		TextureFormat format = (TextureFormat)texture["format"].get<uint32_t>();
-		AKA_ASSERT(type == TextureType::Texture2D, "Texture type not supported yet.");
-		Image image = Image::load(Path(texture["file"].get<std::string>()));
-		AKA_ASSERT(width == image.width, "Width invalid.");
-		AKA_ASSERT(height == image.height, "Height invalid.");
-		// TODO store sampler
-		textures.push_back(Texture::create2D(width, height, format, flags, Sampler{}, image.bytes.data()));
 	}
 	// --- Entities
 	std::unordered_map<uint32_t, entt::entity> entityMap;
@@ -729,7 +502,7 @@ void Scene::load(World& world, const Path& path)
 			{
 				world.registry().emplace<MeshComponent>(entity);
 				MeshComponent& mesh = world.registry().get<MeshComponent>(entity);
-				mesh.submesh.mesh = meshes[component["mesh"].get<uint32_t>()];
+				mesh.submesh.mesh = ResourceManager::get<Mesh>(component["mesh"].get<std::string>());
 				mesh.submesh.offset = 0;
 				mesh.submesh.count = mesh.submesh.mesh->getIndexCount();
 				mesh.submesh.type = PrimitiveType::Triangles;
@@ -757,9 +530,9 @@ void Scene::load(World& world, const Path& path)
 					component["color"][3].get<float>()
 				);
 				material.doubleSided = component["doublesided"].get<bool>();
-				material.colorTexture = textures[component["textures"]["color"]];
-				material.normalTexture = textures[component["textures"]["normal"]];
-				material.materialTexture = textures[component["textures"]["material"]];
+				material.colorTexture = ResourceManager::get<Texture>(component["textures"]["color"].get<std::string>());
+				material.normalTexture = ResourceManager::get<Texture>(component["textures"]["normal"].get<std::string>());
+				material.materialTexture = ResourceManager::get<Texture>(component["textures"]["material"].get<std::string>());
 			}
 			else if (name == "pointlight")
 			{

@@ -476,11 +476,11 @@ void SceneEditor::onRender(World& world)
 			{
 				if (ImGui::MenuItem("Save"))
 				{
-					Scene::save("./scene/test.json", world);
+					Scene::save("library/scene.json", world);
 				}
 				if (ImGui::MenuItem("Load"))
 				{
-					Scene::load(world, "./scene/test.json");
+					Scene::load(world, "library/scene.json");
 				}
 				ImGui::EndMenu();
 			}
@@ -652,7 +652,7 @@ void SceneEditor::onRender(World& world)
 			else
 				roots.push_back(entity);
 		});
-		ImGui::TextColored(ImVec4(0.93f, 0.04f, 0.26f, 1.f), "Graph");
+		ImGui::TextColored(color, "Graph");
 		if (ImGui::BeginChild("##list", ImVec2(0, 200), true))
 		{
 			for (entt::entity e : roots)
