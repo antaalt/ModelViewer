@@ -10,7 +10,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 {
 	createShaders();
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
-	Texture::Ptr dummyDepth = Texture::create2D(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+	Texture::Ptr dummyDepth = Texture::create2D(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
 	FramebufferAttachment shadowAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,
@@ -96,11 +96,11 @@ void ShadowMapSystem::onRender(aka::World& world)
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
 		shadowPass.material = m_shadowPointMaterial;
-		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		shadowPass.blend = Blending::none();
+		shadowPass.clear = Clear::none;
+		shadowPass.blend = Blending::none;
 		shadowPass.depth = Depth{ DepthCompare::Less, true };
 		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		shadowPass.stencil = Stencil::none();
+		shadowPass.stencil = Stencil::none;
 		shadowPass.viewport = aka::Rect{ 0 };
 		shadowPass.scissor = aka::Rect{ 0 };
 
@@ -139,11 +139,11 @@ void ShadowMapSystem::onRender(aka::World& world)
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;
 		shadowPass.material = m_shadowMaterial;
-		shadowPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-		shadowPass.blend = Blending::none();
+		shadowPass.clear = Clear::none;
+		shadowPass.blend = Blending::none;
 		shadowPass.depth = Depth{ DepthCompare::Less, true };
 		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		shadowPass.stencil = Stencil::none();
+		shadowPass.stencil = Stencil::none;
 		shadowPass.viewport = aka::Rect{ 0 };
 		shadowPass.scissor = aka::Rect{ 0 };
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)

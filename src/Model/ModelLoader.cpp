@@ -16,7 +16,7 @@ struct AssimpImporter {
 	void processNode(Entity parent, aiNode* node);
 	Entity processMesh(aiMesh* mesh);
 
-	Texture::Ptr loadTexture(const Path& path, const Sampler& sampler);
+	Texture::Ptr loadTexture(const Path& path, const TextureSampler& sampler);
 private:
 	Path m_directory;
 	const aiScene* m_assimpScene;
@@ -33,15 +33,14 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 	m_assimpScene(scene),
 	m_world(world)
 {
-	Sampler defaultSampler = Sampler::trilinear();
 	uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
 	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
 	uint8_t bytesNormal[4] = { 128,128,255,255 };
 	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesMissingColor);
-	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesBlankColor);
-	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesNormal);
-	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, defaultSampler, bytesRoughness);
+	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesMissingColor);
+	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesBlankColor);
+	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesNormal);
+	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesRoughness);
 }
 
 void AssimpImporter::process()
@@ -249,7 +248,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		//aiTextureType_DIFFUSE_ROUGHNESS = 16,
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = m_assimpScene->mMaterials[mesh->mMaterialIndex];
-		Sampler defaultSampler = Sampler::trilinear();
+		TextureSampler defaultSampler = TextureSampler::trilinear;
 		aiColor4D c;
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
 		material->Get(AI_MATKEY_TWOSIDED, materialComponent.doubleSided);
@@ -358,7 +357,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	return e;
 }
 
-Texture::Ptr AssimpImporter::loadTexture(const Path& path, const Sampler& sampler)
+Texture::Ptr AssimpImporter::loadTexture(const Path& path, const TextureSampler& sampler)
 {
 	String name = file::name(path);
 	if (ResourceManager::has<Texture>(name))

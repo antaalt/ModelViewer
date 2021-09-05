@@ -63,6 +63,8 @@ int main(int argc, char* argv[])
 	cfg.width = settings.width;
 	cfg.height = settings.height;
 	cfg.name = "Model Viewer";
+	cfg.arguments.count = argc;
+	cfg.arguments.values = argv;
 	aka::Application::run(cfg);
 
 	return 0;

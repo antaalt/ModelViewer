@@ -10,7 +10,7 @@ namespace viewer {
 class Viewer : public aka::Application
 {
 public:
-	void onCreate() override;
+	void onCreate(int argc, char* argv[]) override;
 	void onDestroy() override;
 	void onUpdate(Time::Unit deltaTime) override;
 	void onResize(uint32_t width, uint32_t height) override;

@@ -448,11 +448,11 @@ void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat
 	RenderPass r;
 	r.framebuffer = GraphicBackend::backbuffer();
 	r.material = m_wireframeMaterial;
-	r.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-	r.blend = Blending::none();
+	r.clear = Clear::none;
+	r.blend = Blending::none;
 	r.depth = Depth{ DepthCompare::LessOrEqual, false };
 	r.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-	r.stencil = Stencil::none();
+	r.stencil = Stencil::none;
 	r.viewport = aka::Rect{ 0 };
 	r.scissor = aka::Rect{ 0 };
 	r.submesh = submesh;
@@ -563,17 +563,17 @@ void SceneEditor::onRender(World& world)
 					if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
 						e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, nullptr, nullptr, nullptr });
 					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
-						e.add<PointLightComponent>(PointLightComponent{ 
-							color3f(1.f), 1.f, {}, 
-							Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{})
+						e.add<PointLightComponent>(PointLightComponent{
+							color3f(1.f), 1.f, {},
+							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest)
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 						vec3f(0,1,0),
 						color3f(1.f), 1.f, {}, {
-							Texture::create2D(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{}),
-							Texture::create2D(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{}),
-							Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler{})
+							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest),
+							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest),
+							Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest)
 						}, {} }
 					);
 					ImGui::EndMenu();

@@ -61,12 +61,13 @@ void RenderSystem::onCreate(aka::World& world)
 		cubemap[i] = Image::load(Asset::path(cubemapPath[i]), false);
 		AKA_ASSERT(cubemap[i].width == cubemap[0].width && cubemap[i].height == cubemap[0].height, "Width & height not matching");
 	}
-	Sampler cubeSampler{};
-	cubeSampler.filterMag = Sampler::Filter::Linear;
-	cubeSampler.filterMin = Sampler::Filter::Linear;
-	cubeSampler.wrapU = Sampler::Wrap::ClampToEdge;
-	cubeSampler.wrapV = Sampler::Wrap::ClampToEdge;
-	cubeSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	TextureSampler cubeSampler{};
+	cubeSampler.filterMag = TextureFilter::Linear;
+	cubeSampler.filterMin = TextureFilter::Linear;
+	cubeSampler.wrapU = TextureWrap::ClampToEdge;
+	cubeSampler.wrapV = TextureWrap::ClampToEdge;
+	cubeSampler.wrapW = TextureWrap::ClampToEdge;
+	cubeSampler.anisotropy = 1.f;
 	m_skybox = Texture::createCubemap(
 		cubemap[0].width, cubemap[0].height,
 		TextureFormat::RGBA8, TextureFlag::None,
@@ -186,10 +187,11 @@ void RenderSystem::onRender(aka::World& world)
 	RenderPass gbufferPass;
 	gbufferPass.framebuffer = m_gbuffer;
 	gbufferPass.material = m_gbufferMaterial;
-	gbufferPass.clear = Clear{ ClearMask::None, color4f(1.f), 1.f, 0 };
-	gbufferPass.blend = Blending::none();
+	gbufferPass.clear = Clear::none;
+	gbufferPass.blend = Blending::none;
 	gbufferPass.depth = Depth{ DepthCompare::Less, true };
-	gbufferPass.stencil = Stencil::none();
+	gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	gbufferPass.stencil = Stencil::none;
 	gbufferPass.viewport = aka::Rect{ 0 };
 	gbufferPass.scissor = aka::Rect{ 0 };
 
@@ -215,7 +217,6 @@ void RenderSystem::onRender(aka::World& world)
 		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
 		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
 		gbufferPass.submesh = mesh.submesh;
-		gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
 		gbufferPass.execute();
 	});
@@ -236,7 +237,7 @@ void RenderSystem::onRender(aka::World& world)
 	lightingPass.submesh.type = PrimitiveType::Triangles;
 	lightingPass.submesh.offset = 0;
 	lightingPass.submesh.count = 6;
-	lightingPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
+	lightingPass.clear = Clear::none;
 	lightingPass.blend.colorModeSrc = BlendMode::One;
 	lightingPass.blend.colorModeDst = BlendMode::One;
 	lightingPass.blend.colorOp = BlendOp::Add;
@@ -245,8 +246,8 @@ void RenderSystem::onRender(aka::World& world)
 	lightingPass.blend.alphaOp = BlendOp::Add;
 	lightingPass.blend.mask = BlendMask::Rgb;
 	lightingPass.blend.blendColor = color32(255);
-	lightingPass.depth = Depth{ DepthCompare::None, false };
-	lightingPass.stencil = Stencil::none();
+	lightingPass.depth = Depth::none;
+	lightingPass.stencil = Stencil::none;
 	lightingPass.viewport = aka::Rect{ 0 };
 	lightingPass.scissor = aka::Rect{ 0 };
 	lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
@@ -311,7 +312,7 @@ void RenderSystem::onRender(aka::World& world)
 		lightingPass.execute();
 	});
 
-	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, TextureFilter::Nearest);
 
 	// --- Skybox pass
 	RenderPass skyboxPass;
@@ -321,10 +322,10 @@ void RenderSystem::onRender(aka::World& world)
 	skyboxPass.submesh.count = m_cube->getVertexCount(0);
 	skyboxPass.submesh.mesh = m_cube;
 	skyboxPass.material = m_skyboxMaterial;
-	skyboxPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
-	skyboxPass.blend = Blending::none();
+	skyboxPass.clear = Clear::none;
+	skyboxPass.blend = Blending::none;
 	skyboxPass.depth = Depth{ DepthCompare::LessOrEqual, false };
-	skyboxPass.stencil = Stencil::none();
+	skyboxPass.stencil = Stencil::none;
 	skyboxPass.viewport = aka::Rect{ 0 };
 	skyboxPass.scissor = aka::Rect{ 0 };
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
@@ -343,10 +344,10 @@ void RenderSystem::onRender(aka::World& world)
 	postProcessPass.submesh.count = m_quad->getIndexCount();
 	postProcessPass.submesh.mesh = m_quad;
 	postProcessPass.material = m_postprocessMaterial;
-	postProcessPass.clear = Clear{ ClearMask::None, color4f(0.f), 1.f, 0 };
-	postProcessPass.blend = Blending::none();
-	postProcessPass.depth = Depth{ DepthCompare::None, false };
-	postProcessPass.stencil = Stencil::none();
+	postProcessPass.clear = Clear::none;
+	postProcessPass.blend = Blending::none;
+	postProcessPass.depth = Depth::none;
+	postProcessPass.stencil = Stencil::none;
 	postProcessPass.viewport = aka::Rect{ 0 };
 	postProcessPass.scissor = aka::Rect{ 0 };
 	postProcessPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
@@ -358,7 +359,7 @@ void RenderSystem::onRender(aka::World& world)
 	postProcessPass.execute();
 
 	// Set depth for UI elements
-	backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, Sampler::Filter::Nearest);
+	backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, TextureFilter::Nearest);
 }
 
 void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
@@ -515,12 +516,13 @@ void RenderSystem::createShaders()
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 {
 	// --- G-Buffer pass
-	Sampler gbufferSampler{};
-	gbufferSampler.filterMag = Sampler::Filter::Nearest;
-	gbufferSampler.filterMin = Sampler::Filter::Nearest;
-	gbufferSampler.wrapU = Sampler::Wrap::ClampToEdge;
-	gbufferSampler.wrapV = Sampler::Wrap::ClampToEdge;
-	gbufferSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	TextureSampler gbufferSampler{};
+	gbufferSampler.filterMag = TextureFilter::Nearest;
+	gbufferSampler.filterMin = TextureFilter::Nearest;
+	gbufferSampler.wrapU = TextureWrap::ClampToEdge;
+	gbufferSampler.wrapV = TextureWrap::ClampToEdge;
+	gbufferSampler.wrapW = TextureWrap::ClampToEdge;
+	gbufferSampler.anisotropy = 1.f;
 
 	// Depth | Stencil
 	// D     | S  

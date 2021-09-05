@@ -14,7 +14,8 @@
 
 namespace viewer {
 
-void Viewer::onCreate()
+
+void Viewer::onCreate(int argc, char* argv[])
 {
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
@@ -28,12 +29,13 @@ void Viewer::onCreate()
 		editor->onCreate(m_world);
 
 	// --- Lights
-	Sampler shadowSampler{};
-	shadowSampler.filterMag = Sampler::Filter::Nearest;
-	shadowSampler.filterMin = Sampler::Filter::Nearest;
-	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
-	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
-	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	TextureSampler shadowSampler{};
+	shadowSampler.filterMag = TextureFilter::Nearest;
+	shadowSampler.filterMin = TextureFilter::Nearest;
+	shadowSampler.wrapU = TextureWrap::ClampToEdge;
+	shadowSampler.wrapV = TextureWrap::ClampToEdge;
+	shadowSampler.wrapW = TextureWrap::ClampToEdge;
+	shadowSampler.anisotropy = 1.f;
 
 	ResourceManager::parse("library/library.json");
 	Scene::load(m_world, "library/scene.json");
@@ -113,7 +115,7 @@ void Viewer::onDestroy()
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
-	// Arcball status
+	// Camera status
 	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
 
 	// TOD
@@ -121,9 +123,12 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		const Position& pos = Mouse::position();
 		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
-		m_sun.get<DirectionalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
-		if (!m_sun.has<DirtyLightComponent>())
-			m_sun.add<DirtyLightComponent>();
+		if (m_sun.valid() && m_sun.has<DirectionalLightComponent>())
+		{
+			m_sun.get<DirectionalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
+			if (!m_sun.has<DirtyLightComponent>())
+				m_sun.add<DirtyLightComponent>();
+		}
 	}
 
 	// Reset

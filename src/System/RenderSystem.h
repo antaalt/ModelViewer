@@ -10,6 +10,7 @@ struct Vertex {
 	aka::norm3f normal;
 	aka::uv2f texcoord;
 	aka::color4f color;
+	//static VertexAttribute* get();
 };
 
 struct ShaderHotReloadEvent {};

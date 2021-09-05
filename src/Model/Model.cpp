@@ -197,9 +197,9 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 {
 	Mesh::Ptr m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, data);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, n);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, n);
 
 	mat4f id = mat4f::identity();
 	Entity mesh = world.createEntity("New uv sphere");
@@ -213,9 +213,9 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 Entity Scene::createCubeEntity(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, colorData);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, Sampler{}, normalData);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, normalData);
 
 	Mesh::Ptr m = createCubeMesh(point3f(0.f), 1.f);
 	mat4f id = mat4f::identity();
@@ -230,12 +230,13 @@ Entity Scene::createCubeEntity(World& world)
 Entity Scene::createPointLightEntity(World& world)
 {
 	mat4f id = mat4f::identity();
-	Sampler shadowSampler{};
-	shadowSampler.filterMag = Sampler::Filter::Nearest;
-	shadowSampler.filterMin = Sampler::Filter::Nearest;
-	shadowSampler.wrapU = Sampler::Wrap::ClampToEdge;
-	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
-	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
+	TextureSampler shadowSampler{};
+	shadowSampler.filterMag = TextureFilter::Nearest;
+	shadowSampler.filterMin = TextureFilter::Nearest;
+	shadowSampler.wrapU = TextureWrap::ClampToEdge;
+	shadowSampler.wrapV = TextureWrap::ClampToEdge;
+	shadowSampler.wrapW = TextureWrap::ClampToEdge;
+	shadowSampler.anisotropy = 1.f;
 	Entity light = world.createEntity("New point light");
 	light.add<Transform3DComponent>(Transform3DComponent{ id });
 	light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
@@ -260,9 +261,9 @@ Entity Scene::createDirectionalLightEntity(World& world)
 		1.f,
 		{ id, id, id },
 		{
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest()),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest()),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, Sampler::nearest())
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest)
 		},
 		{ 1.f, 1.f, 1.f }
 	});
@@ -543,7 +544,7 @@ void Scene::load(World& world, const Path& path)
 				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
 				light.intensity = component["intensity"];
 				light.radius = 1.f;
-				light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+				light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
 			}
 			else if (name == "dirlight")
 			{
@@ -552,9 +553,9 @@ void Scene::load(World& world, const Path& path)
 				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
 				light.direction = vec3f(component["direction"][0].get<float>(), component["direction"][1].get<float>(), component["direction"][2].get<float>());
 				light.intensity = component["intensity"];
-				light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
-				light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
-				light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+				light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
+				light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
+				light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
 			}
 			else if (name == "camera")
 			{
