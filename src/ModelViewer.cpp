@@ -35,8 +35,11 @@ void Viewer::onCreate()
 	shadowSampler.wrapV = Sampler::Wrap::ClampToEdge;
 	shadowSampler.wrapW = Sampler::Wrap::ClampToEdge;
 
+	ResourceManager::parse("library/library.json");
+	Scene::load(m_world, "library/scene.json");
+
 	{ // Sun
-		m_sun = m_world.createEntity("Sun");
+		m_sun = m_world.createEntity("SunEditor");
 		m_sun.add<Transform3DComponent>();
 		m_sun.add<Hierarchy3DComponent>();
 		m_sun.add<DirectionalLightComponent>();
@@ -58,25 +61,37 @@ void Viewer::onCreate()
 
 	// --- Editor Camera
 	{
-		m_camera = m_world.createEntity("Camera");
-		m_camera.add<Transform3DComponent>();
-		m_camera.add<Hierarchy3DComponent>();
-		m_camera.add<Camera3DComponent>();
-		m_camera.add<ArcballCameraComponent>();
-		m_camera.add<DirtyCameraComponent>();
-		ArcballCameraComponent& controller = m_camera.get<ArcballCameraComponent>();
-		Transform3DComponent& transform = m_camera.get<Transform3DComponent>();
-		Camera3DComponent& camera = m_camera.get<Camera3DComponent>();
-		controller.set(aabbox<>(point3f(0.f), point3f(1.f)));
-		transform.transform = mat4f::lookAt(controller.position, controller.target, controller.up);
-		camera.projection = &m_projection;
-		camera.view = mat4f::inverse(transform.transform);
+		Entity e = Scene::getMainCamera(m_world);
+		if (e.valid())
+		{
+			m_camera = e;
+		}
+		else
+		{
+			m_camera = m_world.createEntity("CameraEditor");
+			m_camera.add<Transform3DComponent>();
+			m_camera.add<Hierarchy3DComponent>();
+			m_camera.add<Camera3DComponent>();
+			m_camera.add<DirtyCameraComponent>();
+			Transform3DComponent& transform = m_camera.get<Transform3DComponent>();
+			Camera3DComponent& camera = m_camera.get<Camera3DComponent>();
+
+			auto perspective = std::make_unique<CameraPerspective>();
+			perspective->nearZ = 0.01f;
+			perspective->farZ = 100.f;
+			perspective->hFov = anglef::degree(90.f);
+			perspective->ratio = width() / (float)height();
+
+			auto arcball = std::make_unique<CameraArcball>();
+			arcball->set(aabbox<>(point3f(0.f), point3f(1.f)));
+
+			transform.transform = arcball->transform();
+			camera.view = mat4f::inverse(transform.transform);
+			camera.projection = std::move(perspective);
+			camera.controller = std::move(arcball);
+		}
 	}
 	
-	m_projection.nearZ = 0.01f;
-	m_projection.farZ = 100.f;
-	m_projection.hFov = anglef::degree(90.f);
-	m_projection.ratio = width() / (float)height();
 
 	// --- UI
 	m_debug = true;
@@ -97,7 +112,7 @@ void Viewer::onDestroy()
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
 	// Arcball status
-	m_camera.get<ArcballCameraComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
+	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
 
 	// TOD
 	if (Mouse::pressed(MouseButton::ButtonMiddle))
@@ -118,11 +133,8 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 		view.each([&](Transform3DComponent& t, MeshComponent& mesh) {
 			bounds.include(t.transform * mesh.bounds);
 		});
-		m_camera.get<ArcballCameraComponent>().set(bounds);
-		auto dirLightUpdate = m_world.registry().view<DirectionalLightComponent>();
-		for (entt::entity e : dirLightUpdate)
-			if (!m_world.registry().has<DirtyLightComponent>(e))
-				m_world.registry().emplace<DirtyLightComponent>(e);
+		m_camera.get<Camera3DComponent>().controller->set(bounds);
+		m_world.registry().patch<Camera3DComponent>(m_camera.handle());
 	}
 	if (Keyboard::down(KeyboardKey::D) && !ImGui::GetIO().WantCaptureKeyboard)
 	{

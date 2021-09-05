@@ -60,9 +60,13 @@ template <> const char* ComponentNode<Camera3DComponent>::name() { return "Camer
 template <> bool ComponentNode<Camera3DComponent>::draw(Camera3DComponent& camera) 
 { 
 	bool updated = false;
-	CameraPerspective* p = dynamic_cast<CameraPerspective*>(camera.projection);
+	updated |= ImGui::Checkbox("Active", &camera.active);
+	// Projection
+	CameraPerspective* p = dynamic_cast<CameraPerspective*>(camera.projection.get());
+	CameraOrthographic* o = dynamic_cast<CameraOrthographic*>(camera.projection.get());
 	if (p != nullptr)
 	{
+		ImGui::Text("Perspective projection");
 		float fov = p->hFov.radian();
 		if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
 		{
@@ -72,19 +76,21 @@ template <> bool ComponentNode<Camera3DComponent>::draw(Camera3DComponent& camer
 		updated |= ImGui::SliderFloat("Near", &p->nearZ, 0.001f, 10.f);
 		updated |= ImGui::SliderFloat("Far", &p->farZ, 10.f, 1000.f);
 	}
+	else if (o != nullptr)
+	{
+		// TODO
+	}
+	// Controller
+	CameraArcball* a = dynamic_cast<CameraArcball*>(camera.controller.get());
+	if (p != nullptr)
+	{
+		ImGui::Text("Arcball controller");
+		updated |= ImGui::InputFloat3("Position", a->position.data);
+		updated |= ImGui::InputFloat3("Target", a->target.data);
+		updated |= ImGui::InputFloat3("Up", a->up.data);
+		updated |= ImGui::SliderFloat("Speed", &a->speed, 0.1f, 100.f);
+	}
 	return false;
-}
-
-template <> const char* ComponentNode<ArcballCameraComponent>::name() { return "Arcball controller"; }
-template <> bool ComponentNode<ArcballCameraComponent>::draw(ArcballCameraComponent& controller)
-{
-	bool updated = false;
-	updated |= ImGui::Checkbox("Active", &controller.active);
-	updated |= ImGui::InputFloat3("Position", controller.position.data);
-	updated |= ImGui::InputFloat3("Target", controller.target.data);
-	updated |= ImGui::InputFloat3("Up", controller.up.data);
-	updated |= ImGui::SliderFloat("Speed", &controller.speed, 0.1f, 100.f);
-	return updated;
 }
 
 template <> const char* ComponentNode<Hierarchy3DComponent>::name() { return "Hierarchy"; }
@@ -209,7 +215,7 @@ void component(World& world, entt::entity entity)
 				ImGui::OpenPopup(buffer);
 			if (ComponentNode<T>::draw(component))
 			{
-				world.registry().replace<T>(entity, component);
+				world.registry().patch<T>(entity);
 			}
 			if (ImGui::BeginPopupContextItem(buffer))
 			{
@@ -517,7 +523,7 @@ void SceneEditor::onRender(World& world)
 					
 					if (ImGui::MenuItem("Camera"))
 					{
-						m_currentEntity = Scene::createArcballCameraEntity(world, new CameraPerspective(anglef::degree(60.f), 1.f)).handle();// TODO leak here
+						m_currentEntity = Scene::createArcballCameraEntity(world).handle();
 					}
 					if (ImGui::MenuItem("Empty"))
 					{
@@ -533,21 +539,25 @@ void SceneEditor::onRender(World& world)
 			{
 				if (ImGui::BeginMenu("Add", e.valid()))
 				{
-					color4f c;
-					color4f d{};
-					color4f z = {};
-					color4f f = color4f();
-					color4f g = color4f{};
-					color4f h = color4f(0.f);
-
 					if (ImGui::MenuItem("Transform", nullptr, nullptr, !e.has<Transform3DComponent>()))
 						e.add<Transform3DComponent>(Transform3DComponent{ mat4f::identity() });
 					if (ImGui::MenuItem("Hierarchy", nullptr, nullptr, !e.has<Hierarchy3DComponent>()))
 						e.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), mat4f::identity() });
 					if (ImGui::MenuItem("Camera", nullptr, nullptr, !e.has<Camera3DComponent>()))
-						e.add<Camera3DComponent>(Camera3DComponent{ mat4f::identity(), new CameraPerspective(anglef::degree(60.f), 1.f) }); // TODO leak here
-					if (ImGui::MenuItem("Arcball", nullptr, nullptr, !e.has<ArcballCameraComponent>()))
-						e.add<ArcballCameraComponent>(ArcballCameraComponent{});
+					{
+						auto p = std::make_unique<CameraPerspective>();
+						p->hFov = anglef::degree(60.f);
+						p->nearZ = 0.01f;
+						p->farZ = 100.f;
+						p->ratio = 1.f;
+						auto c = std::make_unique<CameraArcball>();
+						c->set(aabbox<>(point3f(0.f), point3f(1.f)));
+						e.add<Camera3DComponent>(Camera3DComponent{
+							mat4f::identity(),
+							std::move(p),
+							std::move(c)
+						});
+					}
 					if (ImGui::MenuItem("Mesh", nullptr, nullptr, !e.has<MeshComponent>()))
 						e.add<MeshComponent>(MeshComponent{});
 					if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
@@ -576,8 +586,6 @@ void SceneEditor::onRender(World& world)
 						e.remove<Hierarchy3DComponent>();
 					if (ImGui::MenuItem("Camera", nullptr, nullptr, e.has<Camera3DComponent>()))
 						e.remove<Camera3DComponent>();
-					if (ImGui::MenuItem("Arcball", nullptr, nullptr, e.has<ArcballCameraComponent>()))
-						e.remove<ArcballCameraComponent>();
 					if (ImGui::MenuItem("Mesh", nullptr, nullptr, e.has<MeshComponent>()))
 						e.remove<MeshComponent>();
 					if (ImGui::MenuItem("Material", nullptr, nullptr, e.has<MaterialComponent>()))
@@ -689,7 +697,6 @@ void SceneEditor::onRender(World& world)
 				component<DirectionalLightComponent>(world, m_currentEntity);
 				component<PointLightComponent>(world, m_currentEntity);
 				component<Camera3DComponent>(world, m_currentEntity);
-				component<ArcballCameraComponent>(world, m_currentEntity);
 			}
 			// --- Gizmo
 			Entity cameraEntity = Scene::getMainCamera(world);
@@ -705,7 +712,7 @@ void SceneEditor::onRender(World& world)
 				ImGuiIO& io = ImGui::GetIO();
 				ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 				if (ImGuizmo::Manipulate(view[0].data, projection[0].data, (ImGuizmo::OPERATION)m_gizmoOperation, ImGuizmo::MODE::WORLD, transform.transform[0].data))
-					world.registry().replace<Transform3DComponent>(m_currentEntity, transform);
+					world.registry().patch<Transform3DComponent>(m_currentEntity);
 				
 				// Draw debug views
 				if (world.registry().has<MeshComponent>(m_currentEntity))

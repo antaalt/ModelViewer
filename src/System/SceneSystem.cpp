@@ -18,17 +18,26 @@ void onPointLightUpdate(entt::registry& registry, entt::entity entity)
 
 void onCameraUpdate(entt::registry& registry, entt::entity entity)
 {
-	auto dirLights = registry.view<DirectionalLightComponent>();
-	for (entt::entity e : dirLights)
-		if (!registry.has<DirtyLightComponent>(e))
-			registry.emplace<DirtyLightComponent>(e);
+	Camera3DComponent& c = registry.get<Camera3DComponent>(entity);
+	// Update transform & view
+	// Controller return a world transform. Make it local ?
+	registry.get<Transform3DComponent>(entity).transform = c.controller->transform();
+	c.view = mat4f::inverse(registry.get<Transform3DComponent>(entity).transform);
+	if (c.active)
+	{
+		// Update directionnal light that depend on view matrix.
+		auto dirLights = registry.view<DirectionalLightComponent>();
+		for (entt::entity e : dirLights)
+			if (!registry.has<DirtyLightComponent>(e))
+				registry.emplace<DirtyLightComponent>(e);
+	}
 }
 
 void onTransformUpdate(entt::registry& registry, entt::entity entity)
 {
 	// Update point light if we moved it
 	if (registry.has<PointLightComponent>(entity))
-		registry.replace<PointLightComponent>(entity, registry.get<PointLightComponent>(entity));
+		registry.patch<PointLightComponent>(entity);
 	// Update lights if we changed the scene
 	if (registry.has<MeshComponent>(entity))
 	{
@@ -36,11 +45,15 @@ void onTransformUpdate(entt::registry& registry, entt::entity entity)
 		for (entt::entity e : dirLightUpdate)
 			if (!registry.has<DirtyLightComponent>(e))
 				registry.emplace<DirtyLightComponent>(e);
-		// TODO only update light affected by mesh bounds
-		auto pointLightUpdate = registry.view<PointLightComponent>();
+		MeshComponent& m = registry.get<MeshComponent>(entity);
+		auto pointLightUpdate = registry.view<Transform3DComponent, PointLightComponent>();
 		for (entt::entity e : pointLightUpdate)
-			if (!registry.has<DirtyLightComponent>(e))
-				registry.emplace<DirtyLightComponent>(e);
+		{
+			point3f c(registry.get<Transform3DComponent>(e).transform.cols[3]);
+			if (m.bounds.overlap(c, registry.get<PointLightComponent>(e).radius))
+				if (!registry.has<DirtyLightComponent>(e))
+					registry.emplace<DirtyLightComponent>(e);
+		}
 	}
 	// TODO handle empty node that hold meshes
 }
@@ -117,79 +130,27 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 
 	// --- Update arball camera
 	// TODO move to separate camera system, rename this HierarchySystem
-	auto arcballView = world.registry().view<Transform3DComponent, Camera3DComponent, ArcballCameraComponent>();
-	for (entt::entity entity : arcballView)
+	auto cameraTransformView = world.registry().view<Transform3DComponent, Camera3DComponent>();
+	for (entt::entity entity : cameraTransformView)
 	{
 		Transform3DComponent& transform = world.registry().get<Transform3DComponent>(entity);
-		ArcballCameraComponent& controller = world.registry().get<ArcballCameraComponent>(entity);
 		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
-		if (!controller.active)
+		if (!camera.active || camera.controller == nullptr)
 			continue;
-		bool dirty = false;
-		// https://gamedev.stackexchange.com/questions/53333/how-to-implement-a-basic-arcball-camera-in-opengl-with-glm
-		if (Mouse::pressed(MouseButton::ButtonLeft) && (Mouse::delta().x != 0.f || Mouse::delta().y != 0.f))
+		if (camera.controller->update(deltaTime))
 		{
-			float x = Mouse::delta().x * deltaTime.seconds();
-			float y = -Mouse::delta().y * deltaTime.seconds();
-			anglef pitch = anglef::radian(y);
-			anglef yaw = anglef::radian(x);
-			vec3f upCamera = vec3f(0, 1, 0);
-			vec3f forwardCamera = vec3f::normalize(controller.target - controller.position);
-			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
-			controller.position = mat4f::rotate(rightCamera, pitch).multiplyPoint(point3f(controller.position - controller.target)) + vec3f(controller.target);
-			controller.position = mat4f::rotate(upCamera, yaw).multiplyPoint(point3f(controller.position - controller.target)) + vec3f(controller.target);
-			dirty = true;
-		}
-		if (Mouse::pressed(MouseButton::ButtonRight) && (Mouse::delta().x != 0.f || Mouse::delta().y != 0.f))
-		{
-			float x = -Mouse::delta().x * deltaTime.seconds();
-			float y = -Mouse::delta().y * deltaTime.seconds();
-			vec3f upCamera = vec3f(0, 1, 0); // TODO change it when close to up
-			vec3f forwardCamera = vec3f::normalize(controller.target - controller.position);
-			vec3f rightCamera = vec3f::normalize(vec3f::cross(forwardCamera, vec3f(upCamera)));
-			vec3f move = rightCamera * x * controller.speed / 2.f + upCamera * y * controller.speed / 2.f;
-			controller.target += move;
-			controller.position += move;
-			dirty = true;
-		}
-		if (Mouse::scroll().y != 0.f)
-		{
-			float zoom = Mouse::scroll().y * deltaTime.seconds();
-			vec3f dir = vec3f::normalize(controller.target - controller.position);
-			float dist = point3f::distance(controller.target, controller.position);
-			float coeff = zoom * controller.speed;
-			if (dist - coeff > 1.5f)
-			{
-				controller.position = controller.position + dir * coeff;
-				dirty = true;
-			}
-		}
-		if (dirty)
-		{
-			mat4f parentMatrix;
-			if (world.registry().has<Hierarchy3DComponent>(entity))
-			{
-				Hierarchy3DComponent& h = world.registry().get<Hierarchy3DComponent>(entity);
-				if (h.parent != Entity::null() && world.registry().valid(h.parent.handle()))
-					parentMatrix = h.parent.get<Transform3DComponent>().transform;
-				else
-					parentMatrix = mat4f::identity();
-			}
-			else
-				parentMatrix = mat4f::identity();
-			transform.transform = parentMatrix * mat4f::lookAt(controller.position, controller.target, controller.up);
-			camera.view = mat4f::inverse(transform.transform);
-			world.registry().replace<Camera3DComponent>(entity, camera);
+			world.registry().patch<Camera3DComponent>(entity);
 		}
 	}
 	
 	// --- Update camera ratio
+	// TODO use event instead
 	auto cameraView = world.registry().view<Camera3DComponent>();
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	for (entt::entity entity : cameraView)
 	{
 		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
-		aka::CameraPerspective* proj = dynamic_cast<aka::CameraPerspective*>(camera.projection);
+		aka::CameraPerspective* proj = dynamic_cast<aka::CameraPerspective*>(camera.projection.get());
 		if (proj != nullptr)
 			proj->ratio = backbuffer->width() / (float)backbuffer->height();
 	}

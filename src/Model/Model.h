@@ -50,27 +50,15 @@ struct PointLightComponent {
 	float radius;
 };
 
-/*struct Camera3DController {
-	virtual mat4f transform() const = 0;
-	virtual mat4f view() const = 0;
-	virtual void set(const aabbox<>& bbox) {}
-};*/
-// CameraProjectionComponent
-struct Camera3DComponent {
-	mat4f view;
-	CameraProjection* projection;
-	//Camera3DController* controller;
+struct SkyboxComponent {
+	Texture::Ptr skybox;
 };
 
-struct ArcballCameraComponent {
-	point3f position;
-	point3f target;
-	norm3f up;
-
-	float speed;
+struct Camera3DComponent {
+	mat4f view;
+	std::unique_ptr<CameraProjection> projection;
+	std::unique_ptr<CameraController> controller;
 	bool active;
-
-	void set(const aabbox<>& bbox);
 };
 
 struct DirtyLightComponent {};
@@ -88,7 +76,7 @@ struct Scene
 	static Entity createSphereEntity(World& world, uint32_t segmentCount, uint32_t ringCount);
 	static Entity createPointLightEntity(World& world);
 	static Entity createDirectionalLightEntity(World& world);
-	static Entity createArcballCameraEntity(World& world, CameraProjection* projection);
+	static Entity createArcballCameraEntity(World& world);
 
 	static void save(const Path& path, const World& world);
 	static void load(World& world, const Path& path);

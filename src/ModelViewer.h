@@ -24,7 +24,6 @@ private:
 	aka::World m_world;
 	aka::Entity m_sun;
 	aka::Entity m_camera;
-	aka::CameraPerspective m_projection;
 };
 
 };

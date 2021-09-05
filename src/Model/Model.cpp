@@ -4,23 +4,18 @@
 
 namespace viewer {
 
-void ArcballCameraComponent::set(const aabbox<>& bbox)
-{
-	float dist = bbox.extent().norm();
-	position = bbox.max * 1.2f;
-	target = bbox.center();
-	up = norm3f(0, 1, 0);
-	speed = dist;
-}
-
 Entity Scene::getMainCamera(World& world)
 {
 	Entity cameraEntity = Entity::null();
-	world.each([&cameraEntity](Entity entity) {
-		// TODO get main camera
-		if (entity.has<Camera3DComponent>())
-			cameraEntity = entity;
-	});
+	auto view = world.registry().view<Transform3DComponent, Camera3DComponent>();
+	for (entt::entity entity : view)
+	{
+		if (world.registry().has<Camera3DComponent>(entity))
+		{
+			cameraEntity = Entity(entity, &world);
+			break;
+		}
+	}
 	return cameraEntity;
 }
 
@@ -274,22 +269,27 @@ Entity Scene::createDirectionalLightEntity(World& world)
 	return light;
 }
 
-Entity Scene::createArcballCameraEntity(World& world, CameraProjection* projection)
+Entity Scene::createArcballCameraEntity(World& world)
 {
 	mat4f id = mat4f::identity();
+
+	auto perspective = std::make_unique<CameraPerspective>();
+	perspective->hFov = anglef::degree(60.f);
+	perspective->nearZ = 0.1f;
+	perspective->farZ = 100.f;
+	perspective->ratio = 1.f;
+
+	auto arcball = std::make_unique<CameraArcball>();
+	arcball->set(aabbox<>(point3f(0.f), point3f(1.f)));
+
 	Entity camera = world.createEntity("New arcball camera");
 	camera.add<Transform3DComponent>(Transform3DComponent{ id });
 	camera.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
 	camera.add<Camera3DComponent>(Camera3DComponent{
 		id,
-		projection
-	});
-	camera.add<ArcballCameraComponent>(ArcballCameraComponent{
-		point3f(1.f),
-		point3f(0.f),
-		norm3f(0.f, 1.f, 0.f),
-		1.f,
-		true
+		std::move(perspective),
+		std::move(arcball),
+		false
 	});
 	return camera;
 }
@@ -389,8 +389,10 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 	const Camera3DComponent& c = r.get<Camera3DComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	// view is inverse transform, no need to store
-	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(c.projection);
-	CameraOrthographic* orthographic = dynamic_cast<CameraOrthographic*>(c.projection);
+	//json["view"] = c.view;
+	json["active"] = c.active;
+	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(c.projection.get());
+	CameraOrthographic* orthographic = dynamic_cast<CameraOrthographic*>(c.projection.get());
 	if (perspective != nullptr)
 	{
 		json["perspective"]["near"] = perspective->nearZ;
@@ -404,18 +406,15 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 		json["orthographic"]["x"] = orthographic->viewport.x;
 		json["orthographic"]["y"] = orthographic->viewport.y;
 	}
-	return json;
-}
-template <>
-nlohmann::json serialize<ArcballCameraComponent>(const entt::registry& r, entt::entity e)
-{
-	const ArcballCameraComponent& c = r.get<ArcballCameraComponent>(e);
-	nlohmann::json json = nlohmann::json::object();
-	json["position"] = { c.position.x, c.position.y, c.position.z };
-	json["target"] = { c.target.x, c.target.y, c.target.z };
-	json["up"] = { c.up.x, c.up.y, c.up.z };
-	json["active"] = c.active;
-	json["speed"] = c.speed;
+	// Controller
+	CameraArcball* arcball = dynamic_cast<CameraArcball*>(c.controller.get());
+	if (arcball != nullptr)
+	{
+		json["arcball"]["position"] = { arcball->position.x, arcball->position.y, arcball->position.z };
+		json["arcball"]["target"] = { arcball->target.x, arcball->target.y, arcball->target.z };
+		json["arcball"]["up"] = { arcball->up.x, arcball->up.y, arcball->up.z };
+		json["arcball"]["speed"] = arcball->speed;
+	}
 	return json;
 }
 
@@ -443,10 +442,9 @@ void Scene::save(const Path& path, const World& world)
 		if (r.has<DirectionalLightComponent>(e)) entity["components"]["dirlight"] = serialize<DirectionalLightComponent>(r, e);
 		if (r.has<PointLightComponent>(e))       entity["components"]["pointlight"] = serialize<PointLightComponent>(r, e);
 		if (r.has<Camera3DComponent>(e))         entity["components"]["camera"] = serialize<Camera3DComponent>(r, e);
-		if (r.has<ArcballCameraComponent>(e))    entity["components"]["arcball"] = serialize<ArcballCameraComponent>(r, e);
 		std::string id = std::to_string((entt::id_type)e);
 		json["entities"][id] = entity;
-		});
+	});
 
 	if (!File::writeString(path, json.dump()))
 	{
@@ -496,7 +494,13 @@ void Scene::load(World& world, const Path& path)
 			else if (name == "transform")
 			{
 				world.registry().emplace<Transform3DComponent>(entity);
-				world.registry().get<Transform3DComponent>(entity).transform = mat4f::identity();
+				AKA_ASSERT(component["matrix"].size() == 16, "Invalid matrix");
+				world.registry().get<Transform3DComponent>(entity).transform = mat4f(
+					col4f(component["matrix"][0], component["matrix"][1], component["matrix"][2], component["matrix"][3]),
+					col4f(component["matrix"][4], component["matrix"][5], component["matrix"][6], component["matrix"][7]),
+					col4f(component["matrix"][8], component["matrix"][9], component["matrix"][10], component["matrix"][11]),
+					col4f(component["matrix"][12], component["matrix"][13], component["matrix"][14], component["matrix"][15])
+				);
 			}
 			else if (name == "mesh")
 			{
@@ -521,8 +525,6 @@ void Scene::load(World& world, const Path& path)
 			{
 				world.registry().emplace<MaterialComponent>(entity);
 				MaterialComponent& material = world.registry().get<MaterialComponent>(entity);
-				uint8_t data[] = { 255, 255, 255, 255 };
-				uint8_t dataNormal[] = { 128, 128, 255, 255 };
 				material.color = color4f(
 					component["color"][0].get<float>(), 
 					component["color"][1].get<float>(), 
@@ -538,43 +540,74 @@ void Scene::load(World& world, const Path& path)
 			{
 				world.registry().emplace<PointLightComponent>(entity);
 				PointLightComponent& light = world.registry().get<PointLightComponent>(entity);
-				light.color = color3f(1);
+				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
+				light.intensity = component["intensity"];
 				light.radius = 1.f;
-				light.intensity = 1.f;
 				light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
 			}
 			else if (name == "dirlight")
 			{
 				world.registry().emplace<DirectionalLightComponent>(entity);
 				DirectionalLightComponent& light = world.registry().get<DirectionalLightComponent>(entity);
-				light.color = color3f(1);
-				light.direction = vec3f::normalize(vec3f(1.f));
-				light.intensity = 1.f;
-				light.shadowMap[0] = Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
-				light.shadowMap[1] = Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
-				light.shadowMap[2] = Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
+				light.direction = vec3f(component["direction"][0].get<float>(), component["direction"][1].get<float>(), component["direction"][2].get<float>());
+				light.intensity = component["intensity"];
+				light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+				light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
+				light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, Sampler{});
 			}
 			else if (name == "camera")
 			{
 				world.registry().emplace<Camera3DComponent>(entity);
 				Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
-				CameraPerspective* p = new CameraPerspective;
-				p->nearZ = 0.01f;
-				p->farZ = 100.f;
-				p->hFov = anglef::degree(60.f);
-				p->ratio = 16.f / 9.f;
-				camera.projection = p; // leak
+				// projection
+				if (component.find("perspective") != component.end())
+				{
+					auto persp = std::make_unique<CameraPerspective>();
+					persp->hFov = anglef::degree(component["perspective"]["fov"].get<float>());
+					persp->nearZ = component["perspective"]["near"].get<float>();
+					persp->farZ = component["perspective"]["far"].get<float>();
+					persp->ratio = component["perspective"]["ratio"].get<float>();
+					camera.projection = std::move(persp);
+				}
+				else if (component.find("orthographic") != component.end())
+				{
+					auto ortho = std::make_unique<CameraOrthographic>();
+					ortho->viewport = vec2f(component["orthographic"]["x"].get<float>(), component["orthographic"]["y"].get<float>());
+					camera.projection = std::move(ortho);
+				}
+				else
+				{
+					Logger::warn("No projection found for camera. Default to perspective");
+					auto persp = std::make_unique<CameraPerspective>();
+					persp->hFov = anglef::degree(60.f);
+					persp->nearZ = 0.1f;
+					persp->farZ = 100.f;
+					persp->ratio = 1.f;
+					camera.projection = std::move(persp);
+				}
+				// controller
+				if (component.find("arcball") != component.end())
+				{
+					nlohmann::json& a = component["arcball"];
+					auto arcball = std::make_unique<CameraArcball>();
+					arcball->position = point3f(a["position"][0].get<float>(), a["position"][1].get<float>(), a["position"][2].get<float>());
+					arcball->target = point3f(a["target"][0].get<float>(), a["target"][1].get<float>(), a["target"][2].get<float>());
+					arcball->up = norm3f(a["up"][0].get<float>(), a["up"][1].get<float>(), a["up"][2].get<float>());
+					arcball->speed = a["speed"].get<float>();
+					camera.controller = std::move(arcball);
+				}
+				else 
+				{
+					Logger::warn("No controller found for camera. Default to arcball.");
+					auto arcball = std::make_unique<CameraArcball>();
+					arcball->position = point3f(1.f);
+					arcball->target = point3f(0.f);
+					arcball->up = norm3f(0.f, 1.f, 0.f);
+					arcball->speed = 1.f;
+					camera.controller = std::move(arcball);
+				}
 				camera.view; // auto set
-			}
-			else if (name == "arcball")
-			{
-				world.registry().emplace<ArcballCameraComponent>(entity);
-				ArcballCameraComponent& camera = world.registry().get<ArcballCameraComponent>(entity);
-				camera.position = point3f(1.f);
-				camera.target = point3f(0.f);
-				camera.up = norm3f(0.f, 1.f, 0.f);
-				camera.active = false;
-				camera.speed = 1.f;
 			}
 		}
 		

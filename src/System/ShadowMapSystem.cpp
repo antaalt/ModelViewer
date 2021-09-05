@@ -72,7 +72,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 	mat4f view = camera.view;
 	mat4f projection = camera.projection->projection();
 	// TODO near far as ortho aswell
-	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(camera.projection);
+	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(camera.projection.get());
 	AKA_ASSERT(perspective != nullptr, "Only support perspective camera for now.");
 
 	// --- Shadow map system
