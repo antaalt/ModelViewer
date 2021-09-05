@@ -90,6 +90,8 @@ void Viewer::onCreate()
 			camera.projection = std::move(perspective);
 			camera.controller = std::move(arcball);
 		}
+
+		m_world.registry().patch<Camera3DComponent>(m_camera.handle());
 	}
 	
 
