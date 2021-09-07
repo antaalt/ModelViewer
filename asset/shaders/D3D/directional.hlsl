@@ -47,6 +47,7 @@ vs_out vs_main(vs_in input)
 	vs_out output;
 	output.texcoord = input.position * float2(0.5, 0.5) + float2(0.5, 0.5);
 	output.position = float4(input.position, 0.0, 1.0);
+	output.texcoord.y = 1.f - output.texcoord.y;
 	return output;
 }
 

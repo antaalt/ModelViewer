@@ -78,7 +78,12 @@ void Viewer::onCreate(int argc, char* argv[])
 			perspective->ratio = width() / (float)height();
 
 			auto arcball = std::make_unique<CameraArcball>();
-			arcball->set(aabbox<>(point3f(0.f), point3f(1.f)));
+			aabbox<> bounds;
+			auto view = m_world.registry().view<Transform3DComponent, MeshComponent>();
+			view.each([&](Transform3DComponent& t, MeshComponent& mesh) {
+				bounds.include(t.transform * mesh.bounds);
+			});
+			arcball->set(bounds);
 
 			transform.transform = arcball->transform();
 			camera.view = mat4f::inverse(transform.transform);
