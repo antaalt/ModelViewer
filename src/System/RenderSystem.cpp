@@ -29,6 +29,8 @@ struct alignas(16) PointLightUniformBuffer {
 struct alignas(16) CameraUniformBuffer {
 	alignas(16) mat4f view;
 	alignas(16) mat4f projection;
+	alignas(16) mat4f viewInverse;
+	alignas(16) mat4f projectionInverse;
 };
 struct alignas(16) ViewportUniformBuffer {
 	alignas(8) vec2f viewport;
@@ -247,6 +249,8 @@ void RenderSystem::onRender(aka::World& world)
 	CameraUniformBuffer cameraUBO;
 	cameraUBO.view = view;
 	cameraUBO.projection = projection;
+	cameraUBO.viewInverse = cameraEntity.get<Transform3DComponent>().transform;
+	cameraUBO.projectionInverse = mat4f::inverse(projection);
 	m_cameraUniformBuffer->upload(&cameraUBO);
 	ViewportUniformBuffer viewportUBO;
 	viewportUBO.viewport = vec2f(backbuffer->width(), backbuffer->height());

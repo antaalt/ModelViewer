@@ -9,6 +9,8 @@ layout(std140) uniform ModelUniformBuffer {
 layout(std140) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
+	mat4 u_viewInverse;
+	mat4 u_projectionInverse;
 };
 
 void main(void)

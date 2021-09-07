@@ -13,6 +13,8 @@ uniform samplerCube u_skyboxTexture;
 layout(std140) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
+	mat4 u_viewInverse;
+	mat4 u_projectionInverse;
 };
 
 void main(void)
@@ -24,7 +26,7 @@ void main(void)
 	float ao = material.r;
 
 	vec3 N = normalize(normal);
-	vec3 V = normalize(vec3(u_view[3]) - position);
+	vec3 V = normalize(vec3(u_viewInverse[3]) - position);
 	vec3 I = -V;
 
 	// Reflection

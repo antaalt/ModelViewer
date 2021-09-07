@@ -2,6 +2,8 @@ cbuffer CameraUniformBuffer : register(b0)
 {
 	float4x4 u_view;
 	float4x4 u_projection;
+	float4x4 u_viewInverse;
+	float4x4 u_projectionInverse;
 };
 
 struct vs_in
@@ -46,7 +48,7 @@ float4 ps_main(vs_out input) : SV_TARGET
 
 
 	float3 N = normalize(float3(normal.x, normal.y, normal.z));
-	float3 V = normalize(float3(u_view[0][0], u_view[0][1], u_view[0][2]) - float3(position.x, position.y, position.z));
+	float3 V = normalize(float3(u_viewInverse[0][0], u_viewInverse[0][1], u_viewInverse[0][2]) - float3(position.x, position.y, position.z));
 	float3 I = -V;
 
 	// Reflection

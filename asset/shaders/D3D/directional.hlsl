@@ -15,6 +15,8 @@ cbuffer CameraUniformBuffer: register(b1)
 {
 	float4x4 u_view;
 	float4x4 u_projection;
+	float4x4 u_viewInverse;
+	float4x4 u_projectionInverse;
 };
 
 Texture2D    u_positionTexture;
@@ -165,7 +167,7 @@ float4 ps_main(vs_out input) : SV_TARGET
 	float metalness = material.b;
 
 	float3 N = normalize(normal.xyz);
-	float3 V = normalize(float3(u_view[0][0], u_view[0][1], u_view[0][2]) - position.xyz);
+	float3 V = normalize(float3(u_viewInverse[0][0], u_viewInverse[0][1], u_viewInverse[0][2]) - position.xyz);
 	float3 I = -V;
 
 	// Shadow

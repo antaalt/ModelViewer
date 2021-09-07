@@ -28,6 +28,8 @@ layout(std140) uniform PointLightUniformBuffer {
 layout(std140) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
+	mat4 u_viewInverse;
+	mat4 u_projectionInverse;
 };
 #ifndef QUAD
 layout(std140) uniform ViewportUniformBuffer {
@@ -120,7 +122,7 @@ void main(void)
 	float metalness = material.b;
 
 	vec3 N = normalize(normal);
-	vec3 V = normalize(vec3(u_view[3]) - position);
+	vec3 V = normalize(vec3(u_viewInverse[3]) - position);
 	vec3 I = -V;
 
 	// Shadow

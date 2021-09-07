@@ -8,6 +8,8 @@ cbuffer CameraUniformBuffer : register(b1)
 {
 	float4x4 u_view;
 	float4x4 u_projection;
+	float4x4 u_viewInverse;
+	float4x4 u_projectionInverse;
 };
 
 struct vs_in

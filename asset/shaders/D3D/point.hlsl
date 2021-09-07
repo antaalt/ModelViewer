@@ -10,6 +10,8 @@ cbuffer CameraUniformBuffer : register(b1)
 {
 	float4x4 u_view;
 	float4x4 u_projection;
+	float4x4 u_viewInverse;
+	float4x4 u_projectionInverse;
 };
 
 cbuffer PointLightUniformBuffer : register(b2)
@@ -131,7 +133,7 @@ float4 ps_main(float4 input : SV_POSITION) : SV_TARGET
 	float metalness = material.b;
 
 	float3 N = normalize(normal.xyz);
-	float3 V = normalize(float3(u_view[0][0], u_view[0][1], u_view[0][2]) - position.xyz);
+	float3 V = normalize(float3(u_viewInverse[0][0], u_viewInverse[0][1], u_viewInverse[0][2]) - position.xyz);
 	float3 I = -V;
 
 	// Shadow
