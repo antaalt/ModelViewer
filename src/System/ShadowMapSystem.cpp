@@ -6,6 +6,20 @@ namespace viewer {
 
 using namespace aka;
 
+struct alignas(16) LightModelUniformBuffer {
+	alignas(16) mat4f model;
+};
+
+struct alignas(16) DirectionalLightUniformBuffer {
+	alignas(16) mat4f light;
+};
+
+struct alignas(16) PointLightUniformBuffer {
+	alignas(16) mat4f lights[6];
+	alignas(16) vec3f lightPos;
+	alignas(4) float far;
+};
+
 void ShadowMapSystem::onCreate(aka::World& world)
 {
 	createShaders();
@@ -18,6 +32,9 @@ void ShadowMapSystem::onCreate(aka::World& world)
 		}
 	};
 	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
+	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(LightModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
+	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
+	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
 }
 
 void ShadowMapSystem::onDestroy(aka::World& world)
@@ -75,6 +92,11 @@ void ShadowMapSystem::onRender(aka::World& world)
 	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(camera.projection.get());
 	AKA_ASSERT(perspective != nullptr, "Only support perspective camera for now.");
 
+	m_shadowPointMaterial->set("LightModelUniformBuffer", m_modelUniformBuffer);
+	m_shadowPointMaterial->set("PointLightUniformBuffer", m_pointLightUniformBuffer);
+	m_shadowMaterial->set("LightModelUniformBuffer", m_modelUniformBuffer);
+	m_shadowMaterial->set("DirectionalLightUniformBuffer", m_directionalLightUniformBuffer);
+
 	// --- Shadow map system
 	auto pointLightUpdate = world.registry().view<DirtyLightComponent, PointLightComponent>();
 	auto dirLightUpdate = world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
@@ -104,17 +126,24 @@ void ShadowMapSystem::onRender(aka::World& world)
 		shadowPass.viewport = aka::Rect{ 0 };
 		shadowPass.scissor = aka::Rect{ 0 };
 
+		// Set output target and clear it.
 		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-		m_shadowPointMaterial->set<mat4f>("u_lights", light.worldToLightSpaceMatrix, 6);
-		m_shadowPointMaterial->set<vec3f>("u_lightPos", vec3f(transform.transform.cols[3]));
-		m_shadowPointMaterial->set<float>("u_far", light.radius);
+		// Update light ubo
+		PointLightUniformBuffer pointUBO;
+		pointUBO.far = light.radius;
+		pointUBO.lightPos = vec3f(transform.transform.cols[3]);
+		memcpy(pointUBO.lights, light.worldToLightSpaceMatrix, sizeof(light.worldToLightSpaceMatrix));
+		m_pointLightUniformBuffer->upload(&pointUBO);
+
+		LightModelUniformBuffer modelUBO;
 		auto view = world.registry().view<Transform3DComponent, MeshComponent>();
 		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-			m_shadowPointMaterial->set<mat4f>("u_model", transform.transform);
+			modelUBO.model = transform.transform;
+			m_modelUniformBuffer->upload(&modelUBO);
 			shadowPass.submesh = mesh.submesh;
 			shadowPass.execute();
-			});
+		});
 		world.registry().remove<DirtyLightComponent>(e);
 	}
 
@@ -150,16 +179,21 @@ void ShadowMapSystem::onRender(aka::World& world)
 		{
 			m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap[i]);
 			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-			m_shadowMaterial->set<mat4f>("u_light", light.worldToLightSpaceMatrix[i]);
+			DirectionalLightUniformBuffer lightUBO;
+			lightUBO.light = light.worldToLightSpaceMatrix[i];
+			m_directionalLightUniformBuffer->upload(&lightUBO);
+
+			LightModelUniformBuffer modelUBO;
 			auto view = world.registry().view<Transform3DComponent, MeshComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
 				frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
 				if (!p.intersect(transform.transform * mesh.bounds))
 					return;
-				m_shadowMaterial->set<mat4f>("u_model", transform.transform);
+				modelUBO.model = transform.transform;
+				m_modelUniformBuffer->upload(&modelUBO);
 				shadowPass.submesh = mesh.submesh;
 				shadowPass.execute();
-				});
+			});
 		}
 		world.registry().remove<DirtyLightComponent>(e);
 	}
@@ -180,43 +214,43 @@ void ShadowMapSystem::createShaders()
 	};
 	{
 #if defined(AKA_USE_OPENGL)
-		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")), ShaderType::Vertex);
-		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")), ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")).c_str(), ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")).c_str(), ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/shadow.hlsl"));
-		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
-		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile shadow shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
+			if (shader != nullptr)
 				m_shadowMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")), ShaderType::Vertex);
-		ShaderID geo = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.geo")), ShaderType::Geometry);
-		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.frag")), ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")).c_str(), ShaderType::Vertex);
+		ShaderHandle geo = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.geo")).c_str(), ShaderType::Geometry);
+		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.frag")).c_str(), ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/shadowPoint.hlsl"));
-		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
-		ShaderID geo = Shader::compile(str, ShaderType::Geometry);
-		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
+		ShaderHandle geo = Shader::compile(str.c_str(), ShaderType::Geometry);
+		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0) || geo == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0) || geo == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile shadow point shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::createGeometry(vert, frag, geo, defaultAttributes.data(), defaultAttributes.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createGeometryProgram(vert, frag, geo, defaultAttributes.data(), defaultAttributes.size());
+			if (shader != nullptr)
 				m_shadowPointMaterial = aka::ShaderMaterial::create(shader);
 		}
 	}

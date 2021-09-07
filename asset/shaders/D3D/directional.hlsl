@@ -2,15 +2,20 @@
 static const int SHADOW_CASCADE_COUNT = 3;
 static const float PI = 3.14159265359;
 
-cbuffer constants : register(b0)
+cbuffer DirectionalLightUniformBuffer: register(b0)
 {
-	float3 u_cameraPos;
 	float3 u_lightDirection;
-	float3 u_lightColor;
 	float u_lightIntensity;
+	float3 u_lightColor;
 	float4x4 u_worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
 	float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
-}
+};
+
+cbuffer CameraUniformBuffer: register(b1)
+{
+	float4x4 u_view;
+	float4x4 u_projection;
+};
 
 Texture2D    u_positionTexture;
 SamplerState u_positionSampler;
@@ -23,8 +28,8 @@ SamplerState u_materialSampler;
 
 Texture2D    u_depthTexture;
 SamplerState u_depthSampler;
-TextureCube  u_shadowMap;
-SamplerState u_shadowMapSampler;
+Texture2D    u_shadowMap[SHADOW_CASCADE_COUNT];
+SamplerState u_shadowMapSampler[SHADOW_CASCADE_COUNT];
 
 struct vs_in
 {
@@ -83,7 +88,7 @@ float3 computeDirectionalShadows(float3 from, float2 uv)
 		float offset = random(uv.xyy, iCascade) * 0.0001;
 		if (u_depthTexture.Sample(u_depthSampler, uv).x <= (u_cascadeEndClipSpace[iCascade] + offset))
 		{
-#if 1 // Debug cascades
+#if 0 // Debug cascades
 			visibility = float3(
 				(iCascade == 0) ? 1.0 : 0.0,
 				(iCascade == 1) ? 1.0 : 0.0,
@@ -97,7 +102,7 @@ float3 computeDirectionalShadows(float3 from, float2 uv)
 			{
 				int index = int(sampleCount * random(uv.xyy, iPoisson)) % sampleCount;
 				float2 uv = lightTextureSpace.xy + poissonDisk[index] / diffusion[iCascade];
-				if (u_shadowMap.Sample(u_shadowMap[iCascade], uv).z < lightTextureSpace.z - bias)
+				if (u_shadowMap[iCascade].Sample(u_shadowMapSampler[iCascade], uv).z < lightTextureSpace.z - bias)
 				{
 					visibility -= 1.f / sampleCount;
 				}
@@ -159,7 +164,7 @@ float4 ps_main(vs_out input) : SV_TARGET
 	float metalness = material.b;
 
 	float3 N = normalize(normal.xyz);
-	float3 V = normalize(u_cameraPos - position.xyz);
+	float3 V = normalize(float3(u_view[0][0], u_view[0][1], u_view[0][2]) - position.xyz);
 	float3 I = -V;
 
 	// Shadow

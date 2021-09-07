@@ -4,11 +4,15 @@ layout (location = 1) in vec3 a_normal;
 layout (location = 2) in vec2 a_uv;
 layout (location = 3) in vec4 a_color;
 
-uniform mat4 u_model;
-uniform mat4 u_view;
-uniform mat4 u_projection;
-uniform mat3 u_normalMatrix;
-uniform vec4 u_color;
+layout(std140) uniform ModelUniformBuffer {
+	mat4 u_model;
+	mat3 u_normalMatrix;
+	vec4 u_color;
+};
+layout(std140) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+};
 
 out vec3 v_position; // world space
 out vec3 v_normal; // world space

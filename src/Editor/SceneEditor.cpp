@@ -235,12 +235,10 @@ static const char* vertShader =
 "layout (location = 1) in vec3 a_normal;\n"
 "layout (location = 2) in vec2 a_uv;\n"
 "layout (location = 3) in vec4 a_color;\n"
-"uniform mat4 u_model;\n"
-"uniform mat4 u_view;\n"
-"uniform mat4 u_projection;\n"
+"layout(std140) uniform ModelUniformBuffer { mat4 u_mvp; };\n"
 "out vec4 v_color; \n"
 "void main(void) {\n"
-"	gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);\n"
+"	gl_Position = u_mvp * vec4(a_position, 1.0);\n"
 "	v_color = a_color;\n"
 "}"
 "";
@@ -256,11 +254,9 @@ static const char* fragShader =
 #elif defined(AKA_USE_D3D11)
 
 static const char* shader = ""
-"cbuffer constants : register(b0)\n"
+"cbuffer ModelUniformBuffer : register(b0)\n"
 "{\n"
-"	row_major float4x4 u_model;\n"
-"	row_major float4x4 u_view;\n"
-"	row_major float4x4 u_projection;\n"
+"	float4x4 u_mvp;\n"
 "}\n"
 "struct vs_in\n"
 "{\n"
@@ -278,7 +274,7 @@ static const char* shader = ""
 "vs_out vs_main(vs_in input)\n"
 "{\n"
 "	vs_out output;\n"
-"	output.position = mul(mul(mul(float4(input.position, 1.0f), u_model), u_view), u_projection);\n"
+"	output.position = mul(u_mvp, float4(input.position, 1.0f));\n"
 "	output.color = input.color;\n"
 "	return output;\n"
 "}\n"
@@ -304,8 +300,14 @@ void SceneEditor::onCreate(World& world)
 		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	m_wireframeShader = Shader::create(Shader::compile(vertShader, ShaderType::Vertex), Shader::compile(fragShader, ShaderType::Fragment), att.data(), att.size());
+	ShaderHandle vert = Shader::compile(vertShader, ShaderType::Vertex);
+	ShaderHandle frag = Shader::compile(fragShader, ShaderType::Fragment);
+	m_wireframeShader = Shader::createVertexProgram(vert, frag, att.data(), att.size());
 	m_wireframeMaterial = ShaderMaterial::create(m_wireframeShader);
+	m_wireFrameUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
+	m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
+	Shader::destroy(vert);
+	Shader::destroy(frag);
 }
 
 void SceneEditor::onDestroy(World& world)
@@ -459,9 +461,8 @@ void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat
 	if (r.submesh.type == PrimitiveType::Triangles)
 	{
 		r.submesh.type = PrimitiveType::LineStrip;
-		r.material->set<mat4f>("u_model", model);
-		r.material->set<mat4f>("u_view", view);
-		r.material->set<mat4f>("u_projection", projection);
+		mat4f mvp = projection * view * model;
+		m_wireFrameUniformBuffer->upload(&mvp);
 		r.execute();
 	}
 }

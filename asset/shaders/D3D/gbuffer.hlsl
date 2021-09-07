@@ -1,12 +1,14 @@
-cbuffer constants : register(b0)
+cbuffer ModelUniformBuffer : register(b0)
 {
 	float4x4 u_model;
-	float4x4 u_view;
-	float4x4 u_projection;
 	float3x3 u_normalMatrix;
 	float4 u_color;
-}
-
+};
+cbuffer CameraUniformBuffer : register(b1)
+{
+	float4x4 u_view;
+	float4x4 u_projection;
+};
 
 struct vs_in
 {

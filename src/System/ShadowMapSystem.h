@@ -23,6 +23,9 @@ private:
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;
 	aka::ShaderMaterial::Ptr m_shadowPointMaterial;
+	aka::Buffer::Ptr m_modelUniformBuffer;
+	aka::Buffer::Ptr m_pointLightUniformBuffer;
+	aka::Buffer::Ptr m_directionalLightUniformBuffer;
 };
 
 };

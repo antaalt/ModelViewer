@@ -13,13 +13,20 @@ uniform sampler2D u_normalTexture;
 uniform sampler2D u_depthTexture;
 uniform sampler2D u_materialTexture;
 
-uniform vec3 u_cameraPos;
-uniform vec3 u_lightDirection;
-uniform float u_lightIntensity;
-uniform vec3 u_lightColor;
-uniform mat4 u_worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
-uniform float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
 uniform sampler2D u_shadowMap[SHADOW_CASCADE_COUNT];
+
+layout (std140) uniform DirectionalLightUniformBuffer {
+	vec3 u_lightDirection;
+	float u_lightIntensity;
+	vec3 u_lightColor;
+	mat4 u_worldToLightTextureSpace[SHADOW_CASCADE_COUNT];
+	float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
+};
+
+layout(std140) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+};
 
 vec2 poissonDisk[16] = vec2[](
 	vec2( -0.94201624, -0.39906216 ),
@@ -135,7 +142,7 @@ void main(void)
 	float metalness = material.b;
 
 	vec3 N = normalize(normal);
-	vec3 V = normalize(u_cameraPos - position);
+	vec3 V = normalize(vec3(u_view[3]) - position);
 	vec3 I = -V;
 
 	// Shadow

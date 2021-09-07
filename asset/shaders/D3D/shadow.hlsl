@@ -1,8 +1,11 @@
-cbuffer constants : register(b0)
+cbuffer LightModelUniformBuffer : register(b0)
+{
+	float4x4 u_model;
+};
+cbuffer DirectionalLightUniformBuffer : register(b1)
 {
 	float4x4 u_light;
-	float4x4 u_model;
-}
+};
 
 struct vs_in
 {

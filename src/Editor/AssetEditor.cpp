@@ -286,9 +286,9 @@ const char* toString(BufferType type)
 {
 	switch (type)
 	{
-	case aka::BufferType::VertexBuffer:
+	case aka::BufferType::Vertex:
 		return "VertexBuffer";
-	case aka::BufferType::IndexBuffer:
+	case aka::BufferType::Index:
 		return "IndexBuffer";
 	default:
 		return "Unknown";

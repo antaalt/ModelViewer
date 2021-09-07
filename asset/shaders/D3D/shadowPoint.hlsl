@@ -1,10 +1,13 @@
-cbuffer constants : register(b0)
+cbuffer LightModelUniformBuffer : register(b0)
+{
+	float4x4 u_model;
+};
+cbuffer PointLightUniformBuffer : register(b1)
 {
 	float4x4 u_lights[6];
-	float4x4 u_model;
 	float3 u_lightPos;
 	float u_far;
-}
+};
 
 struct gs_out
 {

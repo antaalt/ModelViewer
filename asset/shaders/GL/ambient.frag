@@ -10,7 +10,10 @@ uniform sampler2D u_normalTexture;
 uniform sampler2D u_materialTexture;
 uniform samplerCube u_skyboxTexture;
 
-uniform vec3 u_cameraPos;
+layout(std140) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+};
 
 void main(void)
 {
@@ -20,9 +23,8 @@ void main(void)
 	vec3 material = texture(u_materialTexture, v_uv).rgb; // AO / roughness / metalness
 	float ao = material.r;
 
-
 	vec3 N = normalize(normal);
-	vec3 V = normalize(u_cameraPos - position);
+	vec3 V = normalize(vec3(u_view[3]) - position);
 	vec3 I = -V;
 
 	// Reflection

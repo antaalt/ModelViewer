@@ -20,6 +20,7 @@ private:
 
 	aka::Shader::Ptr m_wireframeShader;
 	aka::ShaderMaterial::Ptr m_wireframeMaterial;
+	aka::Buffer::Ptr m_wireFrameUniformBuffer;
 };
 
 };

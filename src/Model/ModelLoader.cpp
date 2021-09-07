@@ -156,7 +156,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Path indexBufferPath = "library/buffer/" + indexBufferName + ".buffer";
 		{
 			BufferStorage indexBuffer;
-			indexBuffer.type = BufferType::VertexBuffer;
+			indexBuffer.type = BufferType::Index;
 			indexBuffer.access = BufferCPUAccess::None;
 			indexBuffer.usage = BufferUsage::Immutable;
 			indexBuffer.bytes.resize(indices.size() * sizeof(uint32_t));
@@ -171,7 +171,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Path vertexBufferPath = "library/buffer/" + vertexBufferName + ".buffer";
 		{
 			BufferStorage vertexBuffer;
-			vertexBuffer.type = BufferType::VertexBuffer;
+			vertexBuffer.type = BufferType::Vertex;
 			vertexBuffer.access = BufferCPUAccess::None;
 			vertexBuffer.usage = BufferUsage::Immutable;
 			vertexBuffer.bytes.resize(vertices.size() * sizeof(Vertex));

@@ -2,7 +2,11 @@
 layout (triangles) in;
 layout (triangle_strip, max_vertices=18) out;
 
-uniform mat4 u_lights[6];
+layout(std140) uniform PointLightUniformBuffer {
+	mat4 u_lights[6];
+	vec3 u_lightPos;
+	float u_far;
+};
 
 out vec4 v_position;
 

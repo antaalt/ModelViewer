@@ -6,12 +6,55 @@ namespace viewer {
 
 using namespace aka;
 
+// Array of type are aligned as 16 in std140 (???) 
+struct alignas(16) Aligned16Float {
+	float data;
+};
+
+struct alignas(16) DirectionalLightUniformBuffer {
+	alignas(16) vec3f direction;
+	alignas(4) float intensity;
+	alignas(16) vec3f color;
+	alignas(16) mat4f worldToLightTextureSpace[DirectionalLightComponent::cascadeCount];
+	alignas(16) Aligned16Float cascadeEndClipSpace[DirectionalLightComponent::cascadeCount];
+};
+
+struct alignas(16) PointLightUniformBuffer {
+	alignas(16) vec3f lightPosition;
+	alignas(4) float lightIntensity;
+	alignas(16) color3f lightColor;
+	alignas(4) float farPointLight;
+};
+
+struct alignas(16) CameraUniformBuffer {
+	alignas(16) mat4f view;
+	alignas(16) mat4f projection;
+};
+struct alignas(16) ViewportUniformBuffer {
+	alignas(8) vec2f viewport;
+	alignas(8) vec2f rcp;
+};
+struct alignas(16) ModelUniformBuffer {
+	alignas(16) mat4f model;
+	alignas(16) vec3f normalMatrix0;
+	alignas(16) vec3f normalMatrix1;
+	alignas(16) vec3f normalMatrix2;
+	alignas(16) color4f color;
+};
+
 void RenderSystem::onCreate(aka::World& world)
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 
 	createShaders();
 	createRenderTargets(backbuffer->width(), backbuffer->height());
+
+	// --- Uniforms
+	m_cameraUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_viewportUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(ViewportUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(ModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot. use dynamic
+	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
+	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
 
 	// --- Lighting pass
 	float quadVertices[] = {
@@ -26,7 +69,7 @@ void RenderSystem::onCreate(aka::World& world)
 		VertexAccessor{
 			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
 			VertexBufferView{
-				Buffer::create(BufferType::VertexBuffer, sizeof(quadVertices), BufferUsage::Immutable, BufferCPUAccess::None, quadVertices),
+				Buffer::create(BufferType::Vertex, sizeof(quadVertices), BufferUsage::Immutable, BufferCPUAccess::None, quadVertices),
 				0, // offset
 				sizeof(quadVertices), // size
 				sizeof(float) * 2 // stride
@@ -38,7 +81,7 @@ void RenderSystem::onCreate(aka::World& world)
 	IndexAccessor quadIndexInfo{};
 	quadIndexInfo.format = IndexFormat::UnsignedShort;
 	quadIndexInfo.count = 6;
-	quadIndexInfo.bufferView.buffer = Buffer::create(BufferType::IndexBuffer, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
+	quadIndexInfo.bufferView.buffer = Buffer::create(BufferType::Index, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
 	quadIndexInfo.bufferView.offset = 0;
 	quadIndexInfo.bufferView.size = (uint32_t)quadIndexInfo.bufferView.buffer->size();
 	m_quad->upload(quadVertexInfo.data(), quadVertexInfo.size(), quadIndexInfo);
@@ -128,13 +171,13 @@ void RenderSystem::onCreate(aka::World& world)
 	VertexAccessor skyboxVertexInfo = {
 		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
 		VertexBufferView{
-			Buffer::create(BufferType::VertexBuffer, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
+			Buffer::create(BufferType::Vertex	, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
 			0, // offset
 			sizeof(skyboxVertices), // size
 			sizeof(float) * 3 // stride
 		},
 		0, // offset
-		sizeof(skyboxVertices) / sizeof(float) // count
+		sizeof(skyboxVertices) / (sizeof(float) * 3) // count
 	};
 	m_cube->upload(&skyboxVertexInfo, 1);
 }
@@ -180,6 +223,28 @@ void RenderSystem::onRender(aka::World& world)
 	mat4f view = camera.view;
 	mat4f projection = camera.projection->projection();
 
+	// --- Update Uniforms
+	m_gbufferMaterial->set("ModelUniformBuffer", m_modelUniformBuffer);
+	m_gbufferMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_ambientMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_dirMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_dirMaterial->set("DirectionalLightUniformBuffer", m_directionalLightUniformBuffer);
+	m_pointMaterial->set("PointLightUniformBuffer", m_pointLightUniformBuffer);
+	m_pointMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_pointMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
+	m_pointMaterial->set("ModelUniformBuffer", m_modelUniformBuffer);
+	m_pointMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_skyboxMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
+	m_postprocessMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
+	// TODO only update on camera move / update
+	CameraUniformBuffer cameraUBO;
+	cameraUBO.view = view;
+	cameraUBO.projection = projection;
+	m_cameraUniformBuffer->upload(&cameraUBO);
+	ViewportUniformBuffer viewportUBO;
+	viewportUBO.viewport = vec2f(backbuffer->width(), backbuffer->height());
+	m_viewportUniformBuffer->upload(&viewportUBO);
+
 	auto renderableView = world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
 
 	// --- G-Buffer pass
@@ -195,9 +260,6 @@ void RenderSystem::onRender(aka::World& world)
 	gbufferPass.viewport = aka::Rect{ 0 };
 	gbufferPass.scissor = aka::Rect{ 0 };
 
-	m_gbufferMaterial->set<mat4f>("u_view", view);
-	m_gbufferMaterial->set<mat4f>("u_projection", projection);
-
 	m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
 
 	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
@@ -207,15 +269,19 @@ void RenderSystem::onRender(aka::World& world)
 		if (!p.intersect(transform.transform * mesh.bounds))
 			return;
 
-		aka::mat4f model = transform.transform;
-		aka::mat3f normal = aka::mat3f::transpose(aka::mat3f::inverse(mat3f(model)));
-		aka::color4f color = material.color;
-		m_gbufferMaterial->set<mat4f>("u_model", model);
-		m_gbufferMaterial->set<mat3f>("u_normalMatrix", normal);
-		m_gbufferMaterial->set<color4f>("u_color", color);
-		m_gbufferMaterial->set<Texture::Ptr>("u_materialTexture", material.materialTexture);
-		m_gbufferMaterial->set<Texture::Ptr>("u_colorTexture", material.colorTexture);
-		m_gbufferMaterial->set<Texture::Ptr>("u_normalTexture", material.normalTexture);
+		ModelUniformBuffer modelUBO;
+		modelUBO.model = transform.transform;
+		mat3f normalMatrix = mat3f::transpose(mat3f::inverse(mat3f(transform.transform)));
+		modelUBO.normalMatrix0 = vec3f(normalMatrix[0]);
+		modelUBO.normalMatrix1 = vec3f(normalMatrix[1]);
+		modelUBO.normalMatrix2 = vec3f(normalMatrix[2]);
+		modelUBO.color = material.color;
+		m_modelUniformBuffer->upload(&modelUBO);
+
+		gbufferPass.material->set("u_materialTexture", material.materialTexture);
+		gbufferPass.material->set("u_colorTexture", material.colorTexture);
+		gbufferPass.material->set("u_normalTexture", material.normalTexture);
+
 		gbufferPass.submesh = mesh.submesh;
 
 		gbufferPass.execute();
@@ -254,33 +320,38 @@ void RenderSystem::onRender(aka::World& world)
 
 	// --- Ambient light
 	lightingPass.material = m_ambientMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_skyboxTexture", m_skybox);
+	lightingPass.material->set("u_positionTexture", m_position);
+	lightingPass.material->set("u_albedoTexture", m_albedo);
+	lightingPass.material->set("u_normalTexture", m_normal);
 	//lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
-	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(cameraEntity.get<Transform3DComponent>().transform[3]));
+	lightingPass.material->set("u_skyboxTexture", m_skybox);
+
 	lightingPass.execute();
 
 	// --- Directional lights
 	lightingPass.material = m_dirMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_depthTexture", m_depth);
-	lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
-	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(cameraEntity.get<Transform3DComponent>().transform[3]));
+	lightingPass.material->set("u_positionTexture", m_position);
+	lightingPass.material->set("u_albedoTexture", m_albedo);
+	lightingPass.material->set("u_normalTexture", m_normal);
+	lightingPass.material->set("u_depthTexture", m_depth);
+	lightingPass.material->set("u_materialTexture", m_material);
+	
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
 		mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 			worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
-		lightingPass.material->set<vec3f>("u_lightDirection", light.direction);
-		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
-		lightingPass.material->set<color3f>("u_lightColor", light.color);
-		lightingPass.material->set<mat4f>("u_worldToLightTextureSpace", worldToLightTextureSpaceMatrix, DirectionalLightComponent::cascadeCount);
-		lightingPass.material->set<float>("u_cascadeEndClipSpace", light.cascadeEndClipSpace, DirectionalLightComponent::cascadeCount);
-		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap, DirectionalLightComponent::cascadeCount);
+
+		DirectionalLightUniformBuffer directionalUBO;
+		directionalUBO.direction = light.direction;
+		directionalUBO.intensity = light.intensity;
+		directionalUBO.color = vec3f(light.color.r, light.color.g, light.color.b);
+		memcpy(directionalUBO.worldToLightTextureSpace, worldToLightTextureSpaceMatrix, sizeof(worldToLightTextureSpaceMatrix));
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+			directionalUBO.cascadeEndClipSpace[i].data = light.cascadeEndClipSpace[i];
+		m_directionalLightUniformBuffer->upload(&directionalUBO);
+
+		lightingPass.material->set("u_shadowMap", light.shadowMap, DirectionalLightComponent::cascadeCount);
 		lightingPass.execute();
 	});
 
@@ -289,12 +360,11 @@ void RenderSystem::onRender(aka::World& world)
 	lightingPass.submesh = SubMesh{ m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0 };
 	lightingPass.cull = Culling{ CullMode::FrontFace, CullOrder::CounterClockWise }; // Important to avoid rendering 2 times or clipping
 	lightingPass.material = m_pointMaterial;
-	lightingPass.material->set<Texture::Ptr>("u_positionTexture", m_position);
-	lightingPass.material->set<Texture::Ptr>("u_albedoTexture", m_albedo);
-	lightingPass.material->set<Texture::Ptr>("u_normalTexture", m_normal);
-	lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
-	lightingPass.material->set<vec2f>("u_screen", vec2f(m_storage->width(), m_storage->height()));
-	lightingPass.material->set<vec3f>("u_cameraPos", vec3f(cameraEntity.get<Transform3DComponent>().transform[3]));
+	lightingPass.material->set("u_positionTexture", m_position);
+	lightingPass.material->set("u_albedoTexture", m_albedo);
+	lightingPass.material->set("u_normalTexture", m_normal);
+	lightingPass.material->set("u_materialTexture", m_material);
+
 	auto pointShadows = world.registry().view<Transform3DComponent, PointLightComponent>();
 	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
 		point3f position(transform.transform.cols[3]);
@@ -302,13 +372,19 @@ void RenderSystem::onRender(aka::World& world)
 		frustum<>::planes p = frustum<>::extract(projection * view);
 		if (!p.intersect(transform.transform * bounds))
 			return;
+
+		PointLightUniformBuffer pointUBO;
+		pointUBO.lightPosition = vec3f(position);
+		pointUBO.lightIntensity = light.intensity;
+		pointUBO.lightColor = light.color;
+		pointUBO.farPointLight = light.radius;
+		m_pointLightUniformBuffer->upload(&pointUBO);
+
 		mat4f model = transform.transform * mat4f::scale(vec3f(light.radius));
-		lightingPass.material->set<mat4f>("u_mvp", projection* view * model);
-		lightingPass.material->set<vec3f>("u_lightPosition", vec3f(position));
-		lightingPass.material->set<float>("u_lightIntensity", light.intensity);
-		lightingPass.material->set<color3f>("u_lightColor", light.color);
-		lightingPass.material->set<Texture::Ptr>("u_shadowMap", light.shadowMap);
-		lightingPass.material->set<float>("u_farPointLight", light.radius);
+		m_modelUniformBuffer->upload(&model, sizeof(mat4f), offsetof(ModelUniformBuffer, model));
+
+		lightingPass.material->set("u_shadowMap", light.shadowMap);
+
 		lightingPass.execute();
 	});
 
@@ -330,9 +406,7 @@ void RenderSystem::onRender(aka::World& world)
 	skyboxPass.scissor = aka::Rect{ 0 };
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	skyboxPass.material->set<Texture::Ptr>("u_skyboxTexture", m_skybox);
-	skyboxPass.material->set<mat4f>("u_view", mat4f(mat3f(view))); // TODO mvp
-	skyboxPass.material->set<mat4f>("u_projection", projection);
+	skyboxPass.material->set("u_skyboxTexture", m_skybox);
 
 	skyboxPass.execute();
 
@@ -352,9 +426,7 @@ void RenderSystem::onRender(aka::World& world)
 	postProcessPass.scissor = aka::Rect{ 0 };
 	postProcessPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
-	postProcessPass.material->set<Texture::Ptr>("u_inputTexture", m_storage);
-	postProcessPass.material->set<uint32_t>("u_width", backbuffer->width());
-	postProcessPass.material->set<uint32_t>("u_height", backbuffer->height());
+	postProcessPass.material->set("u_inputTexture", m_storage);
 
 	postProcessPass.execute();
 
@@ -393,123 +465,135 @@ void RenderSystem::createShaders()
 	};
 	{
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")), aka::ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")).c_str(), aka::ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")).c_str(), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/gbuffer.hlsl"));
-		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(str.c_str(), aka::ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(str.c_str(), aka::ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile gbuffer shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
+			if (shader != nullptr)
 				m_gbufferMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")), aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")).c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")).c_str(), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/point.hlsl"));
-		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile point light shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
+			if (shader != nullptr)
 				m_pointMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/directional.frag")), aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/directional.frag")).c_str(), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/directional.hlsl"));
-		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile directional light shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
+			if (shader != nullptr)
 				m_dirMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/ambient.frag")), aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/ambient.frag")).c_str(), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/ambient.hlsl"));
-		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile ambient shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
+			if (shader != nullptr)
 				m_ambientMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		ShaderID vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")), ShaderType::Vertex);
-		ShaderID frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")), ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")).c_str(), ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")).c_str(), ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/skybox.hlsl"));
-		ShaderID vert = Shader::compile(str, ShaderType::Vertex);
-		ShaderID frag = Shader::compile(str, ShaderType::Fragment);
+		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
+		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile skybox shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, cubeAttribute.data(), cubeAttribute.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, cubeAttribute.data(), cubeAttribute.size());
+			if (shader != nullptr)
 				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 	{
 #if defined(AKA_USE_OPENGL)
-		aka::ShaderID vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")), aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/postProcess.frag")), aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/postProcess.frag")).c_str(), aka::ShaderType::Fragment);
 #else
 		std::string str = File::readString(Asset::path("shaders/D3D/postProcess.hlsl"));
-		aka::ShaderID vert = aka::Shader::compile(str, aka::ShaderType::Vertex);
-		aka::ShaderID frag = aka::Shader::compile(str, aka::ShaderType::Fragment);
+		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
+		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
 #endif
-		if (vert == ShaderID(0) || frag == ShaderID(0))
+		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
 		{
 			aka::Logger::error("Failed to compile post process shader");
 		}
 		else
 		{
-			aka::Shader::Ptr shader = aka::Shader::create(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader->valid())
+			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
+			if (shader != nullptr)
 				m_postprocessMaterial = aka::ShaderMaterial::create(shader);
 		}
+		Shader::destroy(vert);
+		Shader::destroy(frag);
 	}
 }
 

@@ -5,8 +5,11 @@ layout(location = 0) out vec4 o_color;
 in vec2 v_uv;
 
 uniform sampler2D u_inputTexture;
-uniform uint u_width;
-uniform uint u_height;
+
+layout(std140) uniform ViewportUniformBuffer {
+	vec2 u_screen;
+};
+
 
 #define FXAA_SUBPIX_SHIFT (1.0/4.0)
 #define FXAA_SPAN_MAX (8.0)
@@ -18,7 +21,7 @@ uniform uint u_height;
 
 vec3 fxaa()
 {
-	vec2 rcpFrame = vec2(1.0/float(u_width), 1.0/float(u_height));
+	vec2 rcpFrame = vec2(1.0) / u_screen;
 	vec2 pos = v_uv - (rcpFrame * (0.5 + FXAA_SUBPIX_SHIFT));
 
 	// Color must be sRGB.

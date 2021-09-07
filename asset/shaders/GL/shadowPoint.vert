@@ -2,7 +2,9 @@
 
 layout(location = 0) in vec3 a_position;
 
-uniform mat4 u_model;
+layout(std140) uniform LightModelUniformBuffer {
+	mat4 u_model;
+};
 
 void main()
 {

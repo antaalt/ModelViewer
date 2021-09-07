@@ -1,7 +1,8 @@
-cbuffer constants : register(b0)
+cbuffer CameraUniformBuffer : register(b0)
 {
-	float3 u_cameraPos;
-}
+	float4x4 u_view;
+	float4x4 u_projection;
+};
 
 struct vs_in
 {
@@ -16,15 +17,15 @@ struct vs_out
 
 
 Texture2D    u_positionTexture;
-SamplerState u_positionSampler ;
+SamplerState u_positionSampler;
 Texture2D    u_albedoTexture;
 SamplerState u_albedoSampler;
-Texture2D    u_normalTexture ;
+Texture2D    u_normalTexture;
 SamplerState u_normalSampler;
-Texture2D    u_materialTexture ;
+Texture2D    u_materialTexture;
 SamplerState u_materialSampler;
-TextureCube  u_skyboxTexture ;
-SamplerState u_skyboxSampler ;
+TextureCube  u_skyboxTexture;
+SamplerState u_skyboxSampler;
 
 vs_out vs_main(vs_in input)
 {
@@ -44,7 +45,7 @@ float4 ps_main(vs_out input) : SV_TARGET
 
 
 	float3 N = normalize(float3(normal.x, normal.y, normal.z));
-	float3 V = normalize(u_cameraPos - float3(position.x, position.y, position.z));
+	float3 V = normalize(float3(u_view[0][0], u_view[0][1], u_view[0][2]) - float3(position.x, position.y, position.z));
 	float3 I = -V;
 
 	// Reflection

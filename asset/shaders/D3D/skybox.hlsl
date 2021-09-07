@@ -1,8 +1,8 @@
-cbuffer constants : register(b0)
+cbuffer CameraUniformBuffer : register(b0)
 {
 	float4x4 u_view;
 	float4x4 u_projection;
-}
+};
 
 struct vs_out
 {
@@ -16,7 +16,7 @@ SamplerState u_skyboxSampler : register(s0);
 vs_out vs_main(float3 position : POS)
 {
 	vs_out output;
-	float4 p = mul(u_projection, mul(u_view, float4(position, 1.0f)));
+	float4 p = mul(u_projection, float4(mul((float3x3)u_view, position), 1.0f));
 	output.position = p.xyww;
 	output.texcoord = position;
 	return output;

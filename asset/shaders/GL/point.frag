@@ -4,10 +4,10 @@ layout(location = 0) out vec4 o_color;
 
 const float PI = 3.14159265359;
 
-#if 0 // When using quad.vert
+//#define QUAD
+#ifdef QUAD // When using quad.vert
 in vec2 v_uv;
 #else // When using point.vert
-uniform vec2 u_screen;
 #define v_uv (gl_FragCoord.xy / u_screen)
 #endif
 
@@ -16,12 +16,24 @@ uniform sampler2D u_albedoTexture;
 uniform sampler2D u_normalTexture;
 uniform sampler2D u_materialTexture;
 
-uniform vec3 u_cameraPos; // use u_view
-uniform float u_farPointLight;
-uniform vec3 u_lightPosition;
-uniform float u_lightIntensity;
-uniform vec3 u_lightColor;
 uniform samplerCube u_shadowMap;
+
+layout(std140) uniform PointLightUniformBuffer {
+	vec3 u_lightPosition;
+	float u_lightIntensity;
+	vec3 u_lightColor;
+	float u_farPointLight;
+};
+
+layout(std140) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+};
+#ifndef QUAD
+layout(std140) uniform ViewportUniformBuffer {
+	vec2 u_screen;
+};
+#endif
 
 vec3 sampleOffsetDirections[20] = vec3[]
 (
@@ -108,7 +120,7 @@ void main(void)
 	float metalness = material.b;
 
 	vec3 N = normalize(normal);
-	vec3 V = normalize(u_cameraPos - position);
+	vec3 V = normalize(vec3(u_view[3]) - position);
 	vec3 I = -V;
 
 	// Shadow
