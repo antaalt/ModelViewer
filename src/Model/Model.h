@@ -21,12 +21,16 @@ struct MeshComponent {
 };
 
 struct MaterialComponent {
+	struct Texture {
+		aka::Texture::Ptr texture;
+		TextureSampler sampler;
+	};
 	color4f color;
 	bool doubleSided;
-	Texture::Ptr colorTexture;
-	Texture::Ptr normalTexture;
-	Texture::Ptr materialTexture;
-	//Texture::Ptr emissiveTexture;
+	Texture albedo;
+	Texture normal;
+	Texture material;
+	//Texture::Ptr emissive;
 };
 
 // CSM based directional light

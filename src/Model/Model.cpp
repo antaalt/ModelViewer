@@ -197,25 +197,27 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 {
 	Mesh::Ptr m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, data);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, n);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
+	TextureSampler s = TextureSampler::nearest;
 
 	mat4f id = mat4f::identity();
 	Entity mesh = world.createEntity("New uv sphere");
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
 	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getIndexCount(), 0 }, aabbox<>(point3f(-1), point3f(1)) });
-	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, blank, normal, blank });
+	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, {blank, s}, {normal, s}, {blank, s} });
 	return mesh;
 }
 
 Entity Scene::createCubeEntity(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, colorData);
+	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, normalData);
+	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, normalData);
+	TextureSampler s = TextureSampler::nearest;
 
 	Mesh::Ptr m = createCubeMesh(point3f(0.f), 1.f);
 	mat4f id = mat4f::identity();
@@ -223,20 +225,13 @@ Entity Scene::createCubeEntity(World& world)
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
 	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getVertexCount(0), 0 }, aabbox<>(point3f(-1), point3f(1)) });
-	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, blank, normal, blank });
+	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, {blank, s}, {normal, s}, {blank, s} });
 	return mesh;
 }
 
 Entity Scene::createPointLightEntity(World& world)
 {
 	mat4f id = mat4f::identity();
-	TextureSampler shadowSampler{};
-	shadowSampler.filterMag = TextureFilter::Nearest;
-	shadowSampler.filterMin = TextureFilter::Nearest;
-	shadowSampler.wrapU = TextureWrap::ClampToEdge;
-	shadowSampler.wrapV = TextureWrap::ClampToEdge;
-	shadowSampler.wrapW = TextureWrap::ClampToEdge;
-	shadowSampler.anisotropy = 1.f;
 	Entity light = world.createEntity("New point light");
 	light.add<Transform3DComponent>(Transform3DComponent{ id });
 	light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
@@ -244,7 +239,7 @@ Entity Scene::createPointLightEntity(World& world)
 		color3f(1.f),
 		1.f,
 		{ id, id, id, id, id, id },
-		Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget, shadowSampler)
+		Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget)
 	});
 	return light;
 }
@@ -261,9 +256,9 @@ Entity Scene::createDirectionalLightEntity(World& world)
 		1.f,
 		{ id, id, id },
 		{
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget, TextureSampler::nearest)
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget),
+			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget)
 		},
 		{ 1.f, 1.f, 1.f }
 	});
@@ -360,9 +355,33 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	nlohmann::json json = nlohmann::json::object();
 	json["color"] = { m.color.r, m.color.g, m.color.b, m.color.a };
 	json["doublesided"] = m.doubleSided;
-	json["textures"]["color"] = ResourceManager::name<Texture>(m.colorTexture).cstr();
-	json["textures"]["normal"] = ResourceManager::name<Texture>(m.normalTexture).cstr();
-	json["textures"]["material"] = ResourceManager::name<Texture>(m.materialTexture).cstr();
+
+	json["albedo"]["texture"] = ResourceManager::name<Texture>(m.albedo.texture).cstr();
+	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler.anisotropy;
+	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler.filterMin;
+	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler.filterMag;
+	json["albedo"]["sampler"]["wrapU"] = m.albedo.sampler.wrapU;
+	json["albedo"]["sampler"]["wrapV"] = m.albedo.sampler.wrapV;
+	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler.wrapW;
+	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler.mipmapMode;
+
+	json["normal"]["texture"] = ResourceManager::name<Texture>(m.normal.texture).cstr();
+	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler.anisotropy;
+	json["normal"]["sampler"]["filterMin"] = m.normal.sampler.filterMin;
+	json["normal"]["sampler"]["filterMag"] = m.normal.sampler.filterMag;
+	json["normal"]["sampler"]["wrapU"] = m.normal.sampler.wrapU;
+	json["normal"]["sampler"]["wrapV"] = m.normal.sampler.wrapV;
+	json["normal"]["sampler"]["wrapW"] = m.normal.sampler.wrapW;
+	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler.mipmapMode;
+
+	json["material"]["texture"] = ResourceManager::name<Texture>(m.material.texture).cstr();
+	json["material"]["sampler"]["anisotropy"] = m.material.sampler.anisotropy;
+	json["material"]["sampler"]["filterMin"] = m.material.sampler.filterMin;
+	json["material"]["sampler"]["filterMag"] = m.material.sampler.filterMag;
+	json["material"]["sampler"]["wrapU"] = m.material.sampler.wrapU;
+	json["material"]["sampler"]["wrapV"] = m.material.sampler.wrapV;
+	json["material"]["sampler"]["wrapW"] = m.material.sampler.wrapW;
+	json["material"]["sampler"]["mipmapMode"] = m.material.sampler.mipmapMode;
 	return json;
 }
 template <>
@@ -420,198 +439,239 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 }
 
 static uint16_t major = 0;
-static uint16_t minor = 1;
+static uint16_t minor = 2;
 
 void Scene::save(const Path& path, const World& world)
 {
-	const entt::registry& r = world.registry();
-	nlohmann::json json = nlohmann::json::object();
-	// --- Version
-	json["asset"] = nlohmann::json::object();
-	json["asset"]["version"] = std::to_string(major) + "." + std::to_string(minor);
-	json["asset"]["exporter"] = "aka engine";
-	// --- Entities
-	json["entities"] = nlohmann::json::object();
-	r.each([&](entt::entity e) {
-		nlohmann::json entity;
-		entity["components"] = nlohmann::json::object();
-		if (r.has<TagComponent>(e))              entity["components"]["tag"] = serialize<TagComponent>(r, e);
-		if (r.has<Transform3DComponent>(e))      entity["components"]["transform"] = serialize<Transform3DComponent>(r, e);
-		if (r.has<Hierarchy3DComponent>(e))      entity["components"]["hierarchy"] = serialize<Hierarchy3DComponent>(r, e);
-		if (r.has<MeshComponent>(e))             entity["components"]["mesh"] = serialize<MeshComponent>(r, e);
-		if (r.has<MaterialComponent>(e))         entity["components"]["material"] = serialize<MaterialComponent>(r, e);
-		if (r.has<DirectionalLightComponent>(e)) entity["components"]["dirlight"] = serialize<DirectionalLightComponent>(r, e);
-		if (r.has<PointLightComponent>(e))       entity["components"]["pointlight"] = serialize<PointLightComponent>(r, e);
-		if (r.has<Camera3DComponent>(e))         entity["components"]["camera"] = serialize<Camera3DComponent>(r, e);
-		std::string id = std::to_string((entt::id_type)e);
-		json["entities"][id] = entity;
-	});
-
-	if (!File::writeString(path, json.dump()))
+	try
 	{
-		Logger::error("Failed to write scene.");
+		const entt::registry& r = world.registry();
+		nlohmann::json json = nlohmann::json::object();
+		// --- Version
+		json["asset"] = nlohmann::json::object();
+		json["asset"]["version"] = std::to_string(major) + "." + std::to_string(minor);
+		json["asset"]["exporter"] = "aka engine";
+		// --- Entities
+		json["entities"] = nlohmann::json::object();
+		r.each([&](entt::entity e) {
+			nlohmann::json entity;
+			entity["components"] = nlohmann::json::object();
+			if (r.has<TagComponent>(e))              entity["components"]["tag"] = serialize<TagComponent>(r, e);
+			if (r.has<Transform3DComponent>(e))      entity["components"]["transform"] = serialize<Transform3DComponent>(r, e);
+			if (r.has<Hierarchy3DComponent>(e))      entity["components"]["hierarchy"] = serialize<Hierarchy3DComponent>(r, e);
+			if (r.has<MeshComponent>(e))             entity["components"]["mesh"] = serialize<MeshComponent>(r, e);
+			if (r.has<MaterialComponent>(e))         entity["components"]["material"] = serialize<MaterialComponent>(r, e);
+			if (r.has<DirectionalLightComponent>(e)) entity["components"]["dirlight"] = serialize<DirectionalLightComponent>(r, e);
+			if (r.has<PointLightComponent>(e))       entity["components"]["pointlight"] = serialize<PointLightComponent>(r, e);
+			if (r.has<Camera3DComponent>(e))         entity["components"]["camera"] = serialize<Camera3DComponent>(r, e);
+			std::string id = std::to_string((entt::id_type)e);
+			json["entities"][id] = entity;
+			});
+
+		if (!File::writeString(path, json.dump()))
+		{
+			Logger::error("Failed to write scene.");
+		}
+	}
+	catch (const nlohmann::json::exception& e)
+	{
+		Logger::error("Failed to write JSON : ", e.what());
 	}
 }
 
 void Scene::load(World& world, const Path& path)
 {
-	std::string s = File::readString(path);
-	nlohmann::json json = nlohmann::json::parse(s);
-	std::string version = json["asset"]["version"].get<std::string>();
-	if (version != std::to_string(major) + "." + std::to_string(minor))
+	try
 	{
-		Logger::error("Unsupported version");
-		return;
-	}
-	// --- Entities
-	std::unordered_map<uint32_t, entt::entity> entityMap;
-	for (auto& jsonEntityKV : json["entities"].items())
-	{
-		uint32_t entityID = std::stoi(jsonEntityKV.key());
-		nlohmann::json& jsonEntity = jsonEntityKV.value();
-		// TODO enforce tag component
-		entt::entity entity = world.registry().create();
-		entityMap.insert(std::make_pair(entityID, entity));
-		for (auto& componentKV : jsonEntity["components"].items())
+		std::string s = File::readString(path);
+		if (s.size() == 0)
 		{
-			std::string name = componentKV.key();
-			nlohmann::json& component = componentKV.value();
-			if (name == "tag")
+			Logger::error("File ", path, "not valid.");
+			return;
+		}
+		nlohmann::json json = nlohmann::json::parse(s);
+		std::string version = json["asset"]["version"].get<std::string>();
+		if (version != std::to_string(major) + "." + std::to_string(minor))
+		{
+			Logger::error("Unsupported version : ", version);
+			return;
+		}
+		// --- Entities
+		std::unordered_map<uint32_t, entt::entity> entityMap;
+		for (auto& jsonEntityKV : json["entities"].items())
+		{
+			uint32_t entityID = std::stoi(jsonEntityKV.key());
+			nlohmann::json& jsonEntity = jsonEntityKV.value();
+			// TODO enforce tag component
+			entt::entity entity = world.registry().create();
+			entityMap.insert(std::make_pair(entityID, entity));
+			for (auto& componentKV : jsonEntity["components"].items())
 			{
-				world.registry().emplace<TagComponent>(entity);
-				world.registry().get<TagComponent>(entity).name = component["name"].get<std::string>();
-			}
-			else if (name == "hierarchy")
-			{
-				world.registry().emplace<Hierarchy3DComponent>(entity);
-				Hierarchy3DComponent& h = world.registry().get<Hierarchy3DComponent>(entity);
-				nlohmann::json& jsonParent = component["parent"];
-				if (jsonParent.is_null())
-					h.parent = Entity::null();
-				else
-					h.parent = Entity(entityMap.find(component["parent"].get<uint32_t>())->second, &world);				
-				h.inverseTransform = mat4f::identity();
-			}
-			else if (name == "transform")
-			{
-				world.registry().emplace<Transform3DComponent>(entity);
-				AKA_ASSERT(component["matrix"].size() == 16, "Invalid matrix");
-				world.registry().get<Transform3DComponent>(entity).transform = mat4f(
-					col4f(component["matrix"][0], component["matrix"][1], component["matrix"][2], component["matrix"][3]),
-					col4f(component["matrix"][4], component["matrix"][5], component["matrix"][6], component["matrix"][7]),
-					col4f(component["matrix"][8], component["matrix"][9], component["matrix"][10], component["matrix"][11]),
-					col4f(component["matrix"][12], component["matrix"][13], component["matrix"][14], component["matrix"][15])
-				);
-			}
-			else if (name == "mesh")
-			{
-				world.registry().emplace<MeshComponent>(entity);
-				MeshComponent& mesh = world.registry().get<MeshComponent>(entity);
-				mesh.submesh.mesh = ResourceManager::get<Mesh>(component["mesh"].get<std::string>());
-				mesh.submesh.offset = 0;
-				mesh.submesh.count = mesh.submesh.mesh->getIndexCount();
-				mesh.submesh.type = PrimitiveType::Triangles;
-				mesh.bounds.min = point3f(
-					component["bounds"]["min"][0].get<float>(),
-					component["bounds"]["min"][1].get<float>(),
-					component["bounds"]["min"][2].get<float>()
-				);
-				mesh.bounds.max = point3f(
-					component["bounds"]["max"][0].get<float>(),
-					component["bounds"]["max"][1].get<float>(),
-					component["bounds"]["max"][2].get<float>()
-				);
-			}
-			else if (name == "material")
-			{
-				world.registry().emplace<MaterialComponent>(entity);
-				MaterialComponent& material = world.registry().get<MaterialComponent>(entity);
-				material.color = color4f(
-					component["color"][0].get<float>(), 
-					component["color"][1].get<float>(), 
-					component["color"][2].get<float>(), 
-					component["color"][3].get<float>()
-				);
-				material.doubleSided = component["doublesided"].get<bool>();
-				material.colorTexture = ResourceManager::get<Texture>(component["textures"]["color"].get<std::string>());
-				material.normalTexture = ResourceManager::get<Texture>(component["textures"]["normal"].get<std::string>());
-				material.materialTexture = ResourceManager::get<Texture>(component["textures"]["material"].get<std::string>());
-			}
-			else if (name == "pointlight")
-			{
-				world.registry().emplace<PointLightComponent>(entity);
-				PointLightComponent& light = world.registry().get<PointLightComponent>(entity);
-				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
-				light.intensity = component["intensity"];
-				light.radius = 1.f;
-				light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
-			}
-			else if (name == "dirlight")
-			{
-				world.registry().emplace<DirectionalLightComponent>(entity);
-				DirectionalLightComponent& light = world.registry().get<DirectionalLightComponent>(entity);
-				light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
-				light.direction = vec3f(component["direction"][0].get<float>(), component["direction"][1].get<float>(), component["direction"][2].get<float>());
-				light.intensity = component["intensity"];
-				light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
-				light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
-				light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
-			}
-			else if (name == "camera")
-			{
-				world.registry().emplace<Camera3DComponent>(entity);
-				Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
-				// projection
-				if (component.find("perspective") != component.end())
+				std::string name = componentKV.key();
+				nlohmann::json& component = componentKV.value();
+				if (name == "tag")
 				{
-					auto persp = std::make_unique<CameraPerspective>();
-					persp->hFov = anglef::degree(component["perspective"]["fov"].get<float>());
-					persp->nearZ = component["perspective"]["near"].get<float>();
-					persp->farZ = component["perspective"]["far"].get<float>();
-					persp->ratio = component["perspective"]["ratio"].get<float>();
-					camera.projection = std::move(persp);
+					world.registry().emplace<TagComponent>(entity);
+					world.registry().get<TagComponent>(entity).name = component["name"].get<std::string>();
 				}
-				else if (component.find("orthographic") != component.end())
+				else if (name == "hierarchy")
 				{
-					auto ortho = std::make_unique<CameraOrthographic>();
-					ortho->viewport = vec2f(component["orthographic"]["x"].get<float>(), component["orthographic"]["y"].get<float>());
-					camera.projection = std::move(ortho);
+					world.registry().emplace<Hierarchy3DComponent>(entity);
+					Hierarchy3DComponent& h = world.registry().get<Hierarchy3DComponent>(entity);
+					nlohmann::json& jsonParent = component["parent"];
+					if (jsonParent.is_null())
+						h.parent = Entity::null();
+					else
+						h.parent = Entity(entityMap.find(component["parent"].get<uint32_t>())->second, &world);				
+					h.inverseTransform = mat4f::identity();
 				}
-				else
+				else if (name == "transform")
 				{
-					Logger::warn("No projection found for camera. Default to perspective");
-					auto persp = std::make_unique<CameraPerspective>();
-					persp->hFov = anglef::degree(60.f);
-					persp->nearZ = 0.1f;
-					persp->farZ = 100.f;
-					persp->ratio = 1.f;
-					camera.projection = std::move(persp);
+					world.registry().emplace<Transform3DComponent>(entity);
+					AKA_ASSERT(component["matrix"].size() == 16, "Invalid matrix");
+					world.registry().get<Transform3DComponent>(entity).transform = mat4f(
+						col4f(component["matrix"][0], component["matrix"][1], component["matrix"][2], component["matrix"][3]),
+						col4f(component["matrix"][4], component["matrix"][5], component["matrix"][6], component["matrix"][7]),
+						col4f(component["matrix"][8], component["matrix"][9], component["matrix"][10], component["matrix"][11]),
+						col4f(component["matrix"][12], component["matrix"][13], component["matrix"][14], component["matrix"][15])
+					);
 				}
-				// controller
-				if (component.find("arcball") != component.end())
+				else if (name == "mesh")
 				{
-					nlohmann::json& a = component["arcball"];
-					auto arcball = std::make_unique<CameraArcball>();
-					arcball->position = point3f(a["position"][0].get<float>(), a["position"][1].get<float>(), a["position"][2].get<float>());
-					arcball->target = point3f(a["target"][0].get<float>(), a["target"][1].get<float>(), a["target"][2].get<float>());
-					arcball->up = norm3f(a["up"][0].get<float>(), a["up"][1].get<float>(), a["up"][2].get<float>());
-					arcball->speed = a["speed"].get<float>();
-					camera.controller = std::move(arcball);
+					world.registry().emplace<MeshComponent>(entity);
+					MeshComponent& mesh = world.registry().get<MeshComponent>(entity);
+					mesh.submesh.mesh = ResourceManager::get<Mesh>(component["mesh"].get<std::string>());
+					mesh.submesh.offset = 0;
+					mesh.submesh.count = mesh.submesh.mesh->getIndexCount();
+					mesh.submesh.type = PrimitiveType::Triangles;
+					mesh.bounds.min = point3f(
+						component["bounds"]["min"][0].get<float>(),
+						component["bounds"]["min"][1].get<float>(),
+						component["bounds"]["min"][2].get<float>()
+					);
+					mesh.bounds.max = point3f(
+						component["bounds"]["max"][0].get<float>(),
+						component["bounds"]["max"][1].get<float>(),
+						component["bounds"]["max"][2].get<float>()
+					);
 				}
-				else 
+				else if (name == "material")
 				{
-					Logger::warn("No controller found for camera. Default to arcball.");
-					auto arcball = std::make_unique<CameraArcball>();
-					arcball->position = point3f(1.f);
-					arcball->target = point3f(0.f);
-					arcball->up = norm3f(0.f, 1.f, 0.f);
-					arcball->speed = 1.f;
-					camera.controller = std::move(arcball);
+					world.registry().emplace<MaterialComponent>(entity);
+					MaterialComponent& material = world.registry().get<MaterialComponent>(entity);
+					material.color = color4f(
+						component["color"][0].get<float>(), 
+						component["color"][1].get<float>(), 
+						component["color"][2].get<float>(), 
+						component["color"][3].get<float>()
+					);
+					material.doubleSided = component["doublesided"].get<bool>();
+					material.albedo.texture = ResourceManager::get<Texture>(component["albedo"]["texture"].get<std::string>());
+					material.albedo.sampler.anisotropy = component["albedo"]["sampler"]["anisotropy"].get<float>();
+					material.albedo.sampler.wrapU = (TextureWrap)component["albedo"]["sampler"]["wrapU"].get<int>();
+					material.albedo.sampler.wrapV = (TextureWrap)component["albedo"]["sampler"]["wrapV"].get<int>();
+					material.albedo.sampler.wrapW = (TextureWrap)component["albedo"]["sampler"]["wrapW"].get<int>();
+					material.albedo.sampler.filterMin = (TextureFilter)component["albedo"]["sampler"]["filterMin"].get<int>();
+					material.albedo.sampler.filterMag = (TextureFilter)component["albedo"]["sampler"]["filterMag"].get<int>();
+					material.albedo.sampler.mipmapMode = (TextureMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>();
+
+					material.normal.texture = ResourceManager::get<Texture>(component["normal"]["texture"].get<std::string>());
+					material.normal.sampler.anisotropy = component["normal"]["sampler"]["anisotropy"].get<float>();
+					material.normal.sampler.wrapU = (TextureWrap)component["normal"]["sampler"]["wrapU"].get<int>();
+					material.normal.sampler.wrapV = (TextureWrap)component["normal"]["sampler"]["wrapV"].get<int>();
+					material.normal.sampler.wrapW = (TextureWrap)component["normal"]["sampler"]["wrapW"].get<int>();
+					material.normal.sampler.filterMin = (TextureFilter)component["normal"]["sampler"]["filterMin"].get<int>();
+					material.normal.sampler.filterMag = (TextureFilter)component["normal"]["sampler"]["filterMag"].get<int>();
+					material.normal.sampler.mipmapMode = (TextureMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>();
+
+					material.material.texture = ResourceManager::get<Texture>(component["material"]["texture"].get<std::string>());
+					material.material.sampler.anisotropy = component["material"]["sampler"]["anisotropy"].get<float>();
+					material.material.sampler.wrapU = (TextureWrap)component["material"]["sampler"]["wrapU"].get<int>();
+					material.material.sampler.wrapV = (TextureWrap)component["material"]["sampler"]["wrapV"].get<int>();
+					material.material.sampler.wrapW = (TextureWrap)component["material"]["sampler"]["wrapW"].get<int>();
+					material.material.sampler.filterMin = (TextureFilter)component["material"]["sampler"]["filterMin"].get<int>();
+					material.material.sampler.filterMag = (TextureFilter)component["material"]["sampler"]["filterMag"].get<int>();
+					material.material.sampler.mipmapMode = (TextureMipMapMode)component["material"]["sampler"]["mipmapMode"].get<int>();
 				}
-				camera.view; // auto set
+				else if (name == "pointlight")
+				{
+					world.registry().emplace<PointLightComponent>(entity);
+					PointLightComponent& light = world.registry().get<PointLightComponent>(entity);
+					light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
+					light.intensity = component["intensity"];
+					light.radius = 1.f;
+					light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget);
+				}
+				else if (name == "dirlight")
+				{
+					world.registry().emplace<DirectionalLightComponent>(entity);
+					DirectionalLightComponent& light = world.registry().get<DirectionalLightComponent>(entity);
+					light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
+					light.direction = vec3f(component["direction"][0].get<float>(), component["direction"][1].get<float>(), component["direction"][2].get<float>());
+					light.intensity = component["intensity"];
+					light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
+					light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
+					light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget);
+				}
+				else if (name == "camera")
+				{
+					world.registry().emplace<Camera3DComponent>(entity);
+					Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
+					// projection
+					if (component.find("perspective") != component.end())
+					{
+						auto persp = std::make_unique<CameraPerspective>();
+						persp->hFov = anglef::degree(component["perspective"]["fov"].get<float>());
+						persp->nearZ = component["perspective"]["near"].get<float>();
+						persp->farZ = component["perspective"]["far"].get<float>();
+						persp->ratio = component["perspective"]["ratio"].get<float>();
+						camera.projection = std::move(persp);
+					}
+					else if (component.find("orthographic") != component.end())
+					{
+						auto ortho = std::make_unique<CameraOrthographic>();
+						ortho->viewport = vec2f(component["orthographic"]["x"].get<float>(), component["orthographic"]["y"].get<float>());
+						camera.projection = std::move(ortho);
+					}
+					else
+					{
+						Logger::warn("No projection found for camera. Default to perspective");
+						auto persp = std::make_unique<CameraPerspective>();
+						persp->hFov = anglef::degree(60.f);
+						persp->nearZ = 0.1f;
+						persp->farZ = 100.f;
+						persp->ratio = 1.f;
+						camera.projection = std::move(persp);
+					}
+					// controller
+					if (component.find("arcball") != component.end())
+					{
+						nlohmann::json& a = component["arcball"];
+						auto arcball = std::make_unique<CameraArcball>();
+						arcball->position = point3f(a["position"][0].get<float>(), a["position"][1].get<float>(), a["position"][2].get<float>());
+						arcball->target = point3f(a["target"][0].get<float>(), a["target"][1].get<float>(), a["target"][2].get<float>());
+						arcball->up = norm3f(a["up"][0].get<float>(), a["up"][1].get<float>(), a["up"][2].get<float>());
+						arcball->speed = a["speed"].get<float>();
+						camera.controller = std::move(arcball);
+					}
+					else 
+					{
+						Logger::warn("No controller found for camera. Default to arcball.");
+						auto arcball = std::make_unique<CameraArcball>();
+						arcball->position = point3f(1.f);
+						arcball->target = point3f(0.f);
+						arcball->up = norm3f(0.f, 1.f, 0.f);
+						arcball->speed = 1.f;
+						camera.controller = std::move(arcball);
+					}
+					camera.view; // auto set
+				}
 			}
 		}
-		
+	}
+	catch (const nlohmann::json::exception& e)
+	{
+		Logger::error("Failed to write JSON : ", e.what());
 	}
 }
 

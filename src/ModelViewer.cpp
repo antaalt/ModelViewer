@@ -29,13 +29,6 @@ void Viewer::onCreate(int argc, char* argv[])
 		editor->onCreate(m_world);
 
 	// --- Lights
-	TextureSampler shadowSampler{};
-	shadowSampler.filterMag = TextureFilter::Nearest;
-	shadowSampler.filterMin = TextureFilter::Nearest;
-	shadowSampler.wrapU = TextureWrap::ClampToEdge;
-	shadowSampler.wrapV = TextureWrap::ClampToEdge;
-	shadowSampler.wrapW = TextureWrap::ClampToEdge;
-	shadowSampler.anisotropy = 1.f;
 
 	ResourceManager::parse("library/library.json");
 	Scene::load(m_world, "library/scene.json");
@@ -53,9 +46,9 @@ void Viewer::onCreate(int argc, char* argv[])
 		sun.color = color3f(1.f);
 		sun.intensity = 10.f;
 		sunTransform.transform = mat4f::identity();
-		sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-		sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
-		sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget, shadowSampler);
+		sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
+		sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
+		sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget);
 		// TODO texture atlas & single shader execution
 		for (size_t i = 0; i < 3; i++)
 			sun.worldToLightSpaceMatrix[i] = mat4f::identity();

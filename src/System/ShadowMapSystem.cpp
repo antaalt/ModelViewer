@@ -24,7 +24,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 {
 	createShaders();
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
-	Texture::Ptr dummyDepth = Texture::create2D(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest);
+	Texture::Ptr dummyDepth = Texture::create2D(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
 	FramebufferAttachment shadowAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::Depth,

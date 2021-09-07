@@ -48,6 +48,7 @@ private:
 	// Lighing pass
 	aka::Mesh::Ptr m_quad;
 	aka::Mesh::Ptr m_sphere;
+	aka::TextureSampler m_shadowSampler;
 	aka::ShaderMaterial::Ptr m_ambientMaterial;
 	//aka::Buffer::Ptr m_ambientUniformBuffer;
 	aka::ShaderMaterial::Ptr m_pointMaterial;
@@ -58,6 +59,7 @@ private:
 	// Skybox
 	aka::Mesh::Ptr m_cube;
 	aka::Texture::Ptr m_skybox;
+	aka::TextureSampler m_skyboxSampler;
 	aka::ShaderMaterial::Ptr m_skyboxMaterial;
 	//aka::Buffer::Ptr m_skyboxUniformBuffer;
 

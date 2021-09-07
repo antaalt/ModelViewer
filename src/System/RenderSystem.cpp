@@ -57,6 +57,13 @@ void RenderSystem::onCreate(aka::World& world)
 	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
 
 	// --- Lighting pass
+	m_shadowSampler.filterMag = TextureFilter::Nearest;
+	m_shadowSampler.filterMin = TextureFilter::Nearest;
+	m_shadowSampler.wrapU = TextureWrap::ClampToEdge;
+	m_shadowSampler.wrapV = TextureWrap::ClampToEdge;
+	m_shadowSampler.wrapW = TextureWrap::ClampToEdge;
+	m_shadowSampler.anisotropy = 1.f;
+
 	float quadVertices[] = {
 		-1, -1, // bottom left corner
 		 1, -1, // bottom right corner
@@ -104,17 +111,17 @@ void RenderSystem::onCreate(aka::World& world)
 		cubemap[i] = Image::load(Asset::path(cubemapPath[i]), false);
 		AKA_ASSERT(cubemap[i].width == cubemap[0].width && cubemap[i].height == cubemap[0].height, "Width & height not matching");
 	}
-	TextureSampler cubeSampler{};
-	cubeSampler.filterMag = TextureFilter::Linear;
-	cubeSampler.filterMin = TextureFilter::Linear;
-	cubeSampler.wrapU = TextureWrap::ClampToEdge;
-	cubeSampler.wrapV = TextureWrap::ClampToEdge;
-	cubeSampler.wrapW = TextureWrap::ClampToEdge;
-	cubeSampler.anisotropy = 1.f;
+
+	m_skyboxSampler.filterMag = TextureFilter::Linear;
+	m_skyboxSampler.filterMin = TextureFilter::Linear;
+	m_skyboxSampler.wrapU = TextureWrap::ClampToEdge;
+	m_skyboxSampler.wrapV = TextureWrap::ClampToEdge;
+	m_skyboxSampler.wrapW = TextureWrap::ClampToEdge;
+	m_skyboxSampler.anisotropy = 1.f;
+
 	m_skybox = Texture::createCubemap(
 		cubemap[0].width, cubemap[0].height,
 		TextureFormat::RGBA8, TextureFlag::None,
-		cubeSampler,
 		cubemap[0].bytes.data(),
 		cubemap[1].bytes.data(),
 		cubemap[2].bytes.data(),
@@ -245,6 +252,11 @@ void RenderSystem::onRender(aka::World& world)
 	viewportUBO.viewport = vec2f(backbuffer->width(), backbuffer->height());
 	m_viewportUniformBuffer->upload(&viewportUBO);
 
+	// Samplers
+	TextureSampler samplers[] = { m_shadowSampler , m_shadowSampler , m_shadowSampler };
+	m_dirMaterial->set("u_shadowMap", samplers, DirectionalLightComponent::cascadeCount);
+	m_pointMaterial->set("u_shadowMap", m_shadowSampler);
+
 	auto renderableView = world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
 
 	// --- G-Buffer pass
@@ -278,9 +290,12 @@ void RenderSystem::onRender(aka::World& world)
 		modelUBO.color = material.color;
 		m_modelUniformBuffer->upload(&modelUBO);
 
-		gbufferPass.material->set("u_materialTexture", material.materialTexture);
-		gbufferPass.material->set("u_colorTexture", material.colorTexture);
-		gbufferPass.material->set("u_normalTexture", material.normalTexture);
+		gbufferPass.material->set("u_materialTexture", material.material.sampler);
+		gbufferPass.material->set("u_materialTexture", material.material.texture);
+		gbufferPass.material->set("u_colorTexture", material.albedo.sampler);
+		gbufferPass.material->set("u_colorTexture", material.albedo.texture);
+		gbufferPass.material->set("u_normalTexture", material.normal.sampler);
+		gbufferPass.material->set("u_normalTexture", material.normal.texture);
 
 		gbufferPass.submesh = mesh.submesh;
 
@@ -406,6 +421,7 @@ void RenderSystem::onRender(aka::World& world)
 	skyboxPass.scissor = aka::Rect{ 0 };
 	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
 
+	skyboxPass.material->set("u_skyboxTexture", m_skyboxSampler);
 	skyboxPass.material->set("u_skyboxTexture", m_skybox);
 
 	skyboxPass.execute();
@@ -600,14 +616,7 @@ void RenderSystem::createShaders()
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 {
 	// --- G-Buffer pass
-	TextureSampler gbufferSampler{};
-	gbufferSampler.filterMag = TextureFilter::Nearest;
-	gbufferSampler.filterMin = TextureFilter::Nearest;
-	gbufferSampler.wrapU = TextureWrap::ClampToEdge;
-	gbufferSampler.wrapV = TextureWrap::ClampToEdge;
-	gbufferSampler.wrapW = TextureWrap::ClampToEdge;
-	gbufferSampler.anisotropy = 1.f;
-
+	//
 	// Depth | Stencil
 	// D     | S  
 	// 
@@ -622,11 +631,11 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 	// 
 	// ao | roughness | metalness | _
 	// R  | G         | B         | A
-	m_depth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget, gbufferSampler);
-	m_position = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
-	m_albedo = Texture::create2D(width, height, TextureFormat::RGBA8, TextureFlag::RenderTarget, gbufferSampler);
-	m_normal = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
-	m_material = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_depth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget);
+	m_position = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
+	m_albedo = Texture::create2D(width, height, TextureFormat::RGBA8, TextureFlag::RenderTarget);
+	m_normal = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
+	m_material = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
 	FramebufferAttachment gbufferAttachments[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::DepthStencil,
@@ -652,8 +661,8 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
 
 	// --- Post process
-	m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget, gbufferSampler);
-	m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget, gbufferSampler);
+	m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget);
+	m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
 	FramebufferAttachment storageAttachment[] = {
 		FramebufferAttachment{
 			FramebufferAttachmentType::DepthStencil,

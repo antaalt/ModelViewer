@@ -193,9 +193,9 @@ template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& mater
 	bool updated = false;
 	updated |= ImGui::ColorEdit4("Color", material.color.data);
 	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
-	TextureDisplay("Color", material.colorTexture, ImVec2(100, 100));
-	TextureDisplay("Normal", material.normalTexture, ImVec2(100, 100));
-	TextureDisplay("Material", material.materialTexture, ImVec2(100, 100));
+	TextureDisplay("Color", material.albedo.texture, ImVec2(100, 100));
+	TextureDisplay("Normal", material.normal.texture, ImVec2(100, 100));
+	TextureDisplay("Material", material.material.texture, ImVec2(100, 100));
 	return updated; 
 }
 
@@ -562,19 +562,19 @@ void SceneEditor::onRender(World& world)
 					if (ImGui::MenuItem("Mesh", nullptr, nullptr, !e.has<MeshComponent>()))
 						e.add<MeshComponent>(MeshComponent{});
 					if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
-						e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, nullptr, nullptr, nullptr });
+						e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest} });
 					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
 						e.add<PointLightComponent>(PointLightComponent{
 							color3f(1.f), 1.f, {},
-							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest)
+							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 						vec3f(0,1,0),
 						color3f(1.f), 1.f, {}, {
-							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest),
-							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest),
-							Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget, TextureSampler::nearest)
+							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+							Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
 						}, {} }
 					);
 					ImGui::EndMenu();

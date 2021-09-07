@@ -16,7 +16,7 @@ struct AssimpImporter {
 	void processNode(Entity parent, aiNode* node);
 	Entity processMesh(aiMesh* mesh);
 
-	Texture::Ptr loadTexture(const Path& path, const TextureSampler& sampler);
+	Texture::Ptr loadTexture(const Path& path);
 private:
 	Path m_directory;
 	const aiScene* m_assimpScene;
@@ -37,10 +37,10 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
 	uint8_t bytesNormal[4] = { 128,128,255,255 };
 	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesMissingColor);
-	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesBlankColor);
-	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesNormal);
-	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, TextureSampler::nearest, bytesRoughness);
+	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, bytesMissingColor);
+	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, bytesBlankColor);
+	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, bytesNormal);
+	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, bytesRoughness);
 }
 
 void AssimpImporter::process()
@@ -260,9 +260,10 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.colorTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.colorTexture == nullptr)
-					materialComponent.colorTexture = m_missingColorTexture;
+				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.albedo.sampler = defaultSampler;
+				if (materialComponent.albedo.texture == nullptr)
+					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -273,15 +274,17 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.colorTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.colorTexture == nullptr)
-					materialComponent.colorTexture = m_missingColorTexture;
+				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.albedo.sampler = defaultSampler;
+				if (materialComponent.albedo.texture == nullptr)
+					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.colorTexture = m_blankColorTexture;
+			materialComponent.albedo.texture = m_blankColorTexture;
+			materialComponent.albedo.sampler = defaultSampler;
 		}
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
@@ -290,9 +293,10 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.normalTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.normalTexture == nullptr)
-					materialComponent.normalTexture = m_missingNormalTexture;
+				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.normal.sampler = defaultSampler;
+				if (materialComponent.normal.texture == nullptr)
+					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -303,28 +307,31 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.normalTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.normalTexture == nullptr)
-					materialComponent.normalTexture = m_missingNormalTexture;
+				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.normal.sampler = defaultSampler;
+				if (materialComponent.normal.texture == nullptr)
+					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.normalTexture = m_missingNormalTexture;
+			materialComponent.normal.texture = m_missingNormalTexture;
+			materialComponent.normal.sampler = defaultSampler;
 		}
 
 		if (material->GetTextureCount(aiTextureType_UNKNOWN) > 0) // GLTF pbr texture is retrieved this way (?)
 		{
 			aiTextureType type = aiTextureType_UNKNOWN;
-			//for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
+			for (unsigned int i = 0; i < material->GetTextureCount(type); i++)
 			{
 				aiString str;
 				material->GetTexture(type, 0, &str);
-				materialComponent.materialTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.materialTexture == nullptr)
-					materialComponent.materialTexture = m_missingRoughnessTexture;
-				//break; // Ignore others textures for now.
+				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.material.sampler = defaultSampler;
+				if (materialComponent.material.texture == nullptr)
+					materialComponent.material.texture = m_missingRoughnessTexture;
+				break; // Ignore others textures for now.
 			}
 		}
 		else if (material->GetTextureCount(aiTextureType_SHININESS) > 0)
@@ -334,15 +341,17 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.materialTexture = loadTexture(Path(m_directory + str.C_Str()), defaultSampler);
-				if (materialComponent.materialTexture == nullptr)
-					materialComponent.materialTexture = m_missingRoughnessTexture;
+				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()));
+				materialComponent.material.sampler = defaultSampler;
+				if (materialComponent.material.texture == nullptr)
+					materialComponent.material.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.materialTexture = m_missingRoughnessTexture;
+			materialComponent.material.texture = m_missingRoughnessTexture;
+			materialComponent.material.sampler = defaultSampler;
 		}
 	}
 	else
@@ -350,21 +359,23 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		// No material !
 		materialComponent.color = color4f(1.f);
 		materialComponent.doubleSided = true;
-		materialComponent.colorTexture = m_blankColorTexture;
-		materialComponent.normalTexture = m_missingNormalTexture;
-		materialComponent.materialTexture = m_missingRoughnessTexture;
+		materialComponent.albedo.texture = m_blankColorTexture;
+		materialComponent.albedo.sampler = TextureSampler::nearest;
+		materialComponent.normal.texture = m_missingNormalTexture;
+		materialComponent.normal.sampler = TextureSampler::nearest;
+		materialComponent.material.texture = m_missingRoughnessTexture;
+		materialComponent.material.sampler = TextureSampler::nearest;
 	}
 	return e;
 }
 
-Texture::Ptr AssimpImporter::loadTexture(const Path& path, const TextureSampler& sampler)
+Texture::Ptr AssimpImporter::loadTexture(const Path& path)
 {
 	String name = file::name(path);
 	if (ResourceManager::has<Texture>(name))
 		return ResourceManager::get<Texture>(name);
 	if (Importer::importTexture2D(name, path))
 	{
-		//res.resource->setSampler(sampler); // TODO sampler, might have multiple sampler for single texture
 		return ResourceManager::get<Texture>(name);
 	}
 	else
