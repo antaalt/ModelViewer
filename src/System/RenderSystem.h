@@ -31,11 +31,13 @@ protected:
 	void createShaders();
 	void createRenderTargets(uint32_t width, uint32_t height);
 private:
+	// Uniforms
 	aka::Buffer::Ptr m_cameraUniformBuffer;
 	aka::Buffer::Ptr m_viewportUniformBuffer;
 	aka::Buffer::Ptr m_modelUniformBuffer;
 	aka::Buffer::Ptr m_directionalLightUniformBuffer;
 	aka::Buffer::Ptr m_pointLightUniformBuffer;
+
 	// gbuffers pass
 	aka::Texture::Ptr m_position;
 	aka::Texture::Ptr m_albedo;
@@ -50,25 +52,20 @@ private:
 	aka::Mesh::Ptr m_sphere;
 	aka::TextureSampler m_shadowSampler;
 	aka::ShaderMaterial::Ptr m_ambientMaterial;
-	//aka::Buffer::Ptr m_ambientUniformBuffer;
 	aka::ShaderMaterial::Ptr m_pointMaterial;
-	//aka::Buffer::Ptr m_pointUniformBuffer;
 	aka::ShaderMaterial::Ptr m_dirMaterial;
-	//aka::Buffer::Ptr m_directionalUniformBuffer;
 
 	// Skybox
 	aka::Mesh::Ptr m_cube;
-	aka::Texture::Ptr m_skybox;
+	aka::TextureCubeMap::Ptr m_skybox;
 	aka::TextureSampler m_skyboxSampler;
 	aka::ShaderMaterial::Ptr m_skyboxMaterial;
-	//aka::Buffer::Ptr m_skyboxUniformBuffer;
 
 	// Post process pass
 	aka::Texture::Ptr m_storageDepth;
 	aka::Texture::Ptr m_storage;
 	aka::Framebuffer::Ptr m_storageFramebuffer;
 	aka::ShaderMaterial::Ptr m_postprocessMaterial;
-	//aka::Buffer::Ptr m_postProcessUniformBuffer;
 };
 
 };

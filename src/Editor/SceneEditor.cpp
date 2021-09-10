@@ -566,15 +566,15 @@ void SceneEditor::onRender(World& world)
 					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
 						e.add<PointLightComponent>(PointLightComponent{
 							color3f(1.f), 1.f, {},
-							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
+							TextureCubeMap::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 						vec3f(0,1,0),
 						color3f(1.f), 1.f, {}, {
-							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-							Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-							Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
+							Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+							Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+							Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
 						}, {} }
 					);
 					ImGui::EndMenu();

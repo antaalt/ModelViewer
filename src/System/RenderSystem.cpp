@@ -110,8 +110,8 @@ void RenderSystem::onCreate(aka::World& world)
 	Image cubemap[6];
 	for (size_t i = 0; i < 6; i++)
 	{
-		cubemap[i] = Image::load(Asset::path(cubemapPath[i]), false);
-		AKA_ASSERT(cubemap[i].width == cubemap[0].width && cubemap[i].height == cubemap[0].height, "Width & height not matching");
+		cubemap[i] = Image::load(Asset::path(cubemapPath[i]));
+		AKA_ASSERT(cubemap[i].width() == cubemap[0].width() && cubemap[i].height() == cubemap[0].height(), "Width & height not matching");
 	}
 
 	m_skyboxSampler.filterMag = TextureFilter::Linear;
@@ -121,15 +121,16 @@ void RenderSystem::onCreate(aka::World& world)
 	m_skyboxSampler.wrapW = TextureWrap::ClampToEdge;
 	m_skyboxSampler.anisotropy = 1.f;
 
-	m_skybox = Texture::createCubemap(
-		cubemap[0].width, cubemap[0].height,
-		TextureFormat::RGBA8, TextureFlag::None,
-		cubemap[0].bytes.data(),
-		cubemap[1].bytes.data(),
-		cubemap[2].bytes.data(),
-		cubemap[3].bytes.data(),
-		cubemap[4].bytes.data(),
-		cubemap[5].bytes.data()
+	m_skybox = TextureCubeMap::create(
+		cubemap[0].width(), cubemap[0].height(),
+		TextureFormat::RGBA8, 
+		TextureFlag::ShaderResource,
+		cubemap[0].data(),
+		cubemap[1].data(),
+		cubemap[2].data(),
+		cubemap[3].data(),
+		cubemap[4].data(),
+		cubemap[5].data()
 	);
 
 	float skyboxVertices[] = {
@@ -406,8 +407,8 @@ void RenderSystem::onRender(aka::World& world)
 
 		lightingPass.execute();
 	});
-
-	m_storageFramebuffer->blit(m_gbuffer, FramebufferAttachmentType::DepthStencil, TextureFilter::Nearest);
+	// TODO move blitting to texture. (and use copy here instead, no need to blit.)
+	m_storageFramebuffer->blit(m_gbuffer, AttachmentType::DepthStencil, TextureFilter::Nearest);
 
 	// --- Skybox pass
 	RenderPass skyboxPass;
@@ -451,7 +452,7 @@ void RenderSystem::onRender(aka::World& world)
 	postProcessPass.execute();
 
 	// Set depth for UI elements
-	backbuffer->blit(m_storageFramebuffer, FramebufferAttachmentType::DepthStencil, TextureFilter::Nearest);
+	backbuffer->blit(m_storageFramebuffer, AttachmentType::DepthStencil, TextureFilter::Nearest);
 }
 
 void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
@@ -635,47 +636,26 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 	// 
 	// ao | roughness | metalness | _
 	// R  | G         | B         | A
-	m_depth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget);
-	m_position = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
-	m_albedo = Texture::create2D(width, height, TextureFormat::RGBA8, TextureFlag::RenderTarget);
-	m_normal = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
-	m_material = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
-	FramebufferAttachment gbufferAttachments[] = {
-		FramebufferAttachment{
-			FramebufferAttachmentType::DepthStencil,
-			m_depth
-		},
-		FramebufferAttachment{
-			FramebufferAttachmentType::Color0,
-			m_position
-		},
-		FramebufferAttachment{
-			FramebufferAttachmentType::Color1,
-			m_albedo
-		},
-		FramebufferAttachment{
-			FramebufferAttachmentType::Color2,
-			m_normal
-		},
-		FramebufferAttachment{
-			FramebufferAttachmentType::Color3,
-			m_material
-		}
+	m_depth = Texture2D::create(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	m_position = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	m_albedo = Texture2D::create(width, height, TextureFormat::RGBA8, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	m_normal = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	m_material = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	Attachment gbufferAttachments[] = {
+		Attachment{ AttachmentType::DepthStencil, m_depth, AttachmentFlag::None, 0, 0 },
+		Attachment{ AttachmentType::Color0, m_position, AttachmentFlag::None, 0, 0 },
+		Attachment{ AttachmentType::Color1, m_albedo, AttachmentFlag::None, 0, 0 },
+		Attachment{ AttachmentType::Color2, m_normal, AttachmentFlag::None, 0, 0 },
+		Attachment{ AttachmentType::Color3, m_material, AttachmentFlag::None, 0, 0 }
 	};
-	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(FramebufferAttachment));
+	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(Attachment));
 
 	// --- Post process
-	m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget);
-	m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget);
-	FramebufferAttachment storageAttachment[] = {
-		FramebufferAttachment{
-			FramebufferAttachmentType::DepthStencil,
-			m_storageDepth
-		},
-		FramebufferAttachment{
-			FramebufferAttachmentType::Color0,
-			m_storage
-		}
+	m_storageDepth = Texture2D::create(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	m_storage = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	Attachment storageAttachment[] = {
+		Attachment{ AttachmentType::DepthStencil, m_storageDepth, AttachmentFlag::None, 0, 0 },
+		Attachment{ AttachmentType::Color0, m_storage, AttachmentFlag::None, 0, 0 }
 	};
 	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
 }

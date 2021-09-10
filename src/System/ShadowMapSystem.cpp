@@ -20,25 +20,55 @@ struct alignas(16) PointLightUniformBuffer {
 	alignas(4) float far;
 };
 
+void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
+{
+	DirectionalLightComponent& l = registry.get<DirectionalLightComponent>(entity);
+	l.shadowMap[0] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.shadowMap[1] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.shadowMap[2] = Texture2D::create(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+}
+
+void onDirectionalLightDestroy(entt::registry& registry, entt::entity entity)
+{
+	// nothing to do here
+}
+
+void onPointLightConstruct(entt::registry& registry, entt::entity entity)
+{
+	PointLightComponent& l = registry.get<PointLightComponent>(entity);
+	l.shadowMap = TextureCubeMap::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+}
+
+void onPointLightDestroy(entt::registry& registry, entt::entity entity)
+{
+	// nothing to do here
+}
+
 void ShadowMapSystem::onCreate(aka::World& world)
 {
 	createShaders();
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
-	Texture::Ptr dummyDepth = Texture::create2D(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
-	FramebufferAttachment shadowAttachments[] = {
-		FramebufferAttachment{
-			FramebufferAttachmentType::Depth,
-			dummyDepth
-		}
+	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
+	Attachment shadowAttachments[] = {
+		Attachment{ AttachmentType::Depth, dummyDepth, AttachmentFlag::None, 0, 0 }
 	};
 	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
-	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(LightModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
-	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
-	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);;
+	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(LightModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+
+	world.registry().on_construct<DirectionalLightComponent>().connect<&onDirectionalLightConstruct>();
+	world.registry().on_destroy<DirectionalLightComponent>().connect<&onDirectionalLightDestroy>();
+	world.registry().on_construct<PointLightComponent>().connect<&onPointLightConstruct>();
+	world.registry().on_destroy<PointLightComponent>().connect<&onPointLightDestroy>();
 }
 
 void ShadowMapSystem::onDestroy(aka::World& world)
 {
+	world.registry().on_construct<DirectionalLightComponent>().disconnect<&onDirectionalLightConstruct>();
+	world.registry().on_destroy<DirectionalLightComponent>().disconnect<&onDirectionalLightDestroy>();
+	world.registry().on_construct<PointLightComponent>().disconnect<&onPointLightConstruct>();
+	world.registry().on_destroy<PointLightComponent>().disconnect<&onPointLightDestroy>();
 }
 
 // Compute the shadow projection around the view projection.
@@ -127,7 +157,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 		shadowPass.scissor = aka::Rect{ 0 };
 
 		// Set output target and clear it.
-		m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap);
+		m_shadowFramebuffer->set(AttachmentType::Depth, light.shadowMap, AttachmentFlag::AttachTextureObject);
 		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		// Update light ubo
 		PointLightUniformBuffer pointUBO;
@@ -177,7 +207,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 		shadowPass.scissor = aka::Rect{ 0 };
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
-			m_shadowFramebuffer->attachment(FramebufferAttachmentType::Depth, light.shadowMap[i]);
+			m_shadowFramebuffer->set(AttachmentType::Depth, light.shadowMap[i]);
 			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 			DirectionalLightUniformBuffer lightUBO;
 			lightUBO.light = light.worldToLightSpaceMatrix[i];

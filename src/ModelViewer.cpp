@@ -46,9 +46,6 @@ void Viewer::onCreate(int argc, char* argv[])
 		sun.color = color3f(1.f);
 		sun.intensity = 10.f;
 		sunTransform.transform = mat4f::identity();
-		sun.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
-		sun.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
-		sun.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget);
 		// TODO texture atlas & single shader execution
 		for (size_t i = 0; i < 3; i++)
 			sun.worldToLightSpaceMatrix[i] = mat4f::identity();

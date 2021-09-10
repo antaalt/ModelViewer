@@ -275,7 +275,7 @@ const char* toString(TextureType type)
 		return "Texture2D";
 	case aka::TextureType::Texture2DMultisample:
 		return "Texture2DMultisample";
-	case aka::TextureType::TextureCubemap:
+	case aka::TextureType::TextureCubeMap:
 		return "TextureCubemap";
 	default:
 		return "Unknown";
@@ -436,7 +436,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool {
 						aka::Logger::info("Image : " + path.str());
-						return Importer::importTexture2D("new texture", path);
+						return Importer::importTexture2D("new texture", path, TextureFlag::ShaderResource);
 					});
 				}
 				if (ImGui::MenuItem("Cubemap"))

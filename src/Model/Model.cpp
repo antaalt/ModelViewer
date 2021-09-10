@@ -197,9 +197,9 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 {
 	Mesh::Ptr m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, data);
+	Texture2D::Ptr blank = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
+	Texture2D::Ptr normal = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
 	TextureSampler s = TextureSampler::nearest;
 
 	mat4f id = mat4f::identity();
@@ -214,9 +214,9 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 Entity Scene::createCubeEntity(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	Texture::Ptr blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, colorData);
+	Texture2D::Ptr blank = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	Texture::Ptr normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, normalData);
+	Texture2D::Ptr normal = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, normalData);
 	TextureSampler s = TextureSampler::nearest;
 
 	Mesh::Ptr m = createCubeMesh(point3f(0.f), 1.f);
@@ -239,7 +239,7 @@ Entity Scene::createPointLightEntity(World& world)
 		color3f(1.f),
 		1.f,
 		{ id, id, id, id, id, id },
-		Texture::createCubemap(1024, 1024, TextureFormat::Depth16, TextureFlag::RenderTarget)
+		nullptr
 	});
 	return light;
 }
@@ -256,9 +256,9 @@ Entity Scene::createDirectionalLightEntity(World& world)
 		1.f,
 		{ id, id, id },
 		{
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget),
-			Texture::create2D(2048, 2048, TextureFormat::Depth16, TextureFlag::RenderTarget)
+			nullptr,
+			nullptr,
+			nullptr
 		},
 		{ 1.f, 1.f, 1.f }
 	});
@@ -451,6 +451,20 @@ void Scene::save(const Path& path, const World& world)
 		json["asset"] = nlohmann::json::object();
 		json["asset"]["version"] = std::to_string(major) + "." + std::to_string(minor);
 		json["asset"]["exporter"] = "aka engine";
+#if defined(GEOMETRY_LEFT_HANDED)
+		json["asset"]["coordinate"] = "left";
+#elif defined(GEOMETRY_RIGHT_HANDED)
+		json["asset"]["coordinate"] = "right";
+#else
+		json["asset"]["coordinate"] = "unknown";
+#endif
+#if defined(AKA_ORIGIN_TOP_LEFT)
+		json["asset"]["origin"] = "top";
+#elif defined(AKA_ORIGIN_BOTTOM_LEFT)
+		json["asset"]["origin"] = "bottom";
+#else
+		json["asset"]["origin"] = "unknown";
+#endif
 		// --- Entities
 		json["entities"] = nlohmann::json::object();
 		r.each([&](entt::entity e) {
@@ -466,7 +480,7 @@ void Scene::save(const Path& path, const World& world)
 			if (r.has<Camera3DComponent>(e))         entity["components"]["camera"] = serialize<Camera3DComponent>(r, e);
 			std::string id = std::to_string((entt::id_type)e);
 			json["entities"][id] = entity;
-			});
+		});
 
 		if (!File::writeString(path, json.dump()))
 		{
@@ -600,7 +614,6 @@ void Scene::load(World& world, const Path& path)
 					light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
 					light.intensity = component["intensity"];
 					light.radius = 1.f;
-					light.shadowMap = Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget);
 				}
 				else if (name == "dirlight")
 				{
@@ -609,9 +622,6 @@ void Scene::load(World& world, const Path& path)
 					light.color = color3f(component["color"][0].get<float>(), component["color"][1].get<float>(), component["color"][2].get<float>());
 					light.direction = vec3f(component["direction"][0].get<float>(), component["direction"][1].get<float>(), component["direction"][2].get<float>());
 					light.intensity = component["intensity"];
-					light.shadowMap[0] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
-					light.shadowMap[1] = Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget);
-					light.shadowMap[2] = Texture::create2D(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget);
 				}
 				else if (name == "camera")
 				{
