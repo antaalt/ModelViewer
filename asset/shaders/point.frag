@@ -6,7 +6,8 @@ layout(location = 0) out vec4 o_color;
 
 //#define QUAD
 #ifdef QUAD // When using quad.vert
-layout(location = 0) in vec2 v_uv;
+layout(location = 0) in vec2 v_position;
+layout(location = 1) in vec2 v_uv;
 #else // When using point.vert
 #define v_uv (gl_FragCoord.xy / u_screen)
 #endif

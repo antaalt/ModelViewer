@@ -16,7 +16,7 @@ struct alignas(16) DirectionalLightUniformBuffer {
 
 struct alignas(16) PointLightUniformBuffer {
 	alignas(16) mat4f lightView;
-	alignas(16) vec3f lightPos;
+	alignas(16) point3f lightPos;
 	alignas(4) float far;
 };
 
@@ -138,12 +138,12 @@ void ShadowMapSystem::onRender(aka::World& world)
 	auto dirLightUpdate = world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
 	for (entt::entity e : pointLightUpdate)
 	{
-		Transform3DComponent& transform = world.registry().get<Transform3DComponent>(e);
+		Transform3DComponent& lightTransform = world.registry().get<Transform3DComponent>(e);
 		PointLightComponent& light = world.registry().get<PointLightComponent>(e);
 
 		// Generate shadow cascades
 		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 0.1f, light.radius);
-		point3f lightPos = point3f(transform.transform.cols[3]);
+		point3f lightPos = point3f(lightTransform.transform.cols[3]);
 		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
 		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
 		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 1.0, 0.0), norm3f(0.0, 0.0, 1.0)));
@@ -165,7 +165,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 		// Update light ubo
 		PointLightUniformBuffer pointUBO;
 		pointUBO.far = light.radius;
-		pointUBO.lightPos = vec3f(transform.transform.cols[3]);
+		pointUBO.lightPos = lightPos;
 
 		LightModelUniformBuffer modelUBO;
 		auto view = world.registry().view<Transform3DComponent, MeshComponent>();
@@ -174,7 +174,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 			pointUBO.lightView = light.worldToLightSpaceMatrix[i];
 			m_pointLightUniformBuffer->upload(&pointUBO);
 			// Set output target and clear it.
-			shadowPass.framebuffer->set(AttachmentType::Color0, light.shadowMap, AttachmentFlag::None, i);
+			shadowPass.framebuffer->set(AttachmentType::Depth, light.shadowMap, AttachmentFlag::None, i);
 			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
 				modelUBO.model = transform.transform;

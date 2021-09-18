@@ -1,6 +1,7 @@
 #version 450 core
 
 layout(location = 0) in vec3 a_position;
+layout(location = 0) out vec4 v_position;
 
 layout(std140, binding = 0) uniform PointLightUniformBuffer {
 	mat4 u_light;
@@ -14,5 +15,6 @@ layout(std140, binding = 1) uniform LightModelUniformBuffer {
 
 void main()
 {
-	gl_Position = u_light * u_model * vec4(a_position, 1.0);
+	v_position = u_model * vec4(a_position, 1.0);
+	gl_Position = u_light * v_position;
 }
