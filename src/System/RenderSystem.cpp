@@ -48,7 +48,13 @@ void RenderSystem::onCreate(aka::World& world)
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 
-	createShaders();
+	m_gbufferMaterial = aka::ShaderMaterial::create(ProgramManager::get("gbuffer"));
+	m_pointMaterial = aka::ShaderMaterial::create(ProgramManager::get("point"));
+	m_dirMaterial = aka::ShaderMaterial::create(ProgramManager::get("directional"));
+	m_ambientMaterial = aka::ShaderMaterial::create(ProgramManager::get("ambient"));
+	m_skyboxMaterial = aka::ShaderMaterial::create(ProgramManager::get("skybox"));
+	m_postprocessMaterial = aka::ShaderMaterial::create(ProgramManager::get("postProcess"));
+
 	createRenderTargets(backbuffer->width(), backbuffer->height());
 
 	// --- Uniforms
@@ -67,71 +73,45 @@ void RenderSystem::onCreate(aka::World& world)
 	m_shadowSampler.anisotropy = 1.f;
 
 	float quadVertices[] = {
-		-1, -1, // bottom left corner
-		 1, -1, // bottom right corner
-		 1,  1, // top right corner
-		-1,  1, // top left corner
+		-1.f, -1.f, 0.f, 0.f, // bottom left corner
+		 1.f, -1.f, 1.f, 0.f, // bottom right corner
+		 1.f,  1.f, 1.f, 1.f, // top right corner
+		-1.f,  1.f, 0.f, 1.f, // top left corner
 	};
+#if defined(AKA_USE_D3D11)
+	// Flip uv y
+	for (int i = 0; i < 4; i++)
+		quadVertices[i * 4 + 3] = 1.f - quadVertices[i * 4 + 3];
+#endif
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
-	std::vector<VertexAccessor> quadVertexInfo = {{
-		VertexAccessor{
-			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
-			VertexBufferView{
-				Buffer::create(BufferType::Vertex, sizeof(quadVertices), BufferUsage::Immutable, BufferCPUAccess::None, quadVertices),
-				0, // offset
-				sizeof(quadVertices), // size
-				sizeof(float) * 2 // stride
-			},
-			0,
-			8
-		}
-	} };
-	IndexAccessor quadIndexInfo{};
-	quadIndexInfo.format = IndexFormat::UnsignedShort;
-	quadIndexInfo.count = 6;
-	quadIndexInfo.bufferView.buffer = Buffer::create(BufferType::Index, sizeof(quadIndices), BufferUsage::Immutable, BufferCPUAccess::None, quadIndices);
-	quadIndexInfo.bufferView.offset = 0;
-	quadIndexInfo.bufferView.size = (uint32_t)quadIndexInfo.bufferView.buffer->size();
-	m_quad->upload(quadVertexInfo.data(), quadVertexInfo.size(), quadIndexInfo);
+	VertexAttribute attributes[2] = {
+		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
+		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 }
+	};
+	m_quad->uploadInterleaved(attributes, 2, quadVertices, 4, IndexFormat::UnsignedShort, quadIndices, 6);
 
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
 
 	// --- Skybox pass
-	String cubemapPath[6] = {
-		"skybox/skybox_px.jpg",
-		"skybox/skybox_nx.jpg",
-		"skybox/skybox_py.jpg",
-		"skybox/skybox_ny.jpg",
-		"skybox/skybox_pz.jpg",
-		"skybox/skybox_nz.jpg",
+	uint8_t data[] = { 
+		255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 
+		200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255,
+		170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255,
+		140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255,
+		110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255,
+		 90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,
+		 60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,
+		 30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,
 	};
-	// TODO cubemap as component somehow ? or simply parameter
-	Image cubemap[6];
-	for (size_t i = 0; i < 6; i++)
-	{
-		cubemap[i] = Image::load(Asset::path(cubemapPath[i]));
-		AKA_ASSERT(cubemap[i].width() == cubemap[0].width() && cubemap[i].height() == cubemap[0].height(), "Width & height not matching");
-	}
-
+	Texture2D::Ptr equirectangularMap = Texture2D::create(4, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, data);
+	m_skybox = TextureCubeMap::generate(512, 512, TextureFormat::RGBA8, TextureFlag::ShaderResource, equirectangularMap, TextureFilter::Linear);
 	m_skyboxSampler.filterMag = TextureFilter::Linear;
 	m_skyboxSampler.filterMin = TextureFilter::Linear;
 	m_skyboxSampler.wrapU = TextureWrap::ClampToEdge;
 	m_skyboxSampler.wrapV = TextureWrap::ClampToEdge;
 	m_skyboxSampler.wrapW = TextureWrap::ClampToEdge;
 	m_skyboxSampler.anisotropy = 1.f;
-
-	m_skybox = TextureCubeMap::create(
-		cubemap[0].width(), cubemap[0].height(),
-		TextureFormat::RGBA8, 
-		TextureFlag::ShaderResource,
-		cubemap[0].data(),
-		cubemap[1].data(),
-		cubemap[2].data(),
-		cubemap[3].data(),
-		cubemap[4].data(),
-		cubemap[5].data()
-	);
 
 	float skyboxVertices[] = {
 		-1.0f,  1.0f, -1.0f,
@@ -181,7 +161,7 @@ void RenderSystem::onCreate(aka::World& world)
 	VertexAccessor skyboxVertexInfo = {
 		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
 		VertexBufferView{
-			Buffer::create(BufferType::Vertex	, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
+			Buffer::create(BufferType::Vertex, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
 			0, // offset
 			sizeof(skyboxVertices), // size
 			sizeof(float) * 3 // stride
@@ -224,8 +204,6 @@ void RenderSystem::onDestroy(aka::World& world)
 
 void RenderSystem::onRender(aka::World& world)
 {
-	EventDispatcher<ShaderHotReloadEvent>::dispatch();
-
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 
 	Entity cameraEntity = Scene::getMainCamera(world);
@@ -322,7 +300,7 @@ void RenderSystem::onRender(aka::World& world)
 	lightingPass.submesh.mesh = m_quad;
 	lightingPass.submesh.type = PrimitiveType::Triangles;
 	lightingPass.submesh.offset = 0;
-	lightingPass.submesh.count = 6;
+	lightingPass.submesh.count = m_quad->getIndexCount();
 	lightingPass.clear = Clear::none;
 	lightingPass.blend.colorModeSrc = BlendMode::One;
 	lightingPass.blend.colorModeDst = BlendMode::One;
@@ -407,8 +385,7 @@ void RenderSystem::onRender(aka::World& world)
 
 		lightingPass.execute();
 	});
-	// TODO move blitting to texture. (and use copy here instead, no need to blit.)
-	m_storageFramebuffer->blit(m_gbuffer, AttachmentType::DepthStencil, TextureFilter::Nearest);
+	Texture2D::copy(m_depth, m_storageDepth);
 
 	// --- Skybox pass
 	RenderPass skyboxPass;
@@ -460,162 +437,20 @@ void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
 	createRenderTargets(e.width, e.height);
 }
 
-void RenderSystem::onReceive(const ShaderHotReloadEvent& e)
+void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 {
-	createShaders();
-}
-
-void RenderSystem::createShaders()
-{
-	// TODO cache shader and do not delete them during program creation.
-	// TODO use custom file for handling multiple API (ASSET REWORK, JSON based ?)
-	// - a file indexing shader path depending on the api & the type (frag, vert...) (JSON)
-	// - a single file containing all the shaders from all the api delimited by # or json 
-	//	-> problem of linting.
-	std::vector<VertexAttribute> defaultAttributes = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
-		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
-	};
-	std::vector<VertexAttribute> quadAttribute = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 }
-	};
-	std::vector<VertexAttribute> cubeAttribute = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 }
-	};
-	{
-#if defined(AKA_USE_OPENGL)
-		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.vert")).c_str(), aka::ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/gbuffer.frag")).c_str(), aka::ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/gbuffer.hlsl"));
-		ShaderHandle vert = Shader::compile(str.c_str(), aka::ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(str.c_str(), aka::ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile gbuffer shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader != nullptr)
-				m_gbufferMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.vert")).c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/point.frag")).c_str(), aka::ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/point.hlsl"));
-		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile point light shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader != nullptr)
-				m_pointMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/directional.frag")).c_str(), aka::ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/directional.hlsl"));
-		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile directional light shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader != nullptr)
-				m_dirMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/ambient.frag")).c_str(), aka::ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/ambient.hlsl"));
-		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile ambient shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader != nullptr)
-				m_ambientMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.vert")).c_str(), ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/skybox.frag")).c_str(), ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/skybox.hlsl"));
-		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile skybox shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, cubeAttribute.data(), cubeAttribute.size());
-			if (shader != nullptr)
-				m_skyboxMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		aka::ShaderHandle vert = aka::Shader::compile(File::readString(Asset::path("shaders/GL/quad.vert")).c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(File::readString(Asset::path("shaders/GL/postProcess.frag")).c_str(), aka::ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/postProcess.hlsl"));
-		aka::ShaderHandle vert = aka::Shader::compile(str.c_str(), aka::ShaderType::Vertex);
-		aka::ShaderHandle frag = aka::Shader::compile(str.c_str(), aka::ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile post process shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, quadAttribute.data(), quadAttribute.size());
-			if (shader != nullptr)
-				m_postprocessMaterial = aka::ShaderMaterial::create(shader);
-		}
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-	}
+	if (e.name == "gbuffer")
+		m_gbufferMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "point")
+		m_pointMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "directional")
+		m_dirMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "ambient")
+		m_ambientMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "skybox")
+		m_skyboxMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "postProcess")
+		m_postprocessMaterial = ShaderMaterial::create(e.program);
 }
 
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)

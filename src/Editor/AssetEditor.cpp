@@ -9,7 +9,7 @@ namespace viewer {
 
 void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 {
-	m_currentPath = aka::Asset::path("");
+	m_currentPath = aka::ResourceManager::path("");
 	m_selectedPath = nullptr;
 	m_paths = aka::Path::enumerate(m_currentPath);
 	m_importCallback = callback;
@@ -17,7 +17,7 @@ void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 
 void AssetEditor::onCreate(aka::World& world)
 {
-	m_currentPath = aka::Asset::path(""); // TODO request project path
+	m_currentPath = aka::ResourceManager::path(""); // TODO request project path
 	m_selectedPath = nullptr;
 	m_paths = aka::Path::enumerate(m_currentPath);
 }
@@ -419,7 +419,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
-						aka::Logger::info("Scene : " + path.str());
+						aka::Logger::info("Scene : ", path);
 						return Importer::importScene(path, world);
 					});
 				}
@@ -427,7 +427,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
-						aka::Logger::info("Mesh : " + path.str());
+						aka::Logger::info("Mesh : ", path);
 						return Importer::importMesh("new mesh", path);
 					});
 				}
@@ -435,7 +435,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool {
-						aka::Logger::info("Image : " + path.str());
+						aka::Logger::info("Image : ", path);
 						return Importer::importTexture2D("new texture", path, TextureFlag::ShaderResource);
 					});
 				}
@@ -443,7 +443,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
-						aka::Logger::info("Image : " + path.str());
+						aka::Logger::info("Image : ", path);
 						//return Importer::importTextureCubemap("new texture", path);
 						return false;
 					});
@@ -452,7 +452,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
-						aka::Logger::info("Audio : " + path.str());
+						aka::Logger::info("Audio : ", path);
 						return Importer::importAudio("new audio", path);
 					});
 				}
@@ -460,7 +460,7 @@ void AssetEditor::onRender(aka::World& world)
 				{
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
-						aka::Logger::info("Font : " + path.str());
+						aka::Logger::info("Font : ", path);
 						return Importer::importFont("new font", path);
 					});
 				}
@@ -532,7 +532,7 @@ void AssetEditor::onRender(aka::World& world)
 				for (aka::Path& path : m_paths)
 				{
 					bool selected = (&path == m_selectedPath);
-					bool isFolder = (path.str().last() == '/');
+					bool isFolder = Directory::exist(m_currentPath + path);
 					if (isFolder)
 					{
 						int err = snprintf(buffer, 256, "%s %s", "D", path.cstr());

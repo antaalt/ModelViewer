@@ -13,12 +13,10 @@ struct Vertex {
 	//static VertexAttribute* get();
 };
 
-struct ShaderHotReloadEvent {};
-
 class RenderSystem : 
 	public aka::System,
 	public aka::EventListener<aka::BackbufferResizeEvent>,
-	public aka::EventListener<ShaderHotReloadEvent>
+	public aka::EventListener<aka::ProgramReloadedEvent>
 {
 protected:
 	void onCreate(aka::World& world) override;
@@ -26,9 +24,8 @@ protected:
 
 	void onRender(aka::World& world) override;
 	void onReceive(const aka::BackbufferResizeEvent& e) override;
-	void onReceive(const ShaderHotReloadEvent& e) override;
+	void onReceive(const aka::ProgramReloadedEvent& e) override;
  private:
-	void createShaders();
 	void createRenderTargets(uint32_t width, uint32_t height);
 private:
 	// Uniforms
@@ -39,11 +36,11 @@ private:
 	aka::Buffer::Ptr m_pointLightUniformBuffer;
 
 	// gbuffers pass
-	aka::Texture::Ptr m_position;
-	aka::Texture::Ptr m_albedo;
-	aka::Texture::Ptr m_normal;
-	aka::Texture::Ptr m_depth;
-	aka::Texture::Ptr m_material;
+	aka::Texture2D::Ptr m_position;
+	aka::Texture2D::Ptr m_albedo;
+	aka::Texture2D::Ptr m_normal;
+	aka::Texture2D::Ptr m_depth;
+	aka::Texture2D::Ptr m_material;
 	aka::Framebuffer::Ptr m_gbuffer;
 	aka::ShaderMaterial::Ptr m_gbufferMaterial;
 
@@ -62,8 +59,8 @@ private:
 	aka::ShaderMaterial::Ptr m_skyboxMaterial;
 
 	// Post process pass
-	aka::Texture::Ptr m_storageDepth;
-	aka::Texture::Ptr m_storage;
+	aka::Texture2D::Ptr m_storageDepth;
+	aka::Texture2D::Ptr m_storage;
 	aka::Framebuffer::Ptr m_storageFramebuffer;
 	aka::ShaderMaterial::Ptr m_postprocessMaterial;
 };

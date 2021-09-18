@@ -17,6 +17,7 @@ namespace viewer {
 
 void Viewer::onCreate(int argc, char* argv[])
 {
+	ProgramManager::parse(ResourceManager::path("shader.json"));
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
 	m_world.attach<RenderSystem>();
@@ -28,17 +29,17 @@ void Viewer::onCreate(int argc, char* argv[])
 	for (EditorWindow* editor : m_editors)
 		editor->onCreate(m_world);
 
-	// --- Lights
-
+	// --- Model
 	ResourceManager::parse("library/library.json");
 	Scene::load(m_world, "library/scene.json");
+	//Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
 
+	// --- Lights
 	{ // Sun
 		m_sun = m_world.createEntity("SunEditor");
 		m_sun.add<Transform3DComponent>();
 		m_sun.add<Hierarchy3DComponent>();
 		m_sun.add<DirectionalLightComponent>();
-		m_sun.add<DirtyLightComponent>();
 		Transform3DComponent& sunTransform = m_sun.get<Transform3DComponent>();
 		Hierarchy3DComponent& h = m_sun.get<Hierarchy3DComponent>();
 		DirectionalLightComponent& sun = m_sun.get<DirectionalLightComponent>();
@@ -80,7 +81,10 @@ void Viewer::onCreate(int argc, char* argv[])
 			view.each([&](Transform3DComponent& t, MeshComponent& mesh) {
 				bounds.include(t.transform * mesh.bounds);
 			});
-			arcball->set(bounds);
+			if (bounds.valid())
+				arcball->set(bounds);
+			else
+				arcball->set(aabbox<>(point3f(0.f), point3f(1.f)));
 
 			transform.transform = arcball->transform();
 			camera.view = mat4f::inverse(transform.transform);
@@ -110,6 +114,9 @@ void Viewer::onDestroy()
 
 void Viewer::onUpdate(aka::Time::Unit deltaTime)
 {
+	// Hot reload programs.
+	ProgramManager::update();
+
 	// Camera status
 	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
 
@@ -146,12 +153,6 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	{
 		GraphicBackend::screenshot("screen.png");
 	}
-	// Hot reload
-	if (Keyboard::down(KeyboardKey::Space) && !ImGui::GetIO().WantCaptureKeyboard)
-	{
-		Logger::info("Reloading shaders...");
-		EventDispatcher<ShaderHotReloadEvent>::emit();
-	}
 	// Quit the app if requested
 	if (Keyboard::pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
@@ -173,7 +174,6 @@ void Viewer::onRender()
 
 	if (m_debug)
 	{
-		// TODO move to UI system ?
 		// --- Editor pass
 		for (EditorWindow* editor : m_editors)
 			editor->onRender(m_world);

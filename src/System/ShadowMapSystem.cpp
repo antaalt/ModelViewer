@@ -15,7 +15,7 @@ struct alignas(16) DirectionalLightUniformBuffer {
 };
 
 struct alignas(16) PointLightUniformBuffer {
-	alignas(16) mat4f lights[6];
+	alignas(16) mat4f lightView;
 	alignas(16) vec3f lightPos;
 	alignas(4) float far;
 };
@@ -26,6 +26,8 @@ void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 	l.shadowMap[0] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
 	l.shadowMap[1] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
 	l.shadowMap[2] = Texture2D::create(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	if (!registry.has<DirtyLightComponent>(entity))
+		registry.emplace<DirtyLightComponent>(entity);
 }
 
 void onDirectionalLightDestroy(entt::registry& registry, entt::entity entity)
@@ -37,6 +39,8 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
 	l.shadowMap = TextureCubeMap::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	if (!registry.has<DirtyLightComponent>(entity))
+		registry.emplace<DirtyLightComponent>(entity);
 }
 
 void onPointLightDestroy(entt::registry& registry, entt::entity entity)
@@ -46,7 +50,9 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 
 void ShadowMapSystem::onCreate(aka::World& world)
 {
-	createShaders();
+	m_shadowMaterial = ShaderMaterial::create(ProgramManager::get("shadowDirectional"));
+	m_shadowPointMaterial = ShaderMaterial::create(ProgramManager::get("shadowPoint"));
+
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
 	Attachment shadowAttachments[] = {
@@ -156,24 +162,27 @@ void ShadowMapSystem::onRender(aka::World& world)
 		shadowPass.viewport = aka::Rect{ 0 };
 		shadowPass.scissor = aka::Rect{ 0 };
 
-		// Set output target and clear it.
-		m_shadowFramebuffer->set(AttachmentType::Depth, light.shadowMap, AttachmentFlag::AttachTextureObject);
-		m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
 		// Update light ubo
 		PointLightUniformBuffer pointUBO;
 		pointUBO.far = light.radius;
 		pointUBO.lightPos = vec3f(transform.transform.cols[3]);
-		memcpy(pointUBO.lights, light.worldToLightSpaceMatrix, sizeof(light.worldToLightSpaceMatrix));
-		m_pointLightUniformBuffer->upload(&pointUBO);
 
 		LightModelUniformBuffer modelUBO;
 		auto view = world.registry().view<Transform3DComponent, MeshComponent>();
-		view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-			modelUBO.model = transform.transform;
-			m_modelUniformBuffer->upload(&modelUBO);
-			shadowPass.submesh = mesh.submesh;
-			shadowPass.execute();
-		});
+		for (int i = 0; i < 6; ++i)
+		{
+			pointUBO.lightView = light.worldToLightSpaceMatrix[i];
+			m_pointLightUniformBuffer->upload(&pointUBO);
+			// Set output target and clear it.
+			shadowPass.framebuffer->set(AttachmentType::Color0, light.shadowMap, AttachmentFlag::None, i);
+			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
+			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
+				modelUBO.model = transform.transform;
+				m_modelUniformBuffer->upload(&modelUBO);
+				shadowPass.submesh = mesh.submesh;
+				shadowPass.execute();
+			});
+		}
 		world.registry().remove<DirtyLightComponent>(e);
 	}
 
@@ -229,61 +238,12 @@ void ShadowMapSystem::onRender(aka::World& world)
 	}
 }
 
-void ShadowMapSystem::onReceive(const ShaderHotReloadEvent& e)
+void ShadowMapSystem::onReceive(const ProgramReloadedEvent& e)
 {
-	createShaders();
-}
-
-void ShadowMapSystem::createShaders()
-{
-	std::vector<VertexAttribute> defaultAttributes = {
-		   VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-		   VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
-		   VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
-		   VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
-	};
-	{
-#if defined(AKA_USE_OPENGL)
-		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.vert")).c_str(), ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadow.frag")).c_str(), ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/shadow.hlsl"));
-		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile shadow shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createVertexProgram(vert, frag, defaultAttributes.data(), defaultAttributes.size());
-			if (shader != nullptr)
-				m_shadowMaterial = aka::ShaderMaterial::create(shader);
-		}
-	}
-	{
-#if defined(AKA_USE_OPENGL)
-		ShaderHandle vert = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.vert")).c_str(), ShaderType::Vertex);
-		ShaderHandle geo = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.geo")).c_str(), ShaderType::Geometry);
-		ShaderHandle frag = Shader::compile(File::readString(Asset::path("shaders/GL/shadowPoint.frag")).c_str(), ShaderType::Fragment);
-#else
-		std::string str = File::readString(Asset::path("shaders/D3D/shadowPoint.hlsl"));
-		ShaderHandle vert = Shader::compile(str.c_str(), ShaderType::Vertex);
-		ShaderHandle geo = Shader::compile(str.c_str(), ShaderType::Geometry);
-		ShaderHandle frag = Shader::compile(str.c_str(), ShaderType::Fragment);
-#endif
-		if (vert == ShaderHandle(0) || frag == ShaderHandle(0) || geo == ShaderHandle(0))
-		{
-			aka::Logger::error("Failed to compile shadow point shader");
-		}
-		else
-		{
-			aka::Shader::Ptr shader = aka::Shader::createGeometryProgram(vert, frag, geo, defaultAttributes.data(), defaultAttributes.size());
-			if (shader != nullptr)
-				m_shadowPointMaterial = aka::ShaderMaterial::create(shader);
-		}
-	}
+	if (e.name == "shadowDirectional")
+		m_shadowMaterial = ShaderMaterial::create(e.program);
+	else if (e.name == "shadowPoint")
+		m_shadowPointMaterial = ShaderMaterial::create(e.program);
 }
 
 };

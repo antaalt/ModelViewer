@@ -1,21 +1,21 @@
-#version 330
-
-layout(location = 0) out vec4 o_color;
+#version 450
 
 const int SHADOW_CASCADE_COUNT = 3;
 const float PI = 3.14159265359;
 
-in vec2 v_uv;
+layout(location = 0) out vec4 o_color;
 
-uniform sampler2D u_positionTexture;
-uniform sampler2D u_albedoTexture;
-uniform sampler2D u_normalTexture;
-uniform sampler2D u_depthTexture;
-uniform sampler2D u_materialTexture;
+layout(location = 0) in vec2 v_uv;
 
-uniform sampler2D u_shadowMap[SHADOW_CASCADE_COUNT];
+layout(binding = 0) uniform sampler2D u_positionTexture;
+layout(binding = 1) uniform sampler2D u_albedoTexture;
+layout(binding = 2) uniform sampler2D u_normalTexture;
+layout(binding = 3) uniform sampler2D u_depthTexture;
+layout(binding = 4) uniform sampler2D u_materialTexture;
 
-layout (std140) uniform DirectionalLightUniformBuffer {
+layout(binding = 5) uniform sampler2D u_shadowMap[SHADOW_CASCADE_COUNT];
+
+layout (std140, binding = 0) uniform DirectionalLightUniformBuffer {
 	vec3 u_lightDirection;
 	float u_lightIntensity;
 	vec3 u_lightColor;
@@ -23,7 +23,7 @@ layout (std140) uniform DirectionalLightUniformBuffer {
 	float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
 };
 
-layout(std140) uniform CameraUniformBuffer {
+layout(std140, binding = 1) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
 	mat4 u_viewInverse;

@@ -8,7 +8,7 @@ namespace viewer {
 
 class ShadowMapSystem : 
 	public aka::System,
-	public aka::EventListener<ShaderHotReloadEvent>
+	public aka::EventListener<aka::ProgramReloadedEvent>
 {
 public:
 	void onCreate(aka::World& world) override;
@@ -16,9 +16,7 @@ public:
 
 	void onRender(aka::World& world) override;
 
-	void onReceive(const ShaderHotReloadEvent& e) override;
-private:
-	void createShaders();
+	void onReceive(const aka::ProgramReloadedEvent& e) override;
 private:
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
 	aka::ShaderMaterial::Ptr m_shadowMaterial;

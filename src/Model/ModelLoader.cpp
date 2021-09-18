@@ -372,7 +372,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 
 Texture::Ptr AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 {
-	String name = file::name(path);
+	String name = File::name(path);
 	if (ResourceManager::has<Texture>(name))
 		return ResourceManager::get<Texture>(name);
 	if (Importer::importTexture2D(name, path, flags))
@@ -410,7 +410,7 @@ bool Importer::importScene(const Path& path, aka::World& world)
 		Logger::error("[assimp] ", assimpImporter.GetErrorString());
 		return false;
 	}
-	String directory = path.str().substr(0, path.str().findLast('/'));
+	Path directory = path.up();
 	AssimpImporter importer(directory, aiScene, world);
 	importer.process();
 	return true;
@@ -509,230 +509,11 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 	return true;
 }
 
-#if defined(AKA_USE_OPENGL)
-const char* vertShader = "#version 330 core\n"
-"layout(location = 0) in vec3 a_position;\n"
-"layout(std140) uniform CameraUniformBuffer { mat4 projection; mat4 view; };\n"
-"out vec3 v_position;\n"
-"void main()\n"
-"{\n"
-"	v_position = a_position;\n"
-"	gl_Position = projection * view * vec4(a_position, 1.0);\n"
-"}\n";
-
-const char* fragShader = "#version 330 core\n"
-"in vec3 v_position;\n"
-"uniform sampler2D u_environmentMap;\n"
-"out vec4 o_color;\n"
-"const vec2 invAtan = vec2(0.1591, 0.3183);\n"
-"vec2 SampleSphericalMap(vec3 v)\n"
-"{\n"
-"	vec2 uv = vec2(atan(v.z, v.x), asin(v.y));\n"
-"	uv *= invAtan;\n"
-"	uv += 0.5;\n"
-"	return uv;\n"
-"}\n"
-"void main()\n"
-"{\n"
-"	vec2 uv = SampleSphericalMap(normalize(v_position));\n"
-"	vec3 color = texture(u_environmentMap, uv).rgb;\n"
-"	o_color = vec4(color, 1.0);\n"
-"}\n";
-#elif defined(AKA_USE_D3D11)
-const char* shader = ""
-"cbuffer CameraUniformBuffer : register(b0) { float4x4 projection; float4x4 view; };\n"
-"struct vs_out { float4 position : SV_POSITION; float3 localPosition : POS; };\n"
-"Texture2D    u_environmentMap : register(t0);\n"
-"SamplerState u_environmentMapSampler : register(s0);\n"
-"static const float2 invAtan = float2(0.1591, 0.3183);\n"
-"float2 SampleSphericalMap(float3 v)\n"
-"{\n"
-"	float2 uv = float2(atan2(v.z, v.x), asin(v.y));\n"
-"	uv *= invAtan;\n"
-"	uv += 0.5;\n"
-"	return uv;\n"
-"}\n"
-"vs_out vs_main(float3 position : POS)\n"
-"{\n"
-"	vs_out output;\n"
-"	output.localPosition = position;\n"
-"	output.position = mul(projection, mul(view, float4(position.x, position.y, position.z, 1.0)));\n"
-"	return output;\n"
-"}\n"
-"float4 ps_main(vs_out input) : SV_TARGET\n"
-"{\n"
-"	float2 uv = SampleSphericalMap(normalize(input.localPosition));\n"
-"	float3 color = u_environmentMap.Sample(u_environmentMapSampler, uv).rgb;\n"
-"	return float4(color.x, color.y, color.z, 1.0);\n"
-"}\n";
-const char* vertShader = shader;
-const char* fragShader = shader;
-#endif
-
-bool Importer::importTextureEnvmap(const aka::String& name, const aka::Path& path, TextureFlag flags)
-{
-	if (!ResourceManager::has<Texture>(name))
-	{
-		String libPath = "library/texture/" + name + ".tex";
-		// https://learnopengl.com/PBR/IBL/Diffuse-irradiance
-		// TODO cubemap resolution depends on envmap resolution ?
-		uint32_t cubemapWidth = 1024;
-		uint32_t cubemapHeight = 1024;
-		// Load envmap
-		Image imageHDR = Image::loadHDR(path);
-		if (imageHDR.size() == 0 || imageHDR.format() != ImageFormat::Float)
-		{
-			Logger::error("Image failed to load.");
-			return false;
-		}
-		// Convert it to cubemap
-		Texture2D::Ptr envmap = Texture2D::create(imageHDR.width(), imageHDR.height(), TextureFormat::RGBA32F, TextureFlag::ShaderResource, imageHDR.data());
-		TextureCubeMap::Ptr cubemap = TextureCubeMap::create(cubemapWidth, cubemapHeight, TextureFormat::RGBA32F, TextureFlag::RenderTarget);
-		// Create framebuffer
-		Attachment attachment = Attachment{ AttachmentType::Color0, cubemap, AttachmentFlag::None, 0, 0 };
-		Framebuffer::Ptr framebuffer = Framebuffer::create(&attachment, 1);
-
-		// Meshes
-		float skyboxVertices[] = {
-			-1.0f,  1.0f, -1.0f,
-			-1.0f, -1.0f, -1.0f,
-			1.0f, -1.0f, -1.0f,
-			1.0f, -1.0f, -1.0f,
-			1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-
-			-1.0f, -1.0f,  1.0f,
-			-1.0f, -1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f,  1.0f,
-			-1.0f, -1.0f,  1.0f,
-
-			1.0f, -1.0f, -1.0f,
-			1.0f, -1.0f,  1.0f,
-			1.0f,  1.0f,  1.0f,
-			1.0f,  1.0f,  1.0f,
-			1.0f,  1.0f, -1.0f,
-			1.0f, -1.0f, -1.0f,
-
-			-1.0f, -1.0f,  1.0f,
-			-1.0f,  1.0f,  1.0f,
-			1.0f,  1.0f,  1.0f,
-			1.0f,  1.0f,  1.0f,
-			1.0f, -1.0f,  1.0f,
-			-1.0f, -1.0f,  1.0f,
-
-			-1.0f,  1.0f, -1.0f,
-			1.0f,  1.0f, -1.0f,
-			1.0f,  1.0f,  1.0f,
-			1.0f,  1.0f,  1.0f,
-			-1.0f,  1.0f,  1.0f,
-			-1.0f,  1.0f, -1.0f,
-
-			-1.0f, -1.0f, -1.0f,
-			-1.0f, -1.0f,  1.0f,
-			1.0f, -1.0f, -1.0f,
-			1.0f, -1.0f, -1.0f,
-			-1.0f, -1.0f,  1.0f,
-			1.0f, -1.0f,  1.0f
-		};
-		Mesh::Ptr cube = Mesh::create();
-		VertexAccessor skyboxVertexInfo = {
-			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-			VertexBufferView{
-				Buffer::create(BufferType::Vertex, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
-				0, // offset
-				sizeof(skyboxVertices), // size
-				sizeof(float) * 3 // stride
-			},
-			0, // offset
-			sizeof(skyboxVertices) / (sizeof(float) * 3) // count
-		};
-		cube->upload(&skyboxVertexInfo, 1);
-
-		// Transforms
-		mat4f captureProjection = mat4f::perspective(anglef::degree(90.0f), 1.f, 0.1f, 10.f);
-		mat4f captureViews[6] = {
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(1.0f,  0.0f,  0.0f), norm3f(0.0f, -1.0f,  0.0f))),
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(-1.0f,  0.0f,  0.0f), norm3f(0.0f, -1.0f,  0.0f))),
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(0.0f,  1.0f,  0.0f), norm3f(0.0f,  0.0f,  1.0f))),
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(0.0f, -1.0f,  0.0f), norm3f(0.0f,  0.0f, -1.0f))),
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(0.0f,  0.0f,  1.0f), norm3f(0.0f, -1.0f,  0.0f))),
-			mat4f::inverse(mat4f::lookAt(point3f(0.0f, 0.0f, 0.0f), point3f(0.0f,  0.0f, -1.0f), norm3f(0.0f, -1.0f,  0.0f)))
-		};
-		// Shader
-		VertexAttribute attribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
-		ShaderHandle vert = Shader::compile(vertShader, ShaderType::Vertex);
-		ShaderHandle frag = Shader::compile(fragShader, ShaderType::Fragment);
-		Shader::Ptr shader = Shader::createVertexProgram(vert, frag, &attribute, 1);
-		ShaderMaterial::Ptr material = ShaderMaterial::create(shader);
-		Shader::destroy(vert);
-		Shader::destroy(frag);
-
-		RenderPass pass{};
-		pass.framebuffer = framebuffer;
-		pass.clear = Clear{ ClearMask::Color | ClearMask::Depth, color4f(0.f), 1.f, 0 };
-		pass.blend = Blending::none;
-		pass.cull = Culling::none;
-		pass.depth = Depth::none;
-		pass.stencil = Stencil::none;
-		pass.scissor = Rect{ 0 };
-		pass.viewport = Rect{ 0, 0, cubemapWidth, cubemapHeight };
-		pass.material = material;
-		pass.submesh.mesh = cube;
-		pass.submesh.type = PrimitiveType::Triangles;
-		pass.submesh.count = cube->getVertexCount(0);
-		pass.submesh.offset = 0;
-
-		struct CameraUniformBuffer {
-			mat4f projection;
-			mat4f view;
-		} camera;
-		camera.projection = captureProjection;
-
-		Buffer::Ptr cameraUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-
-		pass.material->set("u_environmentMap", TextureSampler::bilinear);
-		pass.material->set("u_environmentMap", envmap);
-		pass.material->set("CameraUniformBuffer", cameraUniformBuffer);
-
-		// Convert and save
-		TextureStorage storage;
-		storage.type = TextureType::TextureCubeMap;
-		storage.flags = flags;
-		storage.format = TextureFormat::RGBA32F;
-		Image img(cubemapWidth, cubemapHeight, 4, ImageFormat::Float);
-		for (int i = 0; i < 6; ++i)
-		{
-			camera.view = captureViews[i];
-			cameraUniformBuffer->upload(&camera);
-			framebuffer->set(AttachmentType::Color0, cubemap, AttachmentFlag::None, i);
-			pass.execute();
-			cubemap->download(img.data(), i);
-			// ---
-			img.encodeHDR(Path("./envmap" + std::to_string(i) + ".hdr"));
-			// ---
-			storage.images.emplace_back(img);
-		}
-
-		// blabla
-		if (!storage.save(libPath))
-			return false;
-		// Load
-		ResourceManager::load<Texture>(name, libPath);
-	}
-	else
-	{
-		Logger::warn("Environment map already imported : ", name);
-	}
-	return true;
-}
-
 bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 {
 	String libPath = "library/audio/" + name + ".audio";
 	// Convert and save (only copy for now)
-	if (!file::create(libPath))
+	if (!File::create(libPath))
 		Logger::error("Failed to create file");
 	std::filesystem::copy(path.cstr(), libPath.cstr());
 	// Load
@@ -744,7 +525,7 @@ bool Importer::importFont(const aka::String& name, const aka::Path& path)
 {
 	String libPath = "library/font/" + name + ".font";
 	// Convert and save (only copy for now)
-	if (!file::create(libPath))
+	if (!File::create(libPath))
 		Logger::error("Failed to create file");
 	std::filesystem::copy(path.cstr(), libPath.cstr());
 	// Load

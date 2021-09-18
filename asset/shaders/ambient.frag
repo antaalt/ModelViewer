@@ -1,16 +1,16 @@
-#version 330
+#version 450
 
 layout(location = 0) out vec4 o_color;
 
-in vec2 v_uv;
+layout(location = 0) in vec2 v_uv;
 
-uniform sampler2D u_positionTexture;
-uniform sampler2D u_albedoTexture;
-uniform sampler2D u_normalTexture;
-uniform sampler2D u_materialTexture;
-uniform samplerCube u_skyboxTexture;
+layout(binding = 0) uniform sampler2D u_positionTexture;
+layout(binding = 1) uniform sampler2D u_albedoTexture;
+layout(binding = 2) uniform sampler2D u_normalTexture;
+layout(binding = 3) uniform sampler2D u_materialTexture;
+layout(binding = 4) uniform samplerCube u_skyboxTexture;
 
-layout(std140) uniform CameraUniformBuffer {
+layout(std140, binding = 0) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
 	mat4 u_viewInverse;

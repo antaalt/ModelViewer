@@ -482,7 +482,7 @@ void Scene::save(const Path& path, const World& world)
 			json["entities"][id] = entity;
 		});
 
-		if (!File::writeString(path, json.dump()))
+		if (!File::write(path, json.dump()))
 		{
 			Logger::error("Failed to write scene.");
 		}
@@ -497,13 +497,14 @@ void Scene::load(World& world, const Path& path)
 {
 	try
 	{
-		std::string s = File::readString(path);
-		if (s.size() == 0)
+		String s;
+		File::read(path, &s);
+		if (s.length() == 0)
 		{
 			Logger::error("File ", path, "not valid.");
 			return;
 		}
-		nlohmann::json json = nlohmann::json::parse(s);
+		nlohmann::json json = nlohmann::json::parse(s.cstr());
 		std::string version = json["asset"]["version"].get<std::string>();
 		if (version != std::to_string(major) + "." + std::to_string(minor))
 		{

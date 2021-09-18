@@ -1,38 +1,39 @@
-#version 330
-
-layout(location = 0) out vec4 o_color;
+#version 450
 
 const float PI = 3.14159265359;
 
+layout(location = 0) out vec4 o_color;
+
 //#define QUAD
 #ifdef QUAD // When using quad.vert
-in vec2 v_uv;
+layout(location = 0) in vec2 v_uv;
 #else // When using point.vert
 #define v_uv (gl_FragCoord.xy / u_screen)
 #endif
 
-uniform sampler2D u_positionTexture;
-uniform sampler2D u_albedoTexture;
-uniform sampler2D u_normalTexture;
-uniform sampler2D u_materialTexture;
+layout(binding = 0) uniform sampler2D u_positionTexture;
+layout(binding = 1) uniform sampler2D u_albedoTexture;
+layout(binding = 2) uniform sampler2D u_normalTexture;
+layout(binding = 3) uniform sampler2D u_materialTexture;
 
-uniform samplerCube u_shadowMap;
+layout(binding = 4) uniform samplerCube u_shadowMap;
 
-layout(std140) uniform PointLightUniformBuffer {
+layout(std140, binding = 0) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+	mat4 u_viewInverse;
+	mat4 u_projectionInverse;
+};
+
+layout(std140, binding = 2) uniform PointLightUniformBuffer {
 	vec3 u_lightPosition;
 	float u_lightIntensity;
 	vec3 u_lightColor;
 	float u_farPointLight;
 };
 
-layout(std140) uniform CameraUniformBuffer {
-	mat4 u_view;
-	mat4 u_projection;
-	mat4 u_viewInverse;
-	mat4 u_projectionInverse;
-};
 #ifndef QUAD
-layout(std140) uniform ViewportUniformBuffer {
+layout(std140, binding = 3) uniform ViewportUniformBuffer {
 	vec2 u_screen;
 };
 #endif

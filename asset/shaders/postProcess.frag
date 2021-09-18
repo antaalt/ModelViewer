@@ -1,12 +1,12 @@
-#version 330
+#version 450
 
 layout(location = 0) out vec4 o_color;
 
-in vec2 v_uv;
+layout(location = 0) in vec2 v_uv;
 
-uniform sampler2D u_inputTexture;
+layout(binding = 0) uniform sampler2D u_inputTexture;
 
-layout(std140) uniform ViewportUniformBuffer {
+layout(std140, binding = 0) uniform ViewportUniformBuffer {
 	vec2 u_screen;
 };
 
