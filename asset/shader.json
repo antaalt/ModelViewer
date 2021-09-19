@@ -4,94 +4,111 @@
 	},
 	"programs": {
 		"point" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
-			],
 			"vertex" : "point.vert",
 			"fragment" : "point.frag"
 		},
 		"directional" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 0 },
-				{"semantic": 3, "format": 0, "type": 0 }
-			],
 			"vertex" : "quad.vert",
 			"fragment" : "directional.frag"
 		},
 		"ambient" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 0 },
-				{"semantic": 3, "format": 0, "type": 0 }
-			],
 			"vertex" : "quad.vert",
 			"fragment" : "ambient.frag"
 		},
 		"gbuffer" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
-			],
 			"vertex" : "gbuffer.vert",
 			"fragment" : "gbuffer.frag"
 		},
 		"skybox" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 }
-			],
 			"vertex" : "skybox.vert",
 			"fragment" : "skybox.frag"
 		},
 		"postProcess" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 0 },
-				{"semantic": 3, "format": 0, "type": 0 }
-			],
 			"vertex" : "quad.vert",
 			"fragment" : "postProcess.frag"
 		},
 		"shadowDirectional" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
-			],
 			"vertex" : "shadow.vert",
 			"fragment" : "shadow.frag"
 		},
 		"shadowPoint" : {
-			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
-			],
 			"vertex" : "shadowPoint.vert",
 			"fragment" : "shadowPoint.frag"
 		}
 	},
 	"shaders" : {
-		"quad.vert": "asset/shaders/quad.vert",
-		"gbuffer.vert": "asset/shaders/gbuffer.vert",
-		"gbuffer.frag": "asset/shaders/gbuffer.frag",
-		"point.vert": "asset/shaders/point.vert",
-		"point.frag": "asset/shaders/point.frag",
-		"ambient.frag": "asset/shaders/ambient.frag",
-		"postProcess.frag": "asset/shaders/postProcess.frag",
-		"directional.frag": "asset/shaders/directional.frag",
-		"point.vert": "asset/shaders/point.vert",
-		"point.frag": "asset/shaders/point.frag",
-		"directional.frag":"asset/shaders/directional.frag",
-		"shadow.vert": "asset/shaders/shadow.vert",
-		"shadow.frag": "asset/shaders/shadow.frag",
-		"shadowPoint.vert": "asset/shaders/shadowPoint.vert",
-		"shadowPoint.frag": "asset/shaders/shadowPoint.frag",
-		"skybox.vert": "asset/shaders/skybox.vert",
-		"skybox.frag": "asset/shaders/skybox.frag"
+		"quad.vert": {
+			"path":"asset/shaders/quad.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 0 },
+				{"semantic": 3, "format": 0, "type": 0 }
+			]
+		},
+		"gbuffer.vert": {
+			"path": "asset/shaders/gbuffer.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 },
+				{"semantic": 1, "format": 0, "type": 1 },
+				{"semantic": 3, "format": 0, "type": 0 },
+				{"semantic": 7, "format": 0, "type": 2 }
+			]
+		},
+		"gbuffer.frag": {
+			"path": "asset/shaders/gbuffer.frag"
+		},
+		"point.vert": {
+			"path": "asset/shaders/point.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 },
+				{"semantic": 1, "format": 0, "type": 1 },
+				{"semantic": 3, "format": 0, "type": 0 },
+				{"semantic": 7, "format": 0, "type": 2 }
+			]
+		},
+		"point.frag":  {
+			"path": "asset/shaders/point.frag"
+		},
+		"ambient.frag":  {
+			"path":"asset/shaders/ambient.frag"
+		},
+		"postProcess.frag":  {
+			"path":"asset/shaders/postProcess.frag"
+		},
+		"directional.frag":  {
+			"path":"asset/shaders/directional.frag"
+		},
+		"shadow.vert":  {
+			"path":"asset/shaders/shadow.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 },
+				{"semantic": 1, "format": 0, "type": 1 },
+				{"semantic": 3, "format": 0, "type": 0 },
+				{"semantic": 7, "format": 0, "type": 2 }
+			]
+		},
+		"shadow.frag":  {
+			"path":"asset/shaders/shadow.frag"
+		},
+		"shadowPoint.vert":  {
+			"path":"asset/shaders/shadowPoint.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 },
+				{"semantic": 1, "format": 0, "type": 1 },
+				{"semantic": 3, "format": 0, "type": 0 },
+				{"semantic": 7, "format": 0, "type": 2 }
+			]
+		},
+		"shadowPoint.frag":  {
+			"path":"asset/shaders/shadowPoint.frag"
+		},
+		"skybox.vert": {
+			"path": "asset/shaders/skybox.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 }
+			]
+		},
+		"skybox.frag":  {
+			"path":"asset/shaders/skybox.frag"
+		}
 	}
 }
