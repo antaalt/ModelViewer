@@ -8,5 +8,5 @@ layout (binding = 0) uniform samplerCube u_skyboxTexture;
 
 void main()
 {
-	o_color = texture(u_skyboxTexture, v_uv);
+	o_color = texture(u_skyboxTexture, normalize(v_uv));
 }

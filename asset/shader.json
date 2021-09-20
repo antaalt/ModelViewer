@@ -40,8 +40,7 @@
 		"quad.vert": {
 			"path":"asset/shaders/quad.vert",
 			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 0 },
-				{"semantic": 3, "format": 0, "type": 0 }
+				{"semantic": 0, "format": 0, "type": 0 }
 			]
 		},
 		"gbuffer.vert": {
@@ -80,10 +79,7 @@
 		"shadow.vert":  {
 			"path":"asset/shaders/shadow.vert",
 			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
+				{"semantic": 0, "format": 0, "type": 1 }
 			]
 		},
 		"shadow.frag":  {
@@ -92,10 +88,7 @@
 		"shadowPoint.vert":  {
 			"path":"asset/shaders/shadowPoint.vert",
 			"attributes" : [
-				{"semantic": 0, "format": 0, "type": 1 },
-				{"semantic": 1, "format": 0, "type": 1 },
-				{"semantic": 3, "format": 0, "type": 0 },
-				{"semantic": 7, "format": 0, "type": 2 }
+				{"semantic": 0, "format": 0, "type": 1 }
 			]
 		},
 		"shadowPoint.frag":  {

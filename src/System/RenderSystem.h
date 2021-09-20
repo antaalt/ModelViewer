@@ -42,27 +42,27 @@ private:
 	aka::Texture2D::Ptr m_depth;
 	aka::Texture2D::Ptr m_material;
 	aka::Framebuffer::Ptr m_gbuffer;
-	aka::ShaderMaterial::Ptr m_gbufferMaterial;
+	aka::Material::Ptr m_gbufferMaterial;
 
 	// Lighing pass
 	aka::Mesh::Ptr m_quad;
 	aka::Mesh::Ptr m_sphere;
 	aka::TextureSampler m_shadowSampler;
-	aka::ShaderMaterial::Ptr m_ambientMaterial;
-	aka::ShaderMaterial::Ptr m_pointMaterial;
-	aka::ShaderMaterial::Ptr m_dirMaterial;
+	aka::Material::Ptr m_ambientMaterial;
+	aka::Material::Ptr m_pointMaterial;
+	aka::Material::Ptr m_dirMaterial;
 
 	// Skybox
 	aka::Mesh::Ptr m_cube;
 	aka::TextureCubeMap::Ptr m_skybox;
 	aka::TextureSampler m_skyboxSampler;
-	aka::ShaderMaterial::Ptr m_skyboxMaterial;
+	aka::Material::Ptr m_skyboxMaterial;
 
 	// Post process pass
 	aka::Texture2D::Ptr m_storageDepth;
 	aka::Texture2D::Ptr m_storage;
 	aka::Framebuffer::Ptr m_storageFramebuffer;
-	aka::ShaderMaterial::Ptr m_postprocessMaterial;
+	aka::Material::Ptr m_postprocessMaterial;
 };
 
 };

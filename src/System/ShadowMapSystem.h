@@ -19,8 +19,8 @@ public:
 	void onReceive(const aka::ProgramReloadedEvent& e) override;
 private:
 	aka::Framebuffer::Ptr m_shadowFramebuffer;
-	aka::ShaderMaterial::Ptr m_shadowMaterial;
-	aka::ShaderMaterial::Ptr m_shadowPointMaterial;
+	aka::Material::Ptr m_shadowMaterial;
+	aka::Material::Ptr m_shadowPointMaterial;
 	aka::Buffer::Ptr m_modelUniformBuffer;
 	aka::Buffer::Ptr m_pointLightUniformBuffer;
 	aka::Buffer::Ptr m_directionalLightUniformBuffer;

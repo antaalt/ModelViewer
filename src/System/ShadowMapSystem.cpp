@@ -50,8 +50,8 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 
 void ShadowMapSystem::onCreate(aka::World& world)
 {
-	m_shadowMaterial = ShaderMaterial::create(ProgramManager::get("shadowDirectional"));
-	m_shadowPointMaterial = ShaderMaterial::create(ProgramManager::get("shadowPoint"));
+	m_shadowMaterial = Material::create(ProgramManager::get("shadowDirectional"));
+	m_shadowPointMaterial = Material::create(ProgramManager::get("shadowPoint"));
 
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
@@ -241,9 +241,9 @@ void ShadowMapSystem::onRender(aka::World& world)
 void ShadowMapSystem::onReceive(const ProgramReloadedEvent& e)
 {
 	if (e.name == "shadowDirectional")
-		m_shadowMaterial = ShaderMaterial::create(e.program);
+		m_shadowMaterial = Material::create(e.program);
 	else if (e.name == "shadowPoint")
-		m_shadowPointMaterial = ShaderMaterial::create(e.program);
+		m_shadowPointMaterial = Material::create(e.program);
 }
 
 };

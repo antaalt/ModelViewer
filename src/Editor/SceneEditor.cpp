@@ -305,14 +305,12 @@ void SceneEditor::onCreate(World& world)
 		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	ShaderHandle vert = Shader::compile(vertShader, ShaderType::Vertex);
-	ShaderHandle frag = Shader::compile(fragShader, ShaderType::Fragment);
-	m_wireframeShader = Shader::createVertexProgram(vert, frag, att.data(), att.size());
-	m_wireframeMaterial = ShaderMaterial::create(m_wireframeShader);
+	Shader::Ptr vert = Shader::compile(vertShader, ShaderType::Vertex);
+	Shader::Ptr frag = Shader::compile(fragShader, ShaderType::Fragment);
+	m_wireframeProgram = Program::createVertexProgram(vert, frag, att.data(), att.size());
+	m_wireframeMaterial = Material::create(m_wireframeProgram);
 	m_wireFrameUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
 	m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
-	Shader::destroy(vert);
-	Shader::destroy(frag);
 }
 
 void SceneEditor::onDestroy(World& world)

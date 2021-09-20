@@ -18,8 +18,8 @@ private:
 	entt::entity m_currentEntity;
 	uint32_t m_gizmoOperation;
 
-	aka::Shader::Ptr m_wireframeShader;
-	aka::ShaderMaterial::Ptr m_wireframeMaterial;
+	aka::Program::Ptr m_wireframeProgram;
+	aka::Material::Ptr m_wireframeMaterial;
 	aka::Buffer::Ptr m_wireFrameUniformBuffer;
 };
 

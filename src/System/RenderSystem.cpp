@@ -48,12 +48,12 @@ void RenderSystem::onCreate(aka::World& world)
 {
 	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
 
-	m_gbufferMaterial = aka::ShaderMaterial::create(ProgramManager::get("gbuffer"));
-	m_pointMaterial = aka::ShaderMaterial::create(ProgramManager::get("point"));
-	m_dirMaterial = aka::ShaderMaterial::create(ProgramManager::get("directional"));
-	m_ambientMaterial = aka::ShaderMaterial::create(ProgramManager::get("ambient"));
-	m_skyboxMaterial = aka::ShaderMaterial::create(ProgramManager::get("skybox"));
-	m_postprocessMaterial = aka::ShaderMaterial::create(ProgramManager::get("postProcess"));
+	m_gbufferMaterial = Material::create(ProgramManager::get("gbuffer"));
+	m_pointMaterial = Material::create(ProgramManager::get("point"));
+	m_dirMaterial = Material::create(ProgramManager::get("directional"));
+	m_ambientMaterial = Material::create(ProgramManager::get("ambient"));
+	m_skyboxMaterial = Material::create(ProgramManager::get("skybox"));
+	m_postprocessMaterial = Material::create(ProgramManager::get("postProcess"));
 
 	createRenderTargets(backbuffer->width(), backbuffer->height());
 
@@ -73,23 +73,15 @@ void RenderSystem::onCreate(aka::World& world)
 	m_shadowSampler.anisotropy = 1.f;
 
 	float quadVertices[] = {
-		-1.f, -1.f, 0.f, 0.f, // bottom left corner
-		 1.f, -1.f, 1.f, 0.f, // bottom right corner
-		 1.f,  1.f, 1.f, 1.f, // top right corner
-		-1.f,  1.f, 0.f, 1.f, // top left corner
+		-1.f, -1.f, // bottom left corner
+		 1.f, -1.f, // bottom right corner
+		 1.f,  1.f, // top right corner
+		-1.f,  1.f, // top left corner
 	};
-#if defined(AKA_USE_D3D11)
-	// Flip uv y
-	for (int i = 0; i < 4; i++)
-		quadVertices[i * 4 + 3] = 1.f - quadVertices[i * 4 + 3];
-#endif
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
-	VertexAttribute attributes[2] = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 }
-	};
-	m_quad->uploadInterleaved(attributes, 2, quadVertices, 4, IndexFormat::UnsignedShort, quadIndices, 6);
+	VertexAttribute quadAttributes = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 };
+	m_quad->uploadInterleaved(&quadAttributes, 1, quadVertices, 4, IndexFormat::UnsignedShort, quadIndices, 6);
 
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
 
@@ -155,21 +147,10 @@ void RenderSystem::onCreate(aka::World& world)
 		 1.0f, -1.0f, -1.0f,
 		-1.0f, -1.0f,  1.0f,
 		 1.0f, -1.0f,  1.0f
-	};
+	}; 
 	m_cube = Mesh::create();
-
-	VertexAccessor skyboxVertexInfo = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-		VertexBufferView{
-			Buffer::create(BufferType::Vertex, sizeof(skyboxVertices), BufferUsage::Immutable, BufferCPUAccess::None, skyboxVertices),
-			0, // offset
-			sizeof(skyboxVertices), // size
-			sizeof(float) * 3 // stride
-		},
-		0, // offset
-		sizeof(skyboxVertices) / (sizeof(float) * 3) // count
-	};
-	m_cube->upload(&skyboxVertexInfo, 1);
+	VertexAttribute cubeAttributes = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	m_cube->uploadInterleaved(&cubeAttributes, 1, &skyboxVertices, 36);
 }
 
 void RenderSystem::onDestroy(aka::World& world)
@@ -349,7 +330,8 @@ void RenderSystem::onRender(aka::World& world)
 			directionalUBO.cascadeEndClipSpace[i].data = light.cascadeEndClipSpace[i];
 		m_directionalLightUniformBuffer->upload(&directionalUBO);
 
-		lightingPass.material->set("u_shadowMap", light.shadowMap, DirectionalLightComponent::cascadeCount);
+		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+			lightingPass.material->set("u_shadowMap", light.shadowMap[i], (uint32_t)i);
 		lightingPass.execute();
 	});
 
@@ -362,6 +344,12 @@ void RenderSystem::onRender(aka::World& world)
 	lightingPass.material->set("u_albedoTexture", m_albedo);
 	lightingPass.material->set("u_normalTexture", m_normal);
 	lightingPass.material->set("u_materialTexture", m_material);
+
+	ModelUniformBuffer modelUBO;
+	modelUBO.color = color4f(1.f);
+	modelUBO.normalMatrix0 = vec3f(1, 0, 0);
+	modelUBO.normalMatrix1 = vec3f(1, 0, 0);
+	modelUBO.normalMatrix2 = vec3f(1, 0, 0);
 
 	auto pointShadows = world.registry().view<Transform3DComponent, PointLightComponent>();
 	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
@@ -378,8 +366,10 @@ void RenderSystem::onRender(aka::World& world)
 		pointUBO.farPointLight = light.radius;
 		m_pointLightUniformBuffer->upload(&pointUBO);
 
-		mat4f model = transform.transform * mat4f::scale(vec3f(light.radius));
-		m_modelUniformBuffer->upload(&model, sizeof(mat4f), offsetof(ModelUniformBuffer, model));
+
+		ModelUniformBuffer modelUBO;
+		modelUBO.model = transform.transform * mat4f::scale(vec3f(light.radius));
+		m_modelUniformBuffer->upload(&modelUBO);
 
 		lightingPass.material->set("u_shadowMap", light.shadowMap);
 
@@ -440,17 +430,17 @@ void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
 void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 {
 	if (e.name == "gbuffer")
-		m_gbufferMaterial = ShaderMaterial::create(e.program);
+		m_gbufferMaterial = Material::create(e.program);
 	else if (e.name == "point")
-		m_pointMaterial = ShaderMaterial::create(e.program);
+		m_pointMaterial = Material::create(e.program);
 	else if (e.name == "directional")
-		m_dirMaterial = ShaderMaterial::create(e.program);
+		m_dirMaterial = Material::create(e.program);
 	else if (e.name == "ambient")
-		m_ambientMaterial = ShaderMaterial::create(e.program);
+		m_ambientMaterial = Material::create(e.program);
 	else if (e.name == "skybox")
-		m_skyboxMaterial = ShaderMaterial::create(e.program);
+		m_skyboxMaterial = Material::create(e.program);
 	else if (e.name == "postProcess")
-		m_postprocessMaterial = ShaderMaterial::create(e.program);
+		m_postprocessMaterial = Material::create(e.program);
 }
 
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
