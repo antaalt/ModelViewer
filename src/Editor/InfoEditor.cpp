@@ -7,8 +7,9 @@ namespace viewer {
 
 void InfoEditor::onRender(aka::World& world)
 {
-	uint32_t width = aka::GraphicBackend::backbuffer()->width();
-	uint32_t height = aka::GraphicBackend::backbuffer()->height();
+	aka::GraphicDevice* graphic = aka::GraphicBackend::device();
+	uint32_t width = graphic->backbuffer()->width();
+	uint32_t height = graphic->backbuffer()->height();
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
 	ImGui::SetNextWindowPos(ImVec2((float)(width - 5), 25.f), ImGuiCond_Always, ImVec2(1.f, 0.f));
 	if (ImGui::Begin("Info", nullptr, flags))
@@ -23,10 +24,11 @@ void InfoEditor::onRender(aka::World& world)
 		//ImGui::Text("Indices : %zu", m_batch.indicesCount());
 		ImGui::Separator();
 		const char* apiName[] = {
+			"None",
 			"OpenGL",
 			"DirectX11"
 		};
-		ImGui::Text("Api : %s", apiName[(int)aka::GraphicBackend::api()]);
+		ImGui::Text("Api : %s", apiName[(int)graphic->api()]);
 		ImGui::Text("Device : %s", device.vendor);
 		ImGui::Text("Renderer : %s", device.renderer);
 	}

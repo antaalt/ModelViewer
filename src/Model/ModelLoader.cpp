@@ -45,7 +45,7 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 
 void AssimpImporter::process()
 {
-	Entity root = m_world.createEntity("Imported mesh");
+	Entity root = m_world.createEntity(File::basename(m_directory));
 	root.add<Transform3DComponent>(Transform3DComponent{ mat4f::identity() });
 	root.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), mat4f::identity() });
 	processNode(root, m_assimpScene->mRootNode);
@@ -151,9 +151,15 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				indices.push_back(face.mIndices[j]);
 		}
 		// Import resources
+		Path bufferDirectory = "library/buffer/";
+		if (!Directory::exist(bufferDirectory))
+			Directory::create(bufferDirectory);
+		Path meshDirectory = "library/mesh/";
+		if (!Directory::exist(bufferDirectory))
+			Directory::create(bufferDirectory);
 		// Index buffer
 		String indexBufferName = meshName + "-indices";
-		Path indexBufferPath = "library/buffer/" + indexBufferName + ".buffer";
+		Path indexBufferPath = bufferDirectory + indexBufferName + ".buffer";
 		{
 			BufferStorage indexBuffer;
 			indexBuffer.type = BufferType::Index;
@@ -168,7 +174,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
-		Path vertexBufferPath = "library/buffer/" + vertexBufferName + ".buffer";
+		Path vertexBufferPath = bufferDirectory + vertexBufferName + ".buffer";
 		{
 			BufferStorage vertexBuffer;
 			vertexBuffer.type = BufferType::Vertex;
@@ -182,7 +188,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Buffer::Ptr vertexBuffer = ResourceManager::load<Buffer>(vertexBufferName, vertexBufferPath).resource;
 
 		// Mesh
-		Path meshPath = "library/mesh/" + meshName + ".mesh";
+		Path meshPath = meshDirectory + meshName + ".mesh";
 		{
 			uint32_t vertexCount = (uint32_t)vertices.size();
 			uint32_t vertexBufferSize = (uint32_t)(vertices.size() * sizeof(Vertex));
@@ -430,7 +436,10 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 	// AkaImporter.h
 	if (!ResourceManager::has<Texture>(name))
 	{
-		String libPath = "library/texture/" + name + ".tex";
+		String directory = "library/texture/";
+		if (!Directory::exist(directory))
+			Directory::create(directory);
+		String libPath = directory + name + ".tex";
 
 		// Convert and save
 		TextureStorage storage;
@@ -443,7 +452,8 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		ResourceManager::load<Texture>(name, libPath);
+		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+			return false;
 	}
 	else
 	{
@@ -456,7 +466,10 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 {
 	if (!ResourceManager::has<Texture>(name))
 	{
-		String libPath = "library/texture/" + name + ".tex";
+		String directory = "library/texture/";
+		if (!Directory::exist(directory))
+			Directory::create(directory);
+		String libPath = directory + name + ".tex";
 
 		// Convert and save
 		TextureStorage storage;
@@ -469,7 +482,8 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		ResourceManager::load<Texture>(name, libPath);
+		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+			return false;
 	}
 	else
 	{
@@ -482,7 +496,10 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 {
 	if (!ResourceManager::has<Texture>(name))
 	{
-		String libPath = "library/texture/" + name + ".tex";
+		String directory = "library/texture/";
+		if (!Directory::exist(directory))
+			Directory::create(directory);
+		String libPath = directory + name + ".tex";
 
 		// Convert and save
 		TextureStorage storage;
@@ -500,7 +517,8 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		ResourceManager::load<Texture>(name, libPath);
+		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+			return false;
 	}
 	else
 	{
@@ -523,13 +541,29 @@ bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 
 bool Importer::importFont(const aka::String& name, const aka::Path& path)
 {
-	String libPath = "library/font/" + name + ".font";
-	// Convert and save (only copy for now)
-	if (!File::create(libPath))
-		Logger::error("Failed to create file");
-	std::filesystem::copy(path.cstr(), libPath.cstr());
-	// Load
-	ResourceManager::load<Font>(name, libPath);
+	if (!ResourceManager::has<Font>(name))
+	{
+		String directory = "library/font/";
+		if (!Directory::exist(directory))
+			Directory::create(directory);
+		String libPath = directory + name + ".font";
+		Blob blob;
+		if (!File::read(path, &blob))
+			return false;
+		// Convert and save
+		FontStorage storage;
+		storage.ttf = std::vector<byte_t>(blob.data(), blob.data() + blob.size());
+
+		if (!storage.save(libPath))
+			return false;
+		// Load
+		if (ResourceManager::load<Font>(name, libPath).resource == nullptr)
+			return false;
+	}
+	else
+	{
+		Logger::warn("Font already imported : ", name);
+	}
 	return true;
 }
 

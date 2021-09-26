@@ -146,7 +146,8 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
 	// --- Update camera ratio
 	// TODO use event instead
 	auto cameraView = world.registry().view<Camera3DComponent>();
-	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
+	GraphicDevice* device = GraphicBackend::device();
+	Framebuffer::Ptr backbuffer = device->backbuffer();
 	for (entt::entity entity : cameraView)
 	{
 		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);

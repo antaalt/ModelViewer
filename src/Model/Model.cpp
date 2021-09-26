@@ -422,9 +422,12 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 	}
 	else if (orthographic != nullptr)
 	{
-		// TODO use near, far, left, right, top bottom
-		json["orthographic"]["x"] = orthographic->viewport.x;
-		json["orthographic"]["y"] = orthographic->viewport.y;
+		json["orthographic"]["left"] = orthographic->left;
+		json["orthographic"]["right"] = orthographic->right;
+		json["orthographic"]["bottom"] = orthographic->bottom;
+		json["orthographic"]["top"] = orthographic->top;
+		json["orthographic"]["near"] = orthographic->nearZ;
+		json["orthographic"]["far"] = orthographic->farZ;
 	}
 	// Controller
 	CameraArcball* arcball = dynamic_cast<CameraArcball*>(c.controller.get());
@@ -641,7 +644,12 @@ void Scene::load(World& world, const Path& path)
 					else if (component.find("orthographic") != component.end())
 					{
 						auto ortho = std::make_unique<CameraOrthographic>();
-						ortho->viewport = vec2f(component["orthographic"]["x"].get<float>(), component["orthographic"]["y"].get<float>());
+						ortho->left = component["orthographic"]["left"].get<float>();
+						ortho->right = component["orthographic"]["right"].get<float>();
+						ortho->bottom = component["orthographic"]["bottom"].get<float>();
+						ortho->top = component["orthographic"]["top"].get<float>();
+						ortho->nearZ = component["orthographic"]["near"].get<float>();
+						ortho->farZ = component["orthographic"]["far"].get<float>();
 						camera.projection = std::move(ortho);
 					}
 					else

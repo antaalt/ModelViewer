@@ -124,7 +124,7 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	if (Mouse::pressed(MouseButton::ButtonMiddle))
 	{
 		const Position& pos = Mouse::position();
-		float x = pos.x / (float)GraphicBackend::backbuffer()->width();
+		float x = pos.x / (float)width();
 		if (m_sun.valid() && m_sun.has<DirectionalLightComponent>())
 		{
 			m_sun.get<DirectionalLightComponent>().direction = vec3f::normalize(lerp(vec3f(1, 1, 1), vec3f(-1, 1, -1), x));
@@ -151,7 +151,11 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	}
 	if (Keyboard::down(KeyboardKey::PrintScreen) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
-		GraphicBackend::screenshot("screen.png");
+		GraphicDevice* device = GraphicBackend::device();
+		Backbuffer::Ptr backbuffer = device->backbuffer();
+		Image image(backbuffer->width(), backbuffer->height(), 4, ImageFormat::UnsignedByte);
+		device->backbuffer()->download(image.data());
+		image.encodePNG("screen.png");
 	}
 	// Quit the app if requested
 	if (Keyboard::pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)

@@ -391,6 +391,79 @@ static void ResourceViewer<Texture>::draw(const aka::String& name, aka::Resource
 	ImGui::Image(textureID, ImVec2(500 * ratio, 500));
 }
 
+template <>
+static void ResourceViewer<Font>::draw(const aka::String& name, aka::Resource<Font>& resource)
+{
+	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
+	ImGui::TextColored(color, name.cstr());
+	Font::Ptr font = resource.resource;
+	
+	ImGui::Text("Family : %s", font->family().cstr());
+	ImGui::Text("Style : %s", font->style().cstr());
+	ImGui::Text("Count : %zu", font->count());
+	int height = font->height();
+	if (ImGui::SliderInt("Height", &height, 1, 50) && height != font->height())
+	{
+		// Resize font
+		// TODO This will invalid previous font.
+		FontStorage storage;
+		if (storage.load(resource.path))
+		{
+			resource.resource = Font::create(storage.ttf.data(), storage.ttf.size(), height);
+		}
+	}
+	// Display atlas
+	Texture::Ptr atlas = font->atlas();
+	float uvx = 1.f / (atlas->height() / font->height());
+	float uvy = 1.f / (atlas->width() / font->height());
+
+	uint32_t lineCount = 0;
+	for (uint32_t i = 0; i < (uint32_t)font->count(); i++)
+	{
+		const Character& character = font->getCharacter(i);
+		ImGui::Image(
+			(ImTextureID)character.texture.texture->handle().value(),
+			ImVec2(30, 30),
+#if defined(ORIGIN_BOTTOM_LEFT)
+			ImVec2(character.texture.get(0).u, character.texture.get(0).v + uvy),
+			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v),
+#else
+			ImVec2(character.texture.get(0).u, character.texture.get(0).v),
+			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v + uvy),
+#endif
+			ImVec4(1, 1, 1, 1),
+			ImVec4(1, 1, 1, 1)
+		);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("Advance : %u", character.advance);
+			ImGui::Text("Size : (%d, %d)", character.size.x, character.size.y);
+			ImGui::Text("Bearing : (%d, %d)", character.bearing.x, character.bearing.y);
+			ImVec2 size = ImVec2(300, 300);
+			ImGui::Image(
+				(ImTextureID)character.texture.texture->handle().value(),
+				size,
+				ImVec2(0, 0),
+				ImVec2(1, 1),
+				ImVec4(1, 1, 1, 1),
+				ImVec4(1, 1, 1, 1)
+			);
+			uv2f start = character.texture.get(0);
+			uv2f end = character.texture.get(1);
+			ImVec2 startVec = ImVec2(ImGui::GetItemRectMin().x + start.u * size.x, ImGui::GetItemRectMin().y + start.v * size.y);
+			ImVec2 endVec = ImVec2(ImGui::GetItemRectMin().x + end.u * size.x + 1, ImGui::GetItemRectMin().y + end.v * size.y + 1);
+			ImU32 red = (93 << 24) | (4 << 16) | (26 << 8) | (255 << 0);
+			ImGui::GetWindowDrawList()->AddRect(startVec, endVec, ImU32(red), 0.f, ImDrawCornerFlags_All, 2.f);
+			ImGui::EndTooltip();
+		}
+		if (lineCount++ < 10)
+			ImGui::SameLine();
+		else
+			lineCount = 0;
+	}
+}
+
 void AssetEditor::onRender(aka::World& world)
 {
 	// store every texture, mesh & things, responsible of loading and unloading files
@@ -428,7 +501,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Mesh : ", path);
-						return Importer::importMesh("new mesh", path);
+						return Importer::importMesh(File::basename(path), path);
 					});
 				}
 				if (ImGui::MenuItem("Texture2D"))
@@ -436,7 +509,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool {
 						aka::Logger::info("Image : ", path);
-						return Importer::importTexture2D("new texture", path, TextureFlag::ShaderResource);
+						return Importer::importTexture2D(File::basename(path), path, TextureFlag::ShaderResource);
 					});
 				}
 				if (ImGui::MenuItem("Cubemap"))
@@ -444,7 +517,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Image : ", path);
-						//return Importer::importTextureCubemap("new texture", path);
+						//return Importer::importTextureCubemap(File::basename(path), path);
 						return false;
 					});
 				}
@@ -453,7 +526,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Audio : ", path);
-						return Importer::importAudio("new audio", path);
+						return Importer::importAudio(File::basename(path), path);
 					});
 				}
 				if (ImGui::MenuItem("Font"))
@@ -461,7 +534,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Font : ", path);
-						return Importer::importFont("new font", path);
+						return Importer::importFont(File::basename(path), path);
 					});
 				}
 				// animation

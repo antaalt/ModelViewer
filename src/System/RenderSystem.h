@@ -58,6 +58,9 @@ private:
 	aka::TextureSampler m_skyboxSampler;
 	aka::Material::Ptr m_skyboxMaterial;
 
+	// Text pass
+	aka::Material::Ptr m_textMaterial;
+
 	// Post process pass
 	aka::Texture2D::Ptr m_storageDepth;
 	aka::Texture2D::Ptr m_storage;

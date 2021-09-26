@@ -53,7 +53,8 @@ void ShadowMapSystem::onCreate(aka::World& world)
 	m_shadowMaterial = Material::create(ProgramManager::get("shadowDirectional"));
 	m_shadowPointMaterial = Material::create(ProgramManager::get("shadowPoint"));
 
-	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
+	GraphicDevice* device = GraphicBackend::device();
+	Backbuffer::Ptr backbuffer = device->backbuffer();
 	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
 	Attachment shadowAttachments[] = {
 		Attachment{ AttachmentType::Depth, dummyDepth, AttachmentFlag::None, 0, 0 }
@@ -78,7 +79,7 @@ void ShadowMapSystem::onDestroy(aka::World& world)
 }
 
 // Compute the shadow projection around the view projection.
-mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, uint32_t resolution, float near, float far, const vec3f& lightDirWorld)
+mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, uint32_t resolution, const vec3f& lightDirWorld)
 {
 	frustum<> f = frustum<>::fromProjection(projection * view);
 	point3f centerWorld = f.center();
@@ -118,7 +119,8 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 void ShadowMapSystem::onRender(aka::World& world)
 {
-	Framebuffer::Ptr backbuffer = GraphicBackend::backbuffer();
+	GraphicDevice* device = GraphicBackend::device();
+	Backbuffer::Ptr backbuffer = device->backbuffer();
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -199,7 +201,7 @@ void ShadowMapSystem::onRender(aka::World& world)
 			float n = offset[i];
 			float f = offset[i + 1];
 			mat4f p = mat4f::perspective(perspective->hFov, w / h, n, f);
-			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap[i]->width(), n, f, light.direction);
+			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap[i]->width(), light.direction);
 			vec4f clipSpace = projection * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 			light.cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 		}

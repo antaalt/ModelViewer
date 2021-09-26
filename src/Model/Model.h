@@ -41,7 +41,7 @@ struct DirectionalLightComponent {
 	// Rendering
 	static constexpr size_t cascadeCount = 3;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
-	Texture::Ptr shadowMap[cascadeCount];
+	Texture2D::Ptr shadowMap[cascadeCount];
 	float cascadeEndClipSpace[cascadeCount];
 };
 

@@ -34,6 +34,14 @@
 		"shadowPoint" : {
 			"vertex" : "shadowPoint.vert",
 			"fragment" : "shadowPoint.frag"
+		},
+		"copy" : {
+			"vertex" : "quad.vert",
+			"fragment" : "copy.frag"
+		},
+		"text" : {
+			"vertex" : "text.vert",
+			"fragment" : "text.frag"
 		}
 	},
 	"shaders" : {
@@ -42,6 +50,9 @@
 			"attributes" : [
 				{"semantic": 0, "format": 0, "type": 0 }
 			]
+		},
+		"copy.frag": {
+			"path":"asset/shaders/copy.frag"
 		},
 		"gbuffer.vert": {
 			"path": "asset/shaders/gbuffer.vert",
@@ -102,6 +113,16 @@
 		},
 		"skybox.frag":  {
 			"path":"asset/shaders/skybox.frag"
+		},
+		"text.vert":  {
+			"path":"asset/shaders/text.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 0 },
+				{"semantic": 3, "format": 0, "type": 0 }
+			]
+		},
+		"text.frag":  {
+			"path":"asset/shaders/text.frag"
 		}
 	}
 }

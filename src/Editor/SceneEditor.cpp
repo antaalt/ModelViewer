@@ -35,6 +35,54 @@ void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size
 		}
 	}
 }
+void TextureSamplerDisplay(TextureSampler& sampler)
+{
+	static const char* filters[] = {
+		"Nearest",
+		"Linear"
+	};
+	static const char* mipmaps[] = {
+		"None",
+		"Nearest",
+		"Linear"
+	};
+	static const char* wraps[] = {
+		"Repeat",
+		"Mirror",
+		"ClampToEdge",
+		"ClampToBorder",
+	};
+	char buffer[256];
+	int error = snprintf(buffer, 256, "Sampler##%p", &sampler);
+	if (ImGui::TreeNode(buffer))
+	{
+		// Filters
+		int current = (int)sampler.filterMin;
+		if (ImGui::Combo("Filter min", &current, filters, 2))
+			sampler.filterMin = (TextureFilter)current;
+		current = (int)sampler.filterMag;
+		if (ImGui::Combo("Filter mag", &current, filters, 2))
+			sampler.filterMag = (TextureFilter)current;
+		// Mips
+		current = (int)sampler.mipmapMode;
+		if (ImGui::Combo("Mips", &current, mipmaps, 3))
+			sampler.mipmapMode = (TextureMipMapMode)current;
+		// Wraps
+		current = (int)sampler.wrapU;
+		if (ImGui::Combo("WrapU", &current, wraps, 4))
+			sampler.wrapU = (TextureWrap)current;
+		current = (int)sampler.wrapV;
+		if (ImGui::Combo("WrapV", &current, wraps, 4))
+			sampler.wrapV = (TextureWrap)current;
+		current = (int)sampler.wrapW;
+		if (ImGui::Combo("WrapW", &current, wraps, 4))
+			sampler.wrapW = (TextureWrap)current;
+		// Anisotropy
+		ImGui::SliderFloat("Anisotropy", &sampler.anisotropy, 1.f, 16.f);
+
+		ImGui::TreePop();
+	}
+}
 
 template <typename T>
 struct ComponentNode {
@@ -194,9 +242,30 @@ template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& mater
 	updated |= ImGui::ColorEdit4("Color", material.color.data);
 	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
 	TextureDisplay("Color", material.albedo.texture, ImVec2(100, 100));
+	TextureSamplerDisplay(material.albedo.sampler);
 	TextureDisplay("Normal", material.normal.texture, ImVec2(100, 100));
+	TextureSamplerDisplay(material.normal.sampler);
 	TextureDisplay("Material", material.material.texture, ImVec2(100, 100));
+	TextureSamplerDisplay(material.material.sampler);
 	return updated; 
+}
+
+template <> const char* ComponentNode<TextComponent>::name() { return "Text"; }
+template <> bool ComponentNode<TextComponent>::draw(TextComponent& text)
+{
+	bool updated = false;
+	const size_t bufferSize = 512;
+	char buffer[bufferSize];
+	String::copy(buffer, bufferSize, text.text.cstr());
+	ImGui::Text("Family : %s", text.font->family().cstr()); // TODO add font inspector & selector
+	updated |= ImGui::ColorEdit4("Color", text.color.data);
+	if (ImGui::InputText("Text", buffer, bufferSize))
+	{
+		updated = true;
+		text.text = buffer;
+	}
+	TextureSamplerDisplay(text.sampler);
+	return updated;
 }
 
 
@@ -450,8 +519,9 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 
 void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat4f& projection, const SubMesh& submesh)
 {
+	GraphicDevice* device = GraphicBackend::device();
 	RenderPass r;
-	r.framebuffer = GraphicBackend::backbuffer();
+	r.framebuffer = device->backbuffer();
 	r.material = m_wireframeMaterial;
 	r.clear = Clear::none;
 	r.blend = Blending::none;
@@ -573,13 +643,23 @@ void SceneEditor::onRender(World& world)
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
-						vec3f(0,1,0),
-						color3f(1.f), 1.f, {}, {
-							Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-							Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-							Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
-						}, {} }
-					);
+							vec3f(0,1,0),
+							color3f(1.f), 1.f, {}, {
+								Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+								Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+								Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
+							}, {} }
+						);
+					if (ImGui::BeginMenu("Text", !e.has<TextComponent>()))
+					{
+						FontAllocator& allocator = ResourceManager::allocator<Font>();
+						for (auto& r : allocator)
+						{
+							if (ImGui::MenuItem(r.first.cstr(), nullptr, nullptr, !e.has<TextComponent>()))
+								e.add<TextComponent>(TextComponent{ r.second.resource, TextureSampler::nearest, "", color4f(1.f) });
+						}
+						ImGui::EndMenu();
+					}
 					ImGui::EndMenu();
 				}
 				if (ImGui::BeginMenu("Remove", e.valid()))
@@ -598,6 +678,8 @@ void SceneEditor::onRender(World& world)
 						e.remove<PointLightComponent>();
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, e.has<DirectionalLightComponent>()))
 						e.remove<DirectionalLightComponent>();
+					if (ImGui::MenuItem("Text", nullptr, nullptr, e.has<TextComponent>()))
+						e.remove<TextComponent>();
 					ImGui::EndMenu();
 				}
 				ImGui::EndMenu();
@@ -701,6 +783,7 @@ void SceneEditor::onRender(World& world)
 				component<DirectionalLightComponent>(world, m_currentEntity);
 				component<PointLightComponent>(world, m_currentEntity);
 				component<Camera3DComponent>(world, m_currentEntity);
+				component<TextComponent>(world, m_currentEntity);
 			}
 			// --- Gizmo
 			Entity cameraEntity = Scene::getMainCamera(world);
@@ -748,7 +831,8 @@ void SceneEditor::onRender(World& world)
 				}
 
 				// Render
-				Renderer3D::render(GraphicBackend::backbuffer(), view, projection);
+				GraphicDevice* device = GraphicBackend::device();
+				Renderer3D::render(device->backbuffer(), view, projection);
 				Renderer3D::clear();
 			}
 		
