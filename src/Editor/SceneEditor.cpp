@@ -109,12 +109,41 @@ template <> bool ComponentNode<Camera3DComponent>::draw(Camera3DComponent& camer
 { 
 	bool updated = false;
 	updated |= ImGui::Checkbox("Active", &camera.active);
-	// Projection
-	CameraPerspective* p = dynamic_cast<CameraPerspective*>(camera.projection.get());
-	CameraOrthographic* o = dynamic_cast<CameraOrthographic*>(camera.projection.get());
-	if (p != nullptr)
+	// --- Projection
+	const char* projectionType[] = {
+		"Perspective",
+		"Orthographic"
+	};
+	int currentProjection = (int)camera.projection->type();
+	if (ImGui::Combo("Projection", &currentProjection, projectionType, 2))
 	{
-		ImGui::Text("Perspective projection");
+		if ((CameraProjectionType)currentProjection != camera.projection->type())
+		{
+			switch ((CameraProjectionType)currentProjection)
+			{
+			case CameraProjectionType::Orthographic:
+				camera.projection = std::make_unique<CameraOrthographic>();
+				break;
+			case CameraProjectionType::Perpective:
+				camera.projection = std::make_unique<CameraPerspective>();
+				break;
+			}
+		}
+	}
+	switch ((CameraProjectionType)currentProjection)
+	{
+	case CameraProjectionType::Orthographic: {
+		CameraOrthographic* o = reinterpret_cast<CameraOrthographic*>(camera.projection.get());
+		updated |= ImGui::SliderFloat("Left", &o->left, -1.f, 1.f);
+		updated |= ImGui::SliderFloat("Right", &o->right, -1.f, 1.f);
+		updated |= ImGui::SliderFloat("Bottom", &o->bottom, -1.f, 1.f);
+		updated |= ImGui::SliderFloat("Top", &o->top, -1.f, 1.f);
+		updated |= ImGui::SliderFloat("Near", &o->nearZ, 0.001f, 10.f);
+		updated |= ImGui::SliderFloat("Far", &o->farZ, 10.f, 1000.f);
+		break;
+	}
+	case CameraProjectionType::Perpective: {
+		CameraPerspective* p = reinterpret_cast<CameraPerspective*>(camera.projection.get());
 		float fov = p->hFov.radian();
 		if (ImGui::SliderAngle("Fov", &fov, 10.f, 160.f))
 		{
@@ -123,22 +152,41 @@ template <> bool ComponentNode<Camera3DComponent>::draw(Camera3DComponent& camer
 		}
 		updated |= ImGui::SliderFloat("Near", &p->nearZ, 0.001f, 10.f);
 		updated |= ImGui::SliderFloat("Far", &p->farZ, 10.f, 1000.f);
+		break;
 	}
-	else if (o != nullptr)
-	{
-		// TODO
+	default:
+		ImGui::Text("Invalid camera type.");
+		break;
 	}
-	// Controller
-	CameraArcball* a = dynamic_cast<CameraArcball*>(camera.controller.get());
-	if (p != nullptr)
+	
+	// --- Controller
+	const char* controllerTypes[] = {
+		"Arcball"
+	};
+	int currentController = (int)camera.controller->type();
+	if (ImGui::Combo("Controller", &currentController, controllerTypes, 1))
 	{
-		ImGui::Text("Arcball controller");
+		if ((CameraControllerType)currentController != camera.controller->type())
+		{
+			switch ((CameraControllerType)currentController)
+			{
+			case CameraControllerType::Arcball:
+				camera.controller = std::make_unique<CameraArcball>();
+				break;
+			}
+		}
+	}
+	switch ((CameraControllerType)currentController)
+	{
+	case CameraControllerType::Arcball:
+		CameraArcball* a = reinterpret_cast<CameraArcball*>(camera.controller.get());
 		updated |= ImGui::InputFloat3("Position", a->position.data);
 		updated |= ImGui::InputFloat3("Target", a->target.data);
 		updated |= ImGui::InputFloat3("Up", a->up.data);
 		updated |= ImGui::SliderFloat("Speed", &a->speed, 0.1f, 100.f);
+		break;
 	}
-	return false;
+	return updated;
 }
 
 template <> const char* ComponentNode<Hierarchy3DComponent>::name() { return "Hierarchy"; }
@@ -254,11 +302,23 @@ template <> const char* ComponentNode<TextComponent>::name() { return "Text"; }
 template <> bool ComponentNode<TextComponent>::draw(TextComponent& text)
 {
 	bool updated = false;
+	String name = ResourceManager::name<Font>(text.font);
+	if (ImGui::BeginCombo("Font", name.cstr()))
+	{
+		for (auto& font : ResourceManager::allocator<Font>())
+		{
+			bool sameFont = (text.font == font.second.resource);
+			if (ImGui::Selectable(font.first.cstr(), sameFont) && !sameFont)
+				text.font = font.second.resource;
+			if (sameFont)
+				ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+	updated |= ImGui::ColorEdit4("Color", text.color.data);
 	const size_t bufferSize = 512;
 	char buffer[bufferSize];
 	String::copy(buffer, bufferSize, text.text.cstr());
-	ImGui::Text("Family : %s", text.font->family().cstr()); // TODO add font inspector & selector
-	updated |= ImGui::ColorEdit4("Color", text.color.data);
 	if (ImGui::InputText("Text", buffer, bufferSize))
 	{
 		updated = true;

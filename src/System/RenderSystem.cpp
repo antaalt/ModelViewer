@@ -415,7 +415,7 @@ void RenderSystem::onRender(aka::World& world)
 	textPass.stencil = Stencil::none;
 	textPass.viewport = aka::Rect{ 0 };
 	textPass.scissor = aka::Rect{ 0 };
-	textPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	textPass.cull = Culling::none;
 
 	// Setup text mesh
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };

@@ -440,6 +440,23 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 	}
 	return json;
 }
+template <>
+nlohmann::json serialize<TextComponent>(const entt::registry& r, entt::entity e)
+{
+	const TextComponent& t = r.get<TextComponent>(e);
+	nlohmann::json json = nlohmann::json::object();
+	json["font"] = ResourceManager::name<Font>(t.font).cstr();
+	json["text"] = t.text.cstr();
+	json["color"] = { t.color.r, t.color.g, t.color.b, t.color.a };
+	json["sampler"]["anisotropy"] = t.sampler.anisotropy;
+	json["sampler"]["filterMin"] = t.sampler.filterMin;
+	json["sampler"]["filterMag"] = t.sampler.filterMag;
+	json["sampler"]["wrapU"] = t.sampler.wrapU;
+	json["sampler"]["wrapV"] = t.sampler.wrapV;
+	json["sampler"]["wrapW"] = t.sampler.wrapW;
+	json["sampler"]["mipmapMode"] = t.sampler.mipmapMode;
+	return json;
+}
 
 static uint16_t major = 0;
 static uint16_t minor = 2;
@@ -684,6 +701,26 @@ void Scene::load(World& world, const Path& path)
 						camera.controller = std::move(arcball);
 					}
 					camera.view; // auto set
+				}
+				else if (name == "text")
+				{
+					world.registry().emplace<TextComponent>(entity);
+					TextComponent& text = world.registry().get<TextComponent>(entity);
+					text.font = ResourceManager::get<Font>(component["font"].get<std::string>());
+					text.color = color4f(
+						component["color"][0].get<float>(),
+						component["color"][1].get<float>(),
+						component["color"][2].get<float>(),
+						component["color"][3].get<float>()
+					);
+					text.sampler.anisotropy = component["sampler"]["anisotropy"].get<float>();
+					text.sampler.wrapU = (TextureWrap)component["sampler"]["wrapU"].get<int>();
+					text.sampler.wrapV = (TextureWrap)component["sampler"]["wrapV"].get<int>();
+					text.sampler.wrapW = (TextureWrap)component["sampler"]["wrapW"].get<int>();
+					text.sampler.filterMin = (TextureFilter)component["sampler"]["filterMin"].get<int>();
+					text.sampler.filterMag = (TextureFilter)component["sampler"]["filterMag"].get<int>();
+					text.sampler.mipmapMode = (TextureMipMapMode)component["sampler"]["mipmapMode"].get<int>();
+					text.text = component["text"].get<std::string>();
 				}
 			}
 		}
