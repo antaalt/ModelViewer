@@ -65,6 +65,14 @@ struct Camera3DComponent {
 	bool active;
 };
 
+struct TextComponent
+{
+	Font::Ptr font;
+	TextureSampler sampler;
+	String text;
+	color4f color;
+};
+
 struct DirtyLightComponent {};
 struct DirtyCameraComponent {};
 struct DirtyTransformComponent {};
