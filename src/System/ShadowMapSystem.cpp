@@ -94,7 +94,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 	float radius = e.norm() / 2.f;
 	float texelsPerUnit = (float)resolution / (radius * 2.f);
 
-	mat4f lookAt = mat4f::inverse(mat4f::lookAt(point3f(0.f), point3f(-lightDirWorld), norm3f(0, 1, 0)));
+	mat4f lookAt = mat4f::lookAtView(point3f(0.f), point3f(-lightDirWorld), norm3f(0, 1, 0));
 	mat4f scalar = mat4f::scale(vec3f(texelsPerUnit));
 	lookAt *= scalar;
 	mat4f lookAtInverse = mat4f::inverse(lookAt);
@@ -106,7 +106,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 	point3f eye = centerWorld + (lightDirWorld * radius * 2.f);
 
-	mat4f lightViewMatrix = mat4f::inverse(mat4f::lookAt(eye, centerWorld, norm3f(0, 1, 0)));
+	mat4f lightViewMatrix = mat4f::lookAtView(eye, centerWorld, norm3f(0, 1, 0));
 
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
 	mat4 lightProjectionMatrix = mat4f::orthographic(
@@ -146,12 +146,12 @@ void ShadowMapSystem::onRender(aka::World& world)
 		// Generate shadow cascades
 		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 0.1f, light.radius);
 		point3f lightPos = point3f(lightTransform.transform.cols[3]);
-		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
-		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0)));
-		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 1.0, 0.0), norm3f(0.0, 0.0, 1.0)));
-		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, -1.0, 0.0), norm3f(0.0, 0.0, -1.0)));
-		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 0.0, 1.0), norm3f(0.0, -1.0, 0.0)));
-		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::inverse(mat4f::lookAt(lightPos, lightPos + vec3f(0.0, 0.0, -1.0), norm3f(0.0, -1.0, 0.0)));
+		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0));
+		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0));
+		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 1.0, 0.0), norm3f(0.0, 0.0, 1.0));
+		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, -1.0, 0.0), norm3f(0.0, 0.0, -1.0));
+		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, 1.0), norm3f(0.0, -1.0, 0.0));
+		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, -1.0), norm3f(0.0, -1.0, 0.0));
 
 		RenderPass shadowPass;
 		shadowPass.framebuffer = m_shadowFramebuffer;

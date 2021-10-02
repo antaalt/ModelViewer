@@ -4,6 +4,7 @@
 #include <imguizmo.h>
 
 #include "../Model/Model.h"
+#include "AssetViewerEditor.h"
 
 #include <Aka/Aka.h>
 
@@ -22,17 +23,6 @@ void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size
 		ImTextureID textureID = (ImTextureID)(uintptr_t)texture->handle();
 		ImGui::Text("%s", name.cstr());
 		ImGui::Image(textureID, size);
-		if (ImGui::IsItemHovered())
-		{
-			ImGui::BeginTooltip();
-			float ratio = texture->width() / (float)texture->height();
-			bool rescale = texture->width() > 512;
-			ImGui::Image(textureID, ImVec2(
-				static_cast<float>(rescale ? 512 : texture->width()),
-				static_cast<float>(rescale ? 512 * ratio : texture->height())
-			));
-			ImGui::EndTooltip();
-		}
 	}
 }
 void TextureSamplerDisplay(TextureSampler& sampler)
@@ -422,7 +412,8 @@ static const char* fragShader = ""
 
 SceneEditor::SceneEditor() :
 	m_currentEntity(entt::null),
-	m_gizmoOperation(ImGuizmo::TRANSLATE)
+	m_gizmoOperation(ImGuizmo::TRANSLATE),
+	m_entityName("")
 {
 }
 
@@ -519,7 +510,7 @@ entt::entity pick(World& world)
 	return selected;
 }
 
-void SceneEditor::onUpdate(World& world)
+void SceneEditor::onUpdate(World& world, Time::Unit deltaTime)
 {
 	ImGuiIO& io = ImGui::GetIO();
 	ImVec2 v = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
@@ -628,7 +619,6 @@ void SceneEditor::onRender(World& world)
 			{
 				if (ImGui::BeginMenu("Create"))
 				{
-					static char buffer[256];
 					mat4f id = mat4f::identity();
 					if (ImGui::BeginMenu("Mesh"))
 					{
@@ -815,12 +805,11 @@ void SceneEditor::onRender(World& world)
 		ImGui::EndChild();
 
 		// --- Add entity
-		static char entityName[256];
-		ImGui::InputTextWithHint("##entityName", "Entity name", entityName, 256);
+		ImGui::InputTextWithHint("##entityName", "Entity name", m_entityName, 256);
 		ImGui::SameLine();
 		if (ImGui::Button("Create entity"))
 		{
-			m_currentEntity = world.createEntity(entityName).handle();
+			m_currentEntity = world.createEntity(m_entityName).handle();
 		}
 		ImGui::Separator();
 

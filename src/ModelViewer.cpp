@@ -6,6 +6,7 @@
 
 #include "System/SceneSystem.h"
 #include "System/RenderSystem.h"
+#include "System/ScriptSystem.h"
 #include "System/ShadowMapSystem.h"
 
 #include "Editor/SceneEditor.h"
@@ -21,6 +22,7 @@ void Viewer::onCreate(int argc, char* argv[])
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
 	m_world.attach<RenderSystem>();
+	m_world.attach<ScriptSystem>();
 	m_world.create();
 
 	m_editors.push_back(new SceneEditor);
@@ -165,7 +167,7 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 	m_world.update(deltaTime);
 	// Editor
 	for (EditorWindow* editor : m_editors)
-		editor->onUpdate(m_world);
+		editor->onUpdate(m_world, deltaTime);
 }
 
 void Viewer::onResize(uint32_t width, uint32_t height)

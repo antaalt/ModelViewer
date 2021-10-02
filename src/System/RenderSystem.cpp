@@ -205,7 +205,6 @@ void RenderSystem::onRender(aka::World& world)
 	m_pointMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
 	m_pointMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
 	m_pointMaterial->set("ModelUniformBuffer", m_modelUniformBuffer);
-	m_pointMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
 	m_skyboxMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
 	m_postprocessMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
 	// TODO only update on camera move / update
