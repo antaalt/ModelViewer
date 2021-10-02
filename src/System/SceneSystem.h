@@ -2,7 +2,7 @@
 
 #include <Aka/Aka.h>
 
-namespace viewer {
+namespace app {
 
 class SceneSystem :
 	public aka::System

@@ -2,7 +2,7 @@
 
 #include <Aka/Aka.h>
 
-namespace viewer {
+namespace app {
 
 // Vertex struct bound to this render system
 struct Vertex {

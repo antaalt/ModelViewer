@@ -8,15 +8,16 @@ add_subdirectory(lib/Aka)
 add_executable(AkaViewer
 	"src/main.cpp"
 
-	"src/ModelViewer.cpp"
+	"src/EditorApp.cpp"
+	"src/GameApp.cpp"
 
 	"src/Model/Model.cpp"
-	"src/Model/ModelLoader.cpp"
+	"src/Model/Importer.cpp"
 
-	"src/Editor/SceneEditor.cpp"
-	"src/Editor/InfoEditor.cpp"
-	"src/Editor/AssetEditor.cpp"
-	"src/Editor/AssetViewerEditor.cpp"
+	"src/EditorUI/SceneEditor.cpp"
+	"src/EditorUI/InfoEditor.cpp"
+	"src/EditorUI/AssetEditor.cpp"
+	"src/EditorUI/AssetViewerEditor.cpp"
 
 	"src/System/RenderSystem.cpp"
 	"src/System/ShadowMapSystem.cpp"

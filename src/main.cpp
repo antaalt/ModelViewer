@@ -1,4 +1,4 @@
-﻿#include "ModelViewer.h"
+﻿#include "EditorApp.h"
 
 struct Settings {
 	uint32_t width;
@@ -56,13 +56,13 @@ int main(int argc, char* argv[])
 
 	parse(argc, argv, settings);
 
-	viewer::Viewer viewer;
+	app::Editor editor;
 	
 	aka::Config cfg{};
-	cfg.app = &viewer;
+	cfg.app = &editor;
 	cfg.width = settings.width;
 	cfg.height = settings.height;
-	cfg.name = "Model Viewer";
+	cfg.name = "Aka editor";
 	cfg.arguments.count = argc;
 	cfg.arguments.values = argv;
 	aka::Application::run(cfg);

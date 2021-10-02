@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Editor.h"
+#include "EditorWindow.h"
 #include "AssetViewerEditor.h"
 
-namespace viewer {
+namespace app {
 
 class AssetEditor : public EditorWindow
 {

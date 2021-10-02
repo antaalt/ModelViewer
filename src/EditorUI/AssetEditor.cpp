@@ -1,11 +1,11 @@
 #include "AssetEditor.h"
 
 #include "../Model/Model.h"
-#include "../Model/ModelLoader.h"
+#include "../Model/Importer.h"
 
 #include <imgui.h>
 
-namespace viewer {
+namespace app {
 
 void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 {

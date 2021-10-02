@@ -10,18 +10,6 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
-      "variables": [
-        {
-          "name": "FREETYPE_INCLUDE_DIR_freetype2",
-          "value": "E:/Bibliothèque/Dev/AkaViewer/lib/Aka/lib/freetype/include",
-          "type": "PATH"
-        },
-        {
-          "name": "FREETYPE_INCLUDE_DIR_ft2build",
-          "value": "E:/Bibliothèque/Dev/AkaViewer/lib/Aka/lib/freetype/include",
-          "type": "PATH"
-        }
-      ]
     },
     {
       "name": "D3DDebug",

@@ -1,22 +1,24 @@
-#include "ModelViewer.h"
+#include "EditorApp.h"
 
 #include <imgui.h>
 #include <imguizmo.h>
 #include <Aka/Layer/ImGuiLayer.h>
+
+#include "GameApp.h"
 
 #include "System/SceneSystem.h"
 #include "System/RenderSystem.h"
 #include "System/ScriptSystem.h"
 #include "System/ShadowMapSystem.h"
 
-#include "Editor/SceneEditor.h"
-#include "Editor/InfoEditor.h"
-#include "Editor/AssetEditor.h"
+#include "EditorUI/SceneEditor.h"
+#include "EditorUI/InfoEditor.h"
+#include "EditorUI/AssetEditor.h"
 
-namespace viewer {
+namespace app {
 
 
-void Viewer::onCreate(int argc, char* argv[])
+void Editor::onCreate(int argc, char* argv[])
 {
 	ProgramManager::parse(ResourceManager::path("shader.json"));
 	m_world.attach<SceneSystem>();
@@ -103,7 +105,7 @@ void Viewer::onCreate(int argc, char* argv[])
 	attach<ImGuiLayer>();
 }
 
-void Viewer::onDestroy()
+void Editor::onDestroy()
 {
 	for (EditorWindow* editor : m_editors)
 	{
@@ -114,7 +116,7 @@ void Viewer::onDestroy()
 	m_world.destroy();
 }
 
-void Viewer::onUpdate(aka::Time::Unit deltaTime)
+void Editor::onUpdate(aka::Time::Unit deltaTime)
 {
 	// Hot reload programs.
 	ProgramManager::update();
@@ -170,11 +172,11 @@ void Viewer::onUpdate(aka::Time::Unit deltaTime)
 		editor->onUpdate(m_world, deltaTime);
 }
 
-void Viewer::onResize(uint32_t width, uint32_t height)
+void Editor::onResize(uint32_t width, uint32_t height)
 {
 }
 
-void Viewer::onRender()
+void Editor::onRender()
 {
 	m_world.render();
 

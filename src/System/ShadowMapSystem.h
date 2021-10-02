@@ -4,7 +4,7 @@
 
 #include "RenderSystem.h"
 
-namespace viewer {
+namespace app {
 
 class ShadowMapSystem : 
 	public aka::System,

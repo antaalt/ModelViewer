@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Editor.h"
+#include "EditorWindow.h"
 
-namespace viewer {
+namespace app {
 
 class SceneEditor : public EditorWindow
 {

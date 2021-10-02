@@ -5,7 +5,7 @@
 #include <Aka/OS/Logger.h>
 #include <Aka/Core/Container/String.h>
 
-namespace viewer {
+namespace app {
 
 struct ScriptComponent
 {
@@ -214,9 +214,11 @@ void ScriptSystem::onCreate(aka::World& world)
         lua_pop(L, 1);
     }
 
-    //lua_atpanic(L, [](lua_State* L) -> int {
-    //    return 0; // longjump to avoid abort.
-    //});
+    lua_atpanic(L, [](lua_State* L) -> int {
+        const char* err = lua_tostring(L, 1);
+        aka::Logger::critical("[script]", err);
+        return -1; // longjump to avoid abort.
+    });
 
     {
         world.registry().on_construct<ScriptComponent>().connect<&onScriptConstruct>();
@@ -247,7 +249,7 @@ void ScriptSystem::onCreate(aka::World& world)
     moduled.fun("create", createEntity);
     moduled.def("destroy", destroyEntity);*/
 
-    { // Dummy
+    if (false){ // Dummy
         // Load script from file
         aka::String str;
         aka::Entity e0 = world.createEntity("script0");

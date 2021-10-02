@@ -8,7 +8,7 @@
 
 #include <Aka/Aka.h>
 
-namespace viewer {
+namespace app {
 
 void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size)
 {

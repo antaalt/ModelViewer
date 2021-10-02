@@ -3,7 +3,7 @@
 
 #include <imgui.h>
 
-namespace viewer {
+namespace app {
 
 void InfoEditor::onRender(aka::World& world)
 {

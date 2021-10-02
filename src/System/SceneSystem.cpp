@@ -2,7 +2,7 @@
 
 #include "../Model/Model.h"
 
-namespace viewer {
+namespace app {
 
 void onDirLightUpdate(entt::registry& registry, entt::entity entity)
 {

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Editor.h"
+#include "EditorWindow.h"
 
 #include <imgui.h>
 
-namespace viewer {
+namespace app {
 
 struct MenuEntry 
 {

@@ -1,8 +1,9 @@
 #include "Model.h"
 
+// TODO move json serialization within aka. 
 #include "json.hpp"
 
-namespace viewer {
+namespace app {
 
 Entity Scene::getMainCamera(World& world)
 {

@@ -2,7 +2,7 @@
 
 #include "Model.h"
 
-namespace viewer {
+namespace app {
 
 struct Importer {
 	// Import a scene using assimp and convert it to a scene.json and add assets to resource manager
@@ -19,12 +19,6 @@ struct Importer {
 	static bool importAudio(const aka::String& name, const aka::Path& path);
 	// Import a font and add it to resource manager
 	static bool importFont(const aka::String& name, const aka::Path& path);
-};
-
-class ModelLoader
-{
-public:
-	static bool load(const Path& path, aka::World& world);
 };
 
 };

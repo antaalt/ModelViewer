@@ -1,4 +1,4 @@
-#include "ModelLoader.h"
+#include "Importer.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -7,7 +7,7 @@
 
 #include <filesystem>
 
-namespace viewer {
+namespace app {
 
 struct AssimpImporter {
 	AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world);
@@ -390,11 +390,6 @@ Texture::Ptr AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 		Logger::error("Failed to import texture2D");
 		return nullptr;
 	}
-}
-
-bool ModelLoader::load(const Path& path, aka::World& world)
-{
-	return Importer::importScene(path, world);
 }
 
 bool Importer::importScene(const Path& path, aka::World& world)

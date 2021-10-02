@@ -2,7 +2,7 @@
 
 #include <Aka/Aka.h>
 
-namespace viewer {
+namespace app {
 
 using namespace aka;
 
@@ -15,12 +15,12 @@ struct Hierarchy3DComponent {
 	mat4f inverseTransform;
 };
 
-struct MeshComponent {
+struct StaticMeshComponent {
 	SubMesh submesh;
 	aabbox<> bounds;
 };
 
-struct MaterialComponent {
+struct OpaqueMaterialComponent {
 	struct Texture {
 		aka::Texture::Ptr texture;
 		TextureSampler sampler;
@@ -32,6 +32,9 @@ struct MaterialComponent {
 	Texture material;
 	//Texture::Ptr emissive;
 };
+
+using MeshComponent = StaticMeshComponent;
+using MaterialComponent = OpaqueMaterialComponent;
 
 // CSM based directional light
 struct DirectionalLightComponent {
@@ -50,12 +53,15 @@ struct PointLightComponent {
 	float intensity;
 	// Rendering
 	mat4f worldToLightSpaceMatrix[6];
-	Texture::Ptr shadowMap;
+	TextureCubeMap::Ptr shadowMap;
 	float radius;
 };
 
+// with a preetham component or something, we can emulate sky
+// a system read all preetham skybox and draw on the the sky if update.
+// it also control a directional light attached to it that render the sun with it.
 struct SkyboxComponent {
-	Texture::Ptr skybox;
+	TextureCubeMap::Ptr skybox;
 };
 
 struct Camera3DComponent {
