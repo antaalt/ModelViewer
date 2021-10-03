@@ -5,8 +5,6 @@
 #include <assimp/postprocess.h>
 #include <assimp/pbrmaterial.h>
 
-#include <filesystem>
-
 namespace app {
 
 struct AssimpImporter {
@@ -45,7 +43,7 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 
 void AssimpImporter::process()
 {
-	Entity root = m_world.createEntity(File::basename(m_directory));
+	Entity root = m_world.createEntity(OS::File::basename(m_directory));
 	root.add<Transform3DComponent>(Transform3DComponent{ mat4f::identity() });
 	root.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), mat4f::identity() });
 	processNode(root, m_assimpScene->mRootNode);
@@ -152,11 +150,11 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		}
 		// Import resources
 		Path bufferDirectory = "library/buffer/";
-		if (!Directory::exist(bufferDirectory))
-			Directory::create(bufferDirectory);
+		if (!OS::Directory::exist(bufferDirectory))
+			OS::Directory::create(bufferDirectory);
 		Path meshDirectory = "library/mesh/";
-		if (!Directory::exist(bufferDirectory))
-			Directory::create(bufferDirectory);
+		if (!OS::Directory::exist(bufferDirectory))
+			OS::Directory::create(bufferDirectory);
 		// Index buffer
 		String indexBufferName = meshName + "-indices";
 		Path indexBufferPath = bufferDirectory + indexBufferName + ".buffer";
@@ -378,7 +376,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 
 Texture::Ptr AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 {
-	String name = File::name(path);
+	String name = OS::File::name(path);
 	if (ResourceManager::has<Texture>(name))
 		return ResourceManager::get<Texture>(name);
 	if (Importer::importTexture2D(name, path, flags))
@@ -432,8 +430,8 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 	if (!ResourceManager::has<Texture>(name))
 	{
 		String directory = "library/texture/";
-		if (!Directory::exist(directory))
-			Directory::create(directory);
+		if (!OS::Directory::exist(directory))
+			OS::Directory::create(directory);
 		String libPath = directory + name + ".tex";
 
 		// Convert and save
@@ -462,8 +460,8 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 	if (!ResourceManager::has<Texture>(name))
 	{
 		String directory = "library/texture/";
-		if (!Directory::exist(directory))
-			Directory::create(directory);
+		if (!OS::Directory::exist(directory))
+			OS::Directory::create(directory);
 		String libPath = directory + name + ".tex";
 
 		// Convert and save
@@ -492,8 +490,8 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 	if (!ResourceManager::has<Texture>(name))
 	{
 		String directory = "library/texture/";
-		if (!Directory::exist(directory))
-			Directory::create(directory);
+		if (!OS::Directory::exist(directory))
+			OS::Directory::create(directory);
 		String libPath = directory + name + ".tex";
 
 		// Convert and save
@@ -526,9 +524,10 @@ bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 {
 	String libPath = "library/audio/" + name + ".audio";
 	// Convert and save (only copy for now)
-	if (!File::create(libPath))
+	if (!OS::File::create(libPath))
 		Logger::error("Failed to create file");
-	std::filesystem::copy(path.cstr(), libPath.cstr());
+	if (!OS::File::copy(path, libPath))
+		Logger::error("Failed to copy file");
 	// Load
 	ResourceManager::load<AudioStream>(name, libPath);
 	return true;
@@ -539,11 +538,11 @@ bool Importer::importFont(const aka::String& name, const aka::Path& path)
 	if (!ResourceManager::has<Font>(name))
 	{
 		String directory = "library/font/";
-		if (!Directory::exist(directory))
-			Directory::create(directory);
+		if (!OS::Directory::exist(directory))
+			OS::Directory::create(directory);
 		String libPath = directory + name + ".font";
 		Blob blob;
-		if (!File::read(path, &blob))
+		if (!OS::File::read(path, &blob))
 			return false;
 		// Convert and save
 		FontStorage storage;

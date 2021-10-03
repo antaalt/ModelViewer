@@ -20,7 +20,7 @@ namespace app {
 
 void Editor::onCreate(int argc, char* argv[])
 {
-	ProgramManager::parse(ResourceManager::path("shader.json"));
+	ProgramManager::parse(ResourceManager::path("shaders/shader.json"));
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
 	m_world.attach<RenderSystem>();
@@ -116,7 +116,7 @@ void Editor::onDestroy()
 	m_world.destroy();
 }
 
-void Editor::onUpdate(aka::Time::Unit deltaTime)
+void Editor::onUpdate(aka::Time deltaTime)
 {
 	// Hot reload programs.
 	ProgramManager::update();

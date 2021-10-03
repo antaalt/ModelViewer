@@ -503,7 +503,7 @@ void Scene::save(const Path& path, const World& world)
 			json["entities"][id] = entity;
 		});
 
-		if (!File::write(path, json.dump()))
+		if (!OS::File::write(path, json.dump()))
 		{
 			Logger::error("Failed to write scene.");
 		}
@@ -519,7 +519,7 @@ void Scene::load(World& world, const Path& path)
 	try
 	{
 		String s;
-		File::read(path, &s);
+		OS::File::read(path, &s);
 		if (s.length() == 0)
 		{
 			Logger::error("File ", path, "not valid.");

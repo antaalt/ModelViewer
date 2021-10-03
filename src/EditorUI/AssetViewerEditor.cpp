@@ -313,7 +313,7 @@ void MeshViewerEditor::onDestroy(World& world)
 {
 
 }
-void MeshViewerEditor::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
+void MeshViewerEditor::onUpdate(aka::World& world, aka::Time deltaTime)
 {
 
 }
@@ -375,7 +375,7 @@ void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 		if (ImGui::IsWindowHovered() && (ImGui::IsMouseDragging(0, 0.0f) || ImGui::IsMouseDragging(1, 0.0f) || !ImGui::IsAnyItemActive()))
 		{
 			// TODO use real deltatime
-			m_arcball.update(Time::Unit::milliseconds(10));
+			m_arcball.update(Time::milliseconds(10));
 		}
 		drawMesh(resource.resource);
 

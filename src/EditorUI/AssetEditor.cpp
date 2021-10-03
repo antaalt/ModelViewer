@@ -11,7 +11,7 @@ void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 {
 	m_currentPath = aka::ResourceManager::path("");
 	m_selectedPath = nullptr;
-	m_paths = aka::Path::enumerate(m_currentPath);
+	m_paths = aka::OS::enumerate(m_currentPath);
 	m_importCallback = callback;
 }
 
@@ -19,7 +19,7 @@ void AssetEditor::onCreate(aka::World& world)
 {
 	m_currentPath = aka::ResourceManager::path(""); // TODO request project path
 	m_selectedPath = nullptr;
-	m_paths = aka::Path::enumerate(m_currentPath);
+	m_paths = aka::OS::enumerate(m_currentPath);
 	m_viewers.push_back(&m_textureEditor);
 	m_viewers.push_back(&m_bufferEditor);
 	m_viewers.push_back(&m_meshEditor);
@@ -35,7 +35,7 @@ void AssetEditor::onDestroy(aka::World& world)
 		viewer->onDestroy(world);
 }
 
-void AssetEditor::onUpdate(aka::World& world, Time::Unit deltaTime)
+void AssetEditor::onUpdate(aka::World& world, Time deltaTime)
 {
 	// TODO file watcher to ensure everything is up to date
 	for (EditorWindow* viewer : m_viewers)
@@ -123,7 +123,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Mesh : ", path);
-						return Importer::importMesh(File::basename(path), path);
+						return Importer::importMesh(OS::File::basename(path), path);
 					});
 				}
 				if (ImGui::MenuItem("Texture2D"))
@@ -131,7 +131,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool {
 						aka::Logger::info("Image : ", path);
-						return Importer::importTexture2D(File::basename(path), path, TextureFlag::ShaderResource);
+						return Importer::importTexture2D(OS::File::basename(path), path, TextureFlag::ShaderResource);
 					});
 				}
 				if (ImGui::MenuItem("Cubemap"))
@@ -148,7 +148,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Audio : ", path);
-						return Importer::importAudio(File::basename(path), path);
+						return Importer::importAudio(OS::File::basename(path), path);
 					});
 				}
 				if (ImGui::MenuItem("Font"))
@@ -156,7 +156,7 @@ void AssetEditor::onRender(aka::World& world)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool{
 						aka::Logger::info("Font : ", path);
-						return Importer::importFont(File::basename(path), path);
+						return Importer::importFont(OS::File::basename(path), path);
 					});
 				}
 				// animation
@@ -227,7 +227,7 @@ void AssetEditor::onRender(aka::World& world)
 				for (aka::Path& path : m_paths)
 				{
 					bool selected = (&path == m_selectedPath);
-					bool isFolder = Directory::exist(m_currentPath + path);
+					bool isFolder = OS::Directory::exist(m_currentPath + path);
 					if (isFolder)
 					{
 						int err = snprintf(buffer, 256, "%s %s", "D", path.cstr());
@@ -259,7 +259,7 @@ void AssetEditor::onRender(aka::World& world)
 			ImGui::EndChild();
 			if (updated)
 			{
-				m_paths = aka::Path::enumerate(m_currentPath);
+				m_paths = OS::enumerate(m_currentPath);
 			}
 			if (ImGui::Button("Import"))
 			{

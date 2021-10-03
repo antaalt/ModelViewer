@@ -27,7 +27,7 @@ void Game::onDestroy()
 	m_world.destroy();
 }
 
-void Game::onUpdate(aka::Time::Unit deltaTime)
+void Game::onUpdate(aka::Time deltaTime)
 {
 	// Quit the app if requested
 	if (Keyboard::pressed(KeyboardKey::Escape))

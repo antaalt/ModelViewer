@@ -10,7 +10,7 @@ public:
 	SceneEditor();
 	void onCreate(aka::World& world) override;
 	void onDestroy(aka::World& world) override;
-	void onUpdate(aka::World& world, aka::Time::Unit deltaTime) override;
+	void onUpdate(aka::World& world, aka::Time deltaTime) override;
 	void onRender(aka::World& world) override;
 private:
 	void drawWireFrame(const aka::mat4f& model, const aka::mat4f& view, const aka::mat4f& projection, const aka::SubMesh& submesh);

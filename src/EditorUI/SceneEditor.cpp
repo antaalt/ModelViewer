@@ -510,7 +510,7 @@ entt::entity pick(World& world)
 	return selected;
 }
 
-void SceneEditor::onUpdate(World& world, Time::Unit deltaTime)
+void SceneEditor::onUpdate(World& world, Time deltaTime)
 {
 	ImGuiIO& io = ImGui::GetIO();
 	ImVec2 v = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);

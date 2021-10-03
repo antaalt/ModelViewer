@@ -45,7 +45,7 @@ public:
 	MeshViewerEditor();
 	void onCreate(aka::World& world) override;
 	void onDestroy(aka::World& world) override;
-	void onUpdate(aka::World& world, aka::Time::Unit deltaTime) override;
+	void onUpdate(aka::World& world, aka::Time deltaTime) override;
 protected:
 	void draw(const aka::String& name, aka::Resource<aka::Mesh>& resource) override;
 	void onResourceChange() override;

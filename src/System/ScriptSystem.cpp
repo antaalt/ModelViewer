@@ -269,7 +269,7 @@ void ScriptSystem::onDestroy(aka::World& world)
     lua_close(L);
 }
 
-void ScriptSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
+void ScriptSystem::onUpdate(aka::World& world, aka::Time deltaTime)
 {
     auto view = world.registry().view<ScriptComponent>();
     view.each([&](ScriptComponent& script) {

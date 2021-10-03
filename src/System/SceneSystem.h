@@ -11,7 +11,7 @@ public:
 	void onCreate(aka::World& world) override;
 	void onDestroy(aka::World& world) override;
 
-	void onUpdate(aka::World& world, aka::Time::Unit deltaTime) override;
+	void onUpdate(aka::World& world, aka::Time deltaTime) override;
 };
 
 };

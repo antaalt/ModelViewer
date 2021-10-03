@@ -88,7 +88,7 @@ void SceneSystem::onDestroy(aka::World& world)
 	world.registry().on_update<Camera3DComponent>().disconnect<&onCameraUpdate>();
 }
 
-void SceneSystem::onUpdate(aka::World& world, aka::Time::Unit deltaTime)
+void SceneSystem::onUpdate(aka::World& world, aka::Time deltaTime)
 {
 	// --- Update hierarchy transfom.
 	// TODO only update if a hierarchy node or transform node has been updated. use dirtyTransform ?

@@ -12,7 +12,7 @@ class Editor : public aka::Application
 public:
 	void onCreate(int argc, char* argv[]) override;
 	void onDestroy() override;
-	void onUpdate(Time::Unit deltaTime) override;
+	void onUpdate(Time deltaTime) override;
 	void onResize(uint32_t width, uint32_t height) override;
 	void onRender() override;
 private:
