@@ -14,5 +14,5 @@ function onDestroy()
 end
 
 function onUpdate(deltaTime)
-    print(test()(3, 4) * deltaTime .."test.lua");
+    print(test()(3, 4) * deltaTime .." test1.lua");
 end

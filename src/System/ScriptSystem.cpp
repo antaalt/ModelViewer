@@ -13,7 +13,12 @@ struct ScriptComponent
     aka::String script; // whole script.
 };
 
+//#define USE_ENV
+
 static lua_State* L = nullptr;
+#if !defined(USE_ENV)
+std::map<aka::String, aka::String> scripts;
+#endif
 
 struct Cat
 {
@@ -87,6 +92,12 @@ struct LuaValue {
 
 void registerScript(const char* name, const char* script)
 {
+#if !defined(USE_ENV)
+    LUA_CHECK_RESULT(luaL_loadstring(L, script)); // Load chunk on stack / TBL - CHNK
+    LUA_CHECK_RESULT(lua_pcall(L, 0, 0, 0)); // Compile chunk
+    AKA_ASSERT(lua_gettop(L) == 0, "Stack not empty");
+    scripts.insert(std::make_pair(name, script));
+#else
     if (lua_getglobal(L, name) != LUA_TNIL)
     {
         aka::Logger::warn("Name already used for script.");
@@ -107,17 +118,34 @@ void registerScript(const char* name, const char* script)
     LUA_CHECK_RESULT(lua_pcall(L, 0, 0, 0)); // Compile chunk
     lua_setglobal(L, name); // Empty the stack
     AKA_ASSERT(lua_gettop(L) == 0, "Stack not empty");
+#endif
 }
 
 void unregisterScript(const char* name)
 {
+#if defined(USE_ENV)
     // Set env as nil. GC should remove all references to the script env.
     lua_pushnil(L);
     lua_setglobal(L, name);
+#else
+    scripts.erase(name);
+#endif
 }
 
 bool executeScriptFunction(const char* scriptName, const char* name, const LuaValue* args, int argc)
 {
+#if !defined(USE_ENV)
+    int outArgc = 0;
+    std::vector<LuaValue> outArgs(outArgc);
+    auto it = scripts.find(scriptName);
+    if (it == scripts.end())
+        return false;
+    LUA_CHECK_RESULT(luaL_loadstring(L, it->second.cstr())); // Load chunk on stack
+    LUA_CHECK_RESULT(lua_pcall(L, 0, 0, 0)); // Compile chunk
+
+    // Load function to the stack
+    int type = lua_getglobal(L, name);
+#else
     int outArgc = 0;
     std::vector<LuaValue> outArgs(outArgc);
     lua_getglobal(L, scriptName); // Get the script env
@@ -126,6 +154,8 @@ bool executeScriptFunction(const char* scriptName, const char* name, const LuaVa
 
     // Load function to the stack
     int type = lua_getfield(L, 1, name);
+    
+#endif
     if (type == LUA_TFUNCTION)
     {
         for (int i = 0; i < argc; i++)
@@ -253,11 +283,11 @@ void ScriptSystem::onCreate(aka::World& world)
         // Load script from file
         aka::String str;
         aka::Entity e0 = world.createEntity("script0");
-        aka::File::read(aka::ResourceManager::path("scripts/test.lua"), &str);
+        aka::OS::File::read(aka::ResourceManager::path("scripts/test.lua"), &str);
         e0.add<ScriptComponent>(ScriptComponent{ "test", str });
 
         aka::Entity e1 = world.createEntity("script1");
-        aka::File::read(aka::ResourceManager::path("scripts/test2.lua"), &str);
+        aka::OS::File::read(aka::ResourceManager::path("scripts/test2.lua"), &str);
         e1.add<ScriptComponent>(ScriptComponent{ "test2", str });
     }
 }

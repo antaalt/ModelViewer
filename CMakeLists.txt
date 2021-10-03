@@ -22,7 +22,7 @@ add_executable(AkaViewer
 	"src/System/RenderSystem.cpp"
 	"src/System/ShadowMapSystem.cpp"
 	"src/System/SceneSystem.cpp"
-	"src/System/ScriptSystem.cpp" 
+	"src/System/ScriptSystem.cpp"
 )
 
 target_link_libraries(AkaViewer Aka)
