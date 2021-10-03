@@ -347,69 +347,6 @@ void component(World& world, entt::entity entity)
 	}
 }
 
-#if defined(AKA_USE_OPENGL)
-static const char* vertShader =
-"#version 330\n"
-"layout (location = 0) in vec3 a_position;\n"
-"layout (location = 1) in vec3 a_normal;\n"
-"layout (location = 2) in vec2 a_uv;\n"
-"layout (location = 3) in vec4 a_color;\n"
-"layout(std140) uniform ModelUniformBuffer { mat4 u_mvp; };\n"
-"out vec4 v_color; \n"
-"void main(void) {\n"
-"	gl_Position = u_mvp * vec4(a_position, 1.0);\n"
-"	v_color = a_color;\n"
-"}"
-"";
-static const char* fragShader =
-"#version 330\n"
-"in vec3 v_position;\n"
-"in vec4 v_color;\n"
-"out vec4 o_color;\n"
-"void main(void) {\n"
-"	o_color = v_color;\n"
-"}"
-"";
-#elif defined(AKA_USE_D3D11)
-
-static const char* vertShader = ""
-"cbuffer ModelUniformBuffer : register(b0)\n"
-"{\n"
-"	float4x4 u_mvp;\n"
-"}\n"
-"struct vs_in\n"
-"{\n"
-"	float3 position : POSITION;\n"
-"	float3 normal : NORMAL;\n"
-"	float2 texcoord : TEXCOORD;\n"
-"	float4 color : COLOR;\n"
-"};\n"
-"struct vs_out\n"
-"{\n"
-"	float4 position : SV_POSITION;\n"
-"	float2 texcoord : TEXCOORD;\n"
-"	float4 color : COLOR;\n"
-"};\n"
-"vs_out main(vs_in input)\n"
-"{\n"
-"	vs_out output;\n"
-"	output.position = mul(u_mvp, float4(input.position, 1.0f));\n"
-"	output.color = input.color;\n"
-"	return output;\n"
-"}\n";
-static const char* fragShader = ""
-"struct vs_out\n"
-"{\n"
-"	float4 position : SV_POSITION;\n"
-"	float2 texcoord : TEXCOORD;\n"
-"	float4 color : COLOR;\n"
-"};\n"
-"float4 main(vs_out input) : SV_TARGET\n"
-"{\n"
-"	return input.color;\n"
-"}\n";
-#endif
-
 SceneEditor::SceneEditor() :
 	m_currentEntity(entt::null),
 	m_gizmoOperation(ImGuizmo::TRANSLATE),
@@ -425,9 +362,7 @@ void SceneEditor::onCreate(World& world)
 		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	Shader::Ptr vert = Shader::compile(vertShader, ShaderType::Vertex);
-	Shader::Ptr frag = Shader::compile(fragShader, ShaderType::Fragment);
-	m_wireframeProgram = Program::createVertexProgram(vert, frag, att.data(), att.size());
+	m_wireframeProgram = ProgramManager::get("editor.wireframe");
 	m_wireframeMaterial = Material::create(m_wireframeProgram);
 	m_wireFrameUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
 	m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);

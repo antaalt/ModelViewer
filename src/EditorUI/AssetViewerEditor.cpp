@@ -258,34 +258,6 @@ void BufferViewerEditor::draw(const String& name, Resource<Buffer>& resource)
 }
 void MeshViewerEditor::onCreate(World& world)
 {
-	static const char* vertShader = "#version 330\n"
-		"layout(location = 0) in vec3 a_position;\n"
-		"layout(location = 1) in vec3 a_normal;\n"
-		"layout(location = 2) in vec2 a_uv;\n"
-		"layout(location = 3) in vec4 a_color;\n"
-		"out vec3 v_normal;\n"
-		"out vec3 v_forward;\n"
-		"out vec3 v_color;\n"
-		"layout(std140) uniform CameraUniformBuffer\n"
-		"{\n"
-		"	mat4 u_mvp;\n"
-		"};\n"
-		"void main()\n"
-		"{\n"
-		"	gl_Position = u_mvp * vec4(a_position, 1.0);\n"
-		"	v_normal = a_normal;\n"
-		"	v_forward = mat3(u_mvp) * vec3(0, 0, -1);\n"
-		"	v_color = a_color.xyz;\n"
-		"}\n";
-	static const char* fragShader = "#version 330\n"
-		"in vec3 v_normal;\n"
-		"in vec3 v_forward;\n"
-		"in vec3 v_color;\n"
-		"out vec4 o_color;\n"
-		"void main()\n"
-		"{\n"
-		"    o_color = vec4(v_color * clamp(dot(v_forward, v_normal), 0.1f, 1.f), 1.0);\n"
-		"}\n";
 	// TODO if no data, bug ?
 	std::vector<uint8_t> data(m_width * m_height * 4, 0xff);
 	m_renderTarget = Texture2D::create(m_width, m_height, TextureFormat::RGBA8, TextureFlag::RenderTarget | TextureFlag::ShaderResource, data.data());
@@ -294,15 +266,7 @@ void MeshViewerEditor::onCreate(World& world)
 		{ AttachmentType::Color0, m_renderTarget, AttachmentFlag::None, 0, 0 },
 	};
 	m_target = Framebuffer::create(attachments, 2);
-	Shader::Ptr vert = Shader::compile(vertShader, ShaderType::Vertex);
-	Shader::Ptr frag = Shader::compile(fragShader, ShaderType::Fragment);
-	const std::vector<VertexAttribute> attributes = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
-		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
-	};
-	Program::Ptr p = Program::createVertexProgram(vert, frag, attributes.data(), attributes.size());
+	Program::Ptr p = ProgramManager::get("editor.basic");
 	m_material = Material::create(p);
 	m_uniform = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
 	m_material->set("CameraUniformBuffer", m_uniform);

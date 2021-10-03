@@ -10,7 +10,7 @@ namespace app {
 
 void Game::onCreate(int argc, char* argv[])
 {
-	ProgramManager::parse(ResourceManager::path("shader.json"));
+	ProgramManager::parse(ResourceManager::path("shaders/shader.json"));
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
 	m_world.attach<RenderSystem>();
