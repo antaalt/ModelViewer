@@ -118,6 +118,7 @@ void Editor::onDestroy()
 
 void Editor::onUpdate(aka::Time deltaTime)
 {
+	PlatformDevice* platform = Application::platform();
 	// Hot reload programs.
 	ProgramManager::update();
 
@@ -125,9 +126,10 @@ void Editor::onUpdate(aka::Time deltaTime)
 	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
 
 	// TOD
-	if (Mouse::pressed(MouseButton::ButtonMiddle))
+	const Mouse& mouse = platform->mouse();
+	if (mouse.pressed(MouseButton::ButtonMiddle))
 	{
-		const Position& pos = Mouse::position();
+		const Position& pos = mouse.position();
 		float x = pos.x / (float)width();
 		if (m_sun.valid() && m_sun.has<DirectionalLightComponent>())
 		{
@@ -138,7 +140,8 @@ void Editor::onUpdate(aka::Time deltaTime)
 	}
 
 	// Reset
-	if (Keyboard::down(KeyboardKey::R) && !ImGui::GetIO().WantCaptureKeyboard)
+	const Keyboard& keyboard = platform->keyboard();
+	if (keyboard.down(KeyboardKey::R) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		// Compute scene bounds.
 		aabbox<> bounds;
@@ -149,20 +152,20 @@ void Editor::onUpdate(aka::Time deltaTime)
 		m_camera.get<Camera3DComponent>().controller->set(bounds);
 		m_world.registry().patch<Camera3DComponent>(m_camera.handle());
 	}
-	if (Keyboard::down(KeyboardKey::D) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.down(KeyboardKey::D) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		m_debug = !m_debug;
 	}
-	if (Keyboard::down(KeyboardKey::PrintScreen) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.down(KeyboardKey::PrintScreen) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
-		GraphicDevice* device = GraphicBackend::device();
+		GraphicDevice* device = Application::graphic();
 		Backbuffer::Ptr backbuffer = device->backbuffer();
 		Image image(backbuffer->width(), backbuffer->height(), 4, ImageFormat::UnsignedByte);
 		device->backbuffer()->download(image.data());
 		image.encodePNG("screen.png");
 	}
 	// Quit the app if requested
-	if (Keyboard::pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}

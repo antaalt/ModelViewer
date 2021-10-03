@@ -157,7 +157,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			OS::Directory::create(bufferDirectory);
 		// Index buffer
 		String indexBufferName = meshName + "-indices";
-		Path indexBufferPath = bufferDirectory + indexBufferName + ".buffer";
+		String indexBufferFileName = indexBufferName + ".buffer";
+		Path indexBufferPath = bufferDirectory + indexBufferFileName;
 		{
 			BufferStorage indexBuffer;
 			indexBuffer.type = BufferType::Index;
@@ -172,7 +173,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
-		Path vertexBufferPath = bufferDirectory + vertexBufferName + ".buffer";
+		String vertexBufferFileName = vertexBufferName + ".buffer";
+		Path vertexBufferPath = bufferDirectory + vertexBufferFileName;
 		{
 			BufferStorage vertexBuffer;
 			vertexBuffer.type = BufferType::Vertex;
@@ -186,7 +188,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Buffer::Ptr vertexBuffer = ResourceManager::load<Buffer>(vertexBufferName, vertexBufferPath).resource;
 
 		// Mesh
-		Path meshPath = meshDirectory + meshName + ".mesh";
+		String meshFileName = meshName + ".mesh";
+		Path meshPath = meshDirectory + meshFileName;
 		{
 			uint32_t vertexCount = (uint32_t)vertices.size();
 			uint32_t vertexBufferSize = (uint32_t)(vertices.size() * sizeof(Vertex));

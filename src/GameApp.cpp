@@ -29,8 +29,9 @@ void Game::onDestroy()
 
 void Game::onUpdate(aka::Time deltaTime)
 {
+	PlatformDevice* device = Application::platform();
 	// Quit the app if requested
-	if (Keyboard::pressed(KeyboardKey::Escape))
+	if (device->keyboard().pressed(KeyboardKey::Escape))
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}

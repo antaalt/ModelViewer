@@ -505,7 +505,7 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 
 void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat4f& projection, const SubMesh& submesh)
 {
-	GraphicDevice* device = GraphicBackend::device();
+	GraphicDevice* device = Application::graphic();
 	RenderPass r;
 	r.framebuffer = device->backbuffer();
 	r.material = m_wireframeMaterial;
@@ -815,7 +815,7 @@ void SceneEditor::onRender(World& world)
 				}
 
 				// Render
-				GraphicDevice* device = GraphicBackend::device();
+				GraphicDevice* device = Application::graphic();
 				Renderer3D::render(device->backbuffer(), view, projection);
 				Renderer3D::clear();
 			}

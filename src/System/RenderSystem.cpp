@@ -46,7 +46,7 @@ struct alignas(16) ModelUniformBuffer {
 
 void RenderSystem::onCreate(aka::World& world)
 {
-	GraphicDevice* device = GraphicBackend::device();
+	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();
 
 	m_gbufferMaterial = Material::create(ProgramManager::get("gbuffer"));
@@ -187,7 +187,7 @@ void RenderSystem::onDestroy(aka::World& world)
 
 void RenderSystem::onRender(aka::World& world)
 {
-	GraphicDevice* device = GraphicBackend::device();
+	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();
 
 	Entity cameraEntity = Scene::getMainCamera(world);

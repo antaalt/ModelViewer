@@ -60,11 +60,13 @@ int main(int argc, char* argv[])
 	
 	aka::Config cfg{};
 	cfg.app = &editor;
-	cfg.width = settings.width;
-	cfg.height = settings.height;
-	cfg.name = "Aka editor";
-	cfg.arguments.count = argc;
-	cfg.arguments.values = argv;
+	cfg.platform.name = "Aka editor";
+	cfg.platform.width = settings.width;
+	cfg.platform.height = settings.height;
+	cfg.graphic.width = cfg.platform.width;
+	cfg.graphic.height = cfg.platform.height;
+	cfg.argc = argc;
+	cfg.argv = argv;
 	aka::Application::run(cfg);
 
 	return 0;

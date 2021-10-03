@@ -53,7 +53,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 	m_shadowMaterial = Material::create(ProgramManager::get("shadowDirectional"));
 	m_shadowPointMaterial = Material::create(ProgramManager::get("shadowPoint"));
 
-	GraphicDevice* device = GraphicBackend::device();
+	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();
 	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
 	Attachment shadowAttachments[] = {
@@ -119,7 +119,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 void ShadowMapSystem::onRender(aka::World& world)
 {
-	GraphicDevice* device = GraphicBackend::device();
+	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();
 
 	Entity cameraEntity = Scene::getMainCamera(world);

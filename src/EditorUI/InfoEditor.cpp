@@ -7,7 +7,7 @@ namespace app {
 
 void InfoEditor::onRender(aka::World& world)
 {
-	aka::GraphicDevice* graphic = aka::GraphicBackend::device();
+	aka::GraphicDevice* graphic = aka::Application::graphic();
 	uint32_t width = graphic->backbuffer()->width();
 	uint32_t height = graphic->backbuffer()->height();
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
