@@ -2,7 +2,6 @@
 
 #include <imgui.h>
 #include <imguizmo.h>
-#include <Aka/Layer/ImGuiLayer.h>
 
 #include "GameApp.h"
 
@@ -17,15 +16,25 @@
 
 namespace app {
 
+Editor::Editor() :
+	Application(std::vector<Layer*>{new ImGuiLayer}),
+	m_debug(true)
+{
+}
+
+Editor::~Editor()
+{
+}
 
 void Editor::onCreate(int argc, char* argv[])
 {
-	ProgramManager::parse(ResourceManager::path("shaders/shader.json"));
+	ProgramManager* program = Application::program();
+	program->parse(ResourceManager::path("shaders/shader.json"));
+
 	m_world.attach<SceneSystem>();
 	m_world.attach<ShadowMapSystem>();
 	m_world.attach<RenderSystem>();
 	m_world.attach<ScriptSystem>();
-	m_world.create();
 
 	m_editors.push_back(new SceneEditor);
 	m_editors.push_back(new InfoEditor);
@@ -34,7 +43,8 @@ void Editor::onCreate(int argc, char* argv[])
 		editor->onCreate(m_world);
 
 	// --- Model
-	ResourceManager::parse("library/library.json");
+	ResourceManager* resource = Application::resource();
+	resource->parse("library/library.json");
 	Scene::load(m_world, "library/scene.json");
 	//Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
 
@@ -98,11 +108,6 @@ void Editor::onCreate(int argc, char* argv[])
 
 		m_world.registry().patch<Camera3DComponent>(m_camera.handle());
 	}
-	
-
-	// --- UI
-	m_debug = true;
-	attach<ImGuiLayer>();
 }
 
 void Editor::onDestroy()
@@ -113,14 +118,11 @@ void Editor::onDestroy()
 		delete editor;
 	}
 	m_editors.clear();
-	m_world.destroy();
 }
 
 void Editor::onUpdate(aka::Time deltaTime)
 {
 	PlatformDevice* platform = Application::platform();
-	// Hot reload programs.
-	ProgramManager::update();
 
 	// Camera status
 	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
@@ -169,7 +171,6 @@ void Editor::onUpdate(aka::Time deltaTime)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
-	m_world.update(deltaTime);
 	// Editor
 	for (EditorWindow* editor : m_editors)
 		editor->onUpdate(m_world, deltaTime);
@@ -181,8 +182,6 @@ void Editor::onResize(uint32_t width, uint32_t height)
 
 void Editor::onRender()
 {
-	m_world.render();
-
 	if (m_debug)
 	{
 		// --- Editor pass

@@ -292,10 +292,11 @@ template <> const char* ComponentNode<TextComponent>::name() { return "Text"; }
 template <> bool ComponentNode<TextComponent>::draw(TextComponent& text)
 {
 	bool updated = false;
-	String name = ResourceManager::name<Font>(text.font);
+	ResourceManager* resources = Application::resource();
+	String name = resources->name<Font>(text.font);
 	if (ImGui::BeginCombo("Font", name.cstr()))
 	{
-		for (auto& font : ResourceManager::allocator<Font>())
+		for (auto& font : resources->allocator<Font>())
 		{
 			bool sameFont = (text.font == font.second.resource);
 			if (ImGui::Selectable(font.first.cstr(), sameFont) && !sameFont)
@@ -362,7 +363,8 @@ void SceneEditor::onCreate(World& world)
 		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	m_wireframeProgram = ProgramManager::get("editor.wireframe");
+	ProgramManager* program = Application::program();
+	m_wireframeProgram = program->get("editor.wireframe");
 	m_wireframeMaterial = Material::create(m_wireframeProgram);
 	m_wireFrameUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
 	m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
@@ -529,6 +531,7 @@ void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat
 void SceneEditor::onRender(World& world)
 {
 	// TODO draw a grid here and origin of the world
+	ResourceManager* resources = Application::resource();
 
 	ImGuizmo::BeginFrame();
 	if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_MenuBar))
@@ -637,7 +640,7 @@ void SceneEditor::onRender(World& world)
 						);
 					if (ImGui::BeginMenu("Text", !e.has<TextComponent>()))
 					{
-						FontAllocator& allocator = ResourceManager::allocator<Font>();
+						FontAllocator& allocator = resources->allocator<Font>();
 						for (auto& r : allocator)
 						{
 							if (ImGui::MenuItem(r.first.cstr(), nullptr, nullptr, !e.has<TextComponent>()))

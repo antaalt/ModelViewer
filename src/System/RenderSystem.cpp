@@ -49,13 +49,14 @@ void RenderSystem::onCreate(aka::World& world)
 	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();
 
-	m_gbufferMaterial = Material::create(ProgramManager::get("gbuffer"));
-	m_pointMaterial = Material::create(ProgramManager::get("point"));
-	m_dirMaterial = Material::create(ProgramManager::get("directional"));
-	m_ambientMaterial = Material::create(ProgramManager::get("ambient"));
-	m_skyboxMaterial = Material::create(ProgramManager::get("skybox"));
-	m_postprocessMaterial = Material::create(ProgramManager::get("postProcess"));
-	m_textMaterial = Material::create(ProgramManager::get("text"));
+	ProgramManager* program = Application::program();
+	m_gbufferMaterial = Material::create(program->get("gbuffer"));
+	m_pointMaterial = Material::create(program->get("point"));
+	m_dirMaterial = Material::create(program->get("directional"));
+	m_ambientMaterial = Material::create(program->get("ambient"));
+	m_skyboxMaterial = Material::create(program->get("skybox"));
+	m_postprocessMaterial = Material::create(program->get("postProcess"));
+	m_textMaterial = Material::create(program->get("text"));
 
 	createRenderTargets(backbuffer->width(), backbuffer->height());
 

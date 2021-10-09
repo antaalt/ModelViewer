@@ -50,8 +50,9 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 
 void ShadowMapSystem::onCreate(aka::World& world)
 {
-	m_shadowMaterial = Material::create(ProgramManager::get("shadowDirectional"));
-	m_shadowPointMaterial = Material::create(ProgramManager::get("shadowPoint"));
+	ProgramManager* program = Application::program();
+	m_shadowMaterial = Material::create(program->get("shadowDirectional"));
+	m_shadowPointMaterial = Material::create(program->get("shadowPoint"));
 
 	GraphicDevice* device = Application::graphic();
 	Backbuffer::Ptr backbuffer = device->backbuffer();

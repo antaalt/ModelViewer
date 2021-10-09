@@ -98,6 +98,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	AKA_ASSERT(mesh->HasPositions(), "Mesh need positions");
 	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
 
+	ResourceManager* resource = Application::resource();
 	String meshName = mesh->mName.C_Str();
 	Entity e = m_world.createEntity(meshName);
 	e.add<MeshComponent>();
@@ -105,7 +106,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	MeshComponent& meshComponent = e.get<MeshComponent>();
 	MaterialComponent& materialComponent = e.get<MaterialComponent>();
 
-	if (!ResourceManager::has<Mesh>(meshName))
+	if (!resource->has<Mesh>(meshName))
 	{
 		std::vector<Vertex> vertices(mesh->mNumVertices);
 		std::vector<uint32_t> indices;
@@ -169,7 +170,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!indexBuffer.save(indexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer::Ptr indexBuffer = ResourceManager::load<Buffer>(indexBufferName, indexBufferPath).resource;
+		Buffer::Ptr indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource;
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
@@ -185,7 +186,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!vertexBuffer.save(vertexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer::Ptr vertexBuffer = ResourceManager::load<Buffer>(vertexBufferName, vertexBufferPath).resource;
+		Buffer::Ptr vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource;
 
 		// Mesh
 		String meshFileName = meshName + ".mesh";
@@ -238,11 +239,11 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			storage.indexFormat = IndexFormat::UnsignedInt;
 			if (!storage.save(meshPath))
 				Logger::error("Failed to save mesh");
-			ResourceManager::load<Mesh>(meshName, meshPath);
+			resource->load<Mesh>(meshName, meshPath);
 		}
 	}
 
-	meshComponent.submesh.mesh = ResourceManager::get<Mesh>(meshName);
+	meshComponent.submesh.mesh = resource->get<Mesh>(meshName);
 	meshComponent.submesh.type = PrimitiveType::Triangles;
 	meshComponent.submesh.count = meshComponent.submesh.mesh->getIndexCount();
 	meshComponent.submesh.offset = 0;
@@ -379,12 +380,13 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 
 Texture::Ptr AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 {
+	ResourceManager* resource = Application::resource();
 	String name = OS::File::name(path);
-	if (ResourceManager::has<Texture>(name))
-		return ResourceManager::get<Texture>(name);
+	if (resource->has<Texture>(name))
+		return resource->get<Texture>(name);
 	if (Importer::importTexture2D(name, path, flags))
 	{
-		return ResourceManager::get<Texture>(name);
+		return resource->get<Texture>(name);
 	}
 	else
 	{
@@ -425,12 +427,13 @@ bool Importer::importMesh(const aka::String& name, const aka::Path& path)
 
 bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, TextureFlag flags)
 {
+	ResourceManager* resource = Application::resource();
 	// TODO use devil as importer to support a wider range of format ?
 	// Exporter would be a standalone exe to not overwhelm the engine with assimp, devil include...
 	// Or a library that include aka, assimp, devil...
 	// Use it as library for a project. 
 	// AkaImporter.h
-	if (!ResourceManager::has<Texture>(name))
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -448,7 +451,7 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -460,7 +463,8 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 
 bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path, TextureFlag flags)
 {
-	if (!ResourceManager::has<Texture>(name))
+	ResourceManager* resource = Application::resource();
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -478,7 +482,7 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -490,7 +494,8 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 
 bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px, const aka::Path& py, const aka::Path& pz, const aka::Path& nx, const aka::Path& ny, const aka::Path& nz, TextureFlag flags)
 {
-	if (!ResourceManager::has<Texture>(name))
+	ResourceManager* resource = Application::resource();
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -513,7 +518,7 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (ResourceManager::load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -525,6 +530,7 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 
 bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 {
+	ResourceManager* resource = Application::resource();
 	String libPath = "library/audio/" + name + ".audio";
 	// Convert and save (only copy for now)
 	if (!OS::File::create(libPath))
@@ -532,13 +538,14 @@ bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 	if (!OS::File::copy(path, libPath))
 		Logger::error("Failed to copy file");
 	// Load
-	ResourceManager::load<AudioStream>(name, libPath);
+	resource->load<AudioStream>(name, libPath);
 	return true;
 }
 
 bool Importer::importFont(const aka::String& name, const aka::Path& path)
 {
-	if (!ResourceManager::has<Font>(name))
+	ResourceManager* resource = Application::resource();
+	if (!resource->has<Font>(name))
 	{
 		String directory = "library/font/";
 		if (!OS::Directory::exist(directory))
@@ -554,7 +561,7 @@ bool Importer::importFont(const aka::String& name, const aka::Path& path)
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (ResourceManager::load<Font>(name, libPath).resource == nullptr)
+		if (resource->load<Font>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else

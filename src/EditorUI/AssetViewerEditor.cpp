@@ -266,7 +266,9 @@ void MeshViewerEditor::onCreate(World& world)
 		{ AttachmentType::Color0, m_renderTarget, AttachmentFlag::None, 0, 0 },
 	};
 	m_target = Framebuffer::create(attachments, 2);
-	Program::Ptr p = ProgramManager::get("editor.basic");
+
+	ProgramManager* program = Application::program();
+	Program::Ptr p = program->get("editor.basic");
 	m_material = Material::create(p);
 	m_uniform = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
 	m_material->set("CameraUniformBuffer", m_uniform);
@@ -305,6 +307,7 @@ void MeshViewerEditor::drawMesh(const Mesh::Ptr& mesh)
 
 void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 {
+	ResourceManager* resources = Application::resource();
 	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
 	ImGui::TextColored(color, name.cstr());
 	Mesh::Ptr mesh = resource.resource;
@@ -321,7 +324,7 @@ void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 			ImGui::BulletText("Type : %s", toString(mesh->getVertexAttribute(i).type));
 			ImGui::BulletText("Count : %u", mesh->getVertexCount(i));
 			ImGui::BulletText("Offset : %u", mesh->getVertexOffset(i));
-			ImGui::BulletText("Buffer : %s", ResourceManager::name<Buffer>(mesh->getVertexBuffer(i).buffer).cstr());
+			ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getVertexBuffer(i).buffer).cstr());
 			ImGui::TreePop();
 		}
 	}
@@ -329,7 +332,7 @@ void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 	ImGui::Text("Indices");
 	ImGui::BulletText("Format : %s", toString(mesh->getIndexFormat()));
 	ImGui::BulletText("Count : %u", mesh->getIndexCount());
-	ImGui::BulletText("Buffer : %s", ResourceManager::name<Buffer>(mesh->getIndexBuffer().buffer).cstr());
+	ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getIndexBuffer().buffer).cstr());
 	ImGui::Separator();
 
 	// Mesh viewer

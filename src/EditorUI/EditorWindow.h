@@ -4,7 +4,8 @@
 
 namespace app {
 
-class EditorWindow {
+class EditorWindow 
+{
 public:
 	virtual ~EditorWindow() {}
 	virtual void onCreate(aka::World& world) {};

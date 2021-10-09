@@ -1,15 +1,19 @@
 #pragma once
 
 #include <Aka/Aka.h>
+#include <Aka/Layer/ImGuiLayer.h>
 
 #include "Model/Importer.h"
 #include "EditorUI/EditorWindow.h"
 
 namespace app {
 
-class Editor : public aka::Application
+class Editor :
+	public aka::Application
 {
 public:
+	Editor();
+	~Editor();
 	void onCreate(int argc, char* argv[]) override;
 	void onDestroy() override;
 	void onUpdate(Time deltaTime) override;

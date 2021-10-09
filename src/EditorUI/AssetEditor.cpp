@@ -9,7 +9,7 @@ namespace app {
 
 void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 {
-	m_currentPath = aka::ResourceManager::path("");
+	m_currentPath = ResourceManager::path("");
 	m_selectedPath = nullptr;
 	m_paths = aka::OS::enumerate(m_currentPath);
 	m_importCallback = callback;
@@ -17,7 +17,7 @@ void AssetEditor::import(std::function<bool(const aka::Path&)> callback)
 
 void AssetEditor::onCreate(aka::World& world)
 {
-	m_currentPath = aka::ResourceManager::path(""); // TODO request project path
+	m_currentPath = ResourceManager::path(""); // TODO request project path
 	m_selectedPath = nullptr;
 	m_paths = aka::OS::enumerate(m_currentPath);
 	m_viewers.push_back(&m_textureEditor);
@@ -45,7 +45,7 @@ void AssetEditor::onUpdate(aka::World& world, Time deltaTime)
 template <typename T>
 static void drawResource(const char* type, AssetViewerEditor<T>* viewer)
 {
-	aka::ResourceAllocator<T>& resources = ResourceManager::allocator<T>();
+	aka::ResourceAllocator<T>& resources = Application::resource()->allocator<T>();
 	bool opened = false;
 	std::pair<String, Resource<T>> pair;
 	ImGui::TableNextRow();
@@ -88,6 +88,7 @@ static void drawResource(const char* type, AssetViewerEditor<T>* viewer)
 
 void AssetEditor::onRender(aka::World& world)
 {
+	ResourceManager* resources = Application::resource();
 	// store every texture, mesh & things, responsible of loading and unloading files
 	if (ImGui::Begin("Assets", nullptr, ImGuiWindowFlags_MenuBar))
 	{
@@ -98,11 +99,11 @@ void AssetEditor::onRender(aka::World& world)
 			{
 				if (ImGui::MenuItem("Load"))
 				{
-					aka::ResourceManager::parse("library/library.json");
+					resources->parse("library/library.json");
 				}
 				if (ImGui::MenuItem("Save"))
 				{
-					aka::ResourceManager::serialize("library/library.json");
+					resources->serialize("library/library.json");
 				}
 				ImGui::EndMenu();
 			}

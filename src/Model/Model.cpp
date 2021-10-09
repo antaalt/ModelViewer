@@ -342,22 +342,24 @@ nlohmann::json serialize<Hierarchy3DComponent>(const entt::registry& r, entt::en
 template <>
 nlohmann::json serialize<MeshComponent>(const entt::registry& r, entt::entity e)
 {
+	ResourceManager* resource = Application::resource();
 	const MeshComponent& m = r.get<MeshComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["bounds"]["min"] = { m.bounds.min.x, m.bounds.min.y, m.bounds.min.z };
 	json["bounds"]["max"] = { m.bounds.max.x, m.bounds.max.y, m.bounds.max.z };
-	json["mesh"] = ResourceManager::name<Mesh>(m.submesh.mesh).cstr();
+	json["mesh"] = resource->name<Mesh>(m.submesh.mesh).cstr();
 	return json;
 }
 template <>
 nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entity e)
 {
+	ResourceManager* resource = Application::resource();
 	const MaterialComponent& m = r.get<MaterialComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["color"] = { m.color.r, m.color.g, m.color.b, m.color.a };
 	json["doublesided"] = m.doubleSided;
 
-	json["albedo"]["texture"] = ResourceManager::name<Texture>(m.albedo.texture).cstr();
+	json["albedo"]["texture"] = resource->name<Texture>(m.albedo.texture).cstr();
 	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler.anisotropy;
 	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler.filterMin;
 	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler.filterMag;
@@ -366,7 +368,7 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler.wrapW;
 	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler.mipmapMode;
 
-	json["normal"]["texture"] = ResourceManager::name<Texture>(m.normal.texture).cstr();
+	json["normal"]["texture"] = resource->name<Texture>(m.normal.texture).cstr();
 	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler.anisotropy;
 	json["normal"]["sampler"]["filterMin"] = m.normal.sampler.filterMin;
 	json["normal"]["sampler"]["filterMag"] = m.normal.sampler.filterMag;
@@ -375,7 +377,7 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["normal"]["sampler"]["wrapW"] = m.normal.sampler.wrapW;
 	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler.mipmapMode;
 
-	json["material"]["texture"] = ResourceManager::name<Texture>(m.material.texture).cstr();
+	json["material"]["texture"] = resource->name<Texture>(m.material.texture).cstr();
 	json["material"]["sampler"]["anisotropy"] = m.material.sampler.anisotropy;
 	json["material"]["sampler"]["filterMin"] = m.material.sampler.filterMin;
 	json["material"]["sampler"]["filterMag"] = m.material.sampler.filterMag;
@@ -444,9 +446,10 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 template <>
 nlohmann::json serialize<TextComponent>(const entt::registry& r, entt::entity e)
 {
+	ResourceManager* resource = Application::resource();
 	const TextComponent& t = r.get<TextComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
-	json["font"] = ResourceManager::name<Font>(t.font).cstr();
+	json["font"] = resource->name<Font>(t.font).cstr();
 	json["text"] = t.text.cstr();
 	json["color"] = { t.color.r, t.color.g, t.color.b, t.color.a };
 	json["sampler"]["anisotropy"] = t.sampler.anisotropy;
@@ -518,6 +521,7 @@ void Scene::load(World& world, const Path& path)
 {
 	try
 	{
+		ResourceManager* resource = Application::resource();
 		String s;
 		OS::File::read(path, &s);
 		if (s.length() == 0)
@@ -576,7 +580,7 @@ void Scene::load(World& world, const Path& path)
 				{
 					world.registry().emplace<MeshComponent>(entity);
 					MeshComponent& mesh = world.registry().get<MeshComponent>(entity);
-					mesh.submesh.mesh = ResourceManager::get<Mesh>(component["mesh"].get<std::string>());
+					mesh.submesh.mesh = resource->get<Mesh>(component["mesh"].get<std::string>());
 					mesh.submesh.offset = 0;
 					mesh.submesh.count = mesh.submesh.mesh->getIndexCount();
 					mesh.submesh.type = PrimitiveType::Triangles;
@@ -602,7 +606,7 @@ void Scene::load(World& world, const Path& path)
 						component["color"][3].get<float>()
 					);
 					material.doubleSided = component["doublesided"].get<bool>();
-					material.albedo.texture = ResourceManager::get<Texture>(component["albedo"]["texture"].get<std::string>());
+					material.albedo.texture = resource->get<Texture>(component["albedo"]["texture"].get<std::string>());
 					material.albedo.sampler.anisotropy = component["albedo"]["sampler"]["anisotropy"].get<float>();
 					material.albedo.sampler.wrapU = (TextureWrap)component["albedo"]["sampler"]["wrapU"].get<int>();
 					material.albedo.sampler.wrapV = (TextureWrap)component["albedo"]["sampler"]["wrapV"].get<int>();
@@ -611,7 +615,7 @@ void Scene::load(World& world, const Path& path)
 					material.albedo.sampler.filterMag = (TextureFilter)component["albedo"]["sampler"]["filterMag"].get<int>();
 					material.albedo.sampler.mipmapMode = (TextureMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>();
 
-					material.normal.texture = ResourceManager::get<Texture>(component["normal"]["texture"].get<std::string>());
+					material.normal.texture = resource->get<Texture>(component["normal"]["texture"].get<std::string>());
 					material.normal.sampler.anisotropy = component["normal"]["sampler"]["anisotropy"].get<float>();
 					material.normal.sampler.wrapU = (TextureWrap)component["normal"]["sampler"]["wrapU"].get<int>();
 					material.normal.sampler.wrapV = (TextureWrap)component["normal"]["sampler"]["wrapV"].get<int>();
@@ -620,7 +624,7 @@ void Scene::load(World& world, const Path& path)
 					material.normal.sampler.filterMag = (TextureFilter)component["normal"]["sampler"]["filterMag"].get<int>();
 					material.normal.sampler.mipmapMode = (TextureMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>();
 
-					material.material.texture = ResourceManager::get<Texture>(component["material"]["texture"].get<std::string>());
+					material.material.texture = resource->get<Texture>(component["material"]["texture"].get<std::string>());
 					material.material.sampler.anisotropy = component["material"]["sampler"]["anisotropy"].get<float>();
 					material.material.sampler.wrapU = (TextureWrap)component["material"]["sampler"]["wrapU"].get<int>();
 					material.material.sampler.wrapV = (TextureWrap)component["material"]["sampler"]["wrapV"].get<int>();
@@ -707,7 +711,7 @@ void Scene::load(World& world, const Path& path)
 				{
 					world.registry().emplace<TextComponent>(entity);
 					TextComponent& text = world.registry().get<TextComponent>(entity);
-					text.font = ResourceManager::get<Font>(component["font"].get<std::string>());
+					text.font = resource->get<Font>(component["font"].get<std::string>());
 					text.color = color4f(
 						component["color"][0].get<float>(),
 						component["color"][1].get<float>(),

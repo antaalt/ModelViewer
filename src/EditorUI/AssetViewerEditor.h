@@ -96,6 +96,7 @@ inline AssetViewerEditor<T>::AssetViewerEditor(const char* type) :
 template<typename T>
 inline void AssetViewerEditor<T>::onRender(aka::World& world)
 {
+	ResourceManager* resources = Application::resource();
 	if (m_opened)
 	{
 		// TODO add tabs when multiple resources opened
@@ -117,7 +118,7 @@ inline void AssetViewerEditor<T>::onRender(aka::World& world)
 						if (res.resource == nullptr)
 							aka::Logger::error("Failed to load resource ", m_name);
 						else
-							for (auto& element : ResourceManager::allocator<T>())
+							for (auto& element : resources->allocator<T>())
 								if (element.first == m_name)
 									element.second = res;
 					}

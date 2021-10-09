@@ -3,6 +3,7 @@
 struct Settings {
 	uint32_t width;
 	uint32_t height;
+	aka::String directory;
 };
 
 void parse(int argc, char* argv[], Settings& settings)
@@ -45,6 +46,15 @@ void parse(int argc, char* argv[], Settings& settings)
 				settings.height = (uint32_t)std::stoi(argv[++i]);
 			} catch (const std::exception&) { aka::Logger::error("Could not parse integer for ", argv[i - 1]); }
 		}
+		else if (strcmp(argv[i], "--directory") == 0 || strcmp(argv[i], "-d") == 0)
+		{
+			if (i == argc - 1)
+			{
+				aka::Logger::warn("No arguments for directory");
+				return;
+			}
+			settings.directory = argv[++i];
+		}
 	}
 }
 
@@ -53,6 +63,7 @@ int main(int argc, char* argv[])
 	Settings settings{};
 	settings.width = 1280;
 	settings.height = 720;
+	settings.directory = "./";
 
 	parse(argc, argv, settings);
 
@@ -63,10 +74,10 @@ int main(int argc, char* argv[])
 	cfg.platform.name = "Aka editor";
 	cfg.platform.width = settings.width;
 	cfg.platform.height = settings.height;
-	cfg.graphic.width = cfg.platform.width;
-	cfg.graphic.height = cfg.platform.height;
+	cfg.graphic.flags = aka::GraphicFlag::None;
 	cfg.argc = argc;
 	cfg.argv = argv;
+	cfg.directory = settings.directory;
 	aka::Application::run(cfg);
 
 	return 0;
