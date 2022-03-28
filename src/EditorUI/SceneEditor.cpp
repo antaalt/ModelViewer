@@ -10,7 +10,7 @@
 
 namespace app {
 
-void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size)
+void TextureDisplay(const String& name, const Texture* texture, const ImVec2& size)
 {
 	// TODO open a window on click for a complete texture inspector ?
 	if (texture == nullptr)
@@ -20,12 +20,12 @@ void TextureDisplay(const String& name, Texture::Ptr texture, const ImVec2& size
 	}
 	else
 	{
-		ImTextureID textureID = (ImTextureID)(uintptr_t)texture->handle();
+		ImTextureID textureID = (ImTextureID)(uintptr_t)texture->native;
 		ImGui::Text("%s", name.cstr());
 		ImGui::Image(textureID, size);
 	}
 }
-void TextureSamplerDisplay(TextureSampler& sampler)
+void TextureSamplerDisplay(Sampler* sampler)
 {
 	static const char* filters[] = {
 		"Nearest",
@@ -46,29 +46,30 @@ void TextureSamplerDisplay(TextureSampler& sampler)
 	int error = snprintf(buffer, 256, "Sampler##%p", &sampler);
 	if (ImGui::TreeNode(buffer))
 	{
+		// TODO recreate a new sampler.
 		// Filters
-		int current = (int)sampler.filterMin;
+		/*int current = (int)sampler->filterMin;
 		if (ImGui::Combo("Filter min", &current, filters, 2))
-			sampler.filterMin = (TextureFilter)current;
-		current = (int)sampler.filterMag;
+			sampler->filterMin = (TextureFilter)current;
+		current = (int)sampler->filterMag;
 		if (ImGui::Combo("Filter mag", &current, filters, 2))
-			sampler.filterMag = (TextureFilter)current;
+			sampler->filterMag = (TextureFilter)current;
 		// Mips
 		current = (int)sampler.mipmapMode;
 		if (ImGui::Combo("Mips", &current, mipmaps, 3))
-			sampler.mipmapMode = (TextureMipMapMode)current;
+			sampler->mipmapMode = (TextureMipMapMode)current;
 		// Wraps
 		current = (int)sampler.wrapU;
 		if (ImGui::Combo("WrapU", &current, wraps, 4))
-			sampler.wrapU = (TextureWrap)current;
+			sampler->wrapU = (TextureWrap)current;
 		current = (int)sampler.wrapV;
 		if (ImGui::Combo("WrapV", &current, wraps, 4))
-			sampler.wrapV = (TextureWrap)current;
+			sampler->wrapV = (TextureWrap)current;
 		current = (int)sampler.wrapW;
 		if (ImGui::Combo("WrapW", &current, wraps, 4))
-			sampler.wrapW = (TextureWrap)current;
+			sampler->wrapW = (TextureWrap)current;
 		// Anisotropy
-		ImGui::SliderFloat("Anisotropy", &sampler.anisotropy, 1.f, 16.f);
+		ImGui::SliderFloat("Anisotropy", &sampler->anisotropy, 1.f, 16.f);*/
 
 		ImGui::TreePop();
 	}
@@ -232,25 +233,25 @@ template <> bool ComponentNode<DirectionalLightComponent>::draw(DirectionalLight
 	}
 	updated |= ImGui::ColorEdit3("Color", light.color.data);
 	updated |= ImGui::SliderFloat("Intensity", &light.intensity, 0.1f, 100.f);
-	TextureDisplay("CSM 0", light.shadowMap[0], ImVec2(100, 100));
-	TextureDisplay("CSM 1", light.shadowMap[1], ImVec2(100, 100));
-	TextureDisplay("CSM 2", light.shadowMap[2], ImVec2(100, 100));
+	//TextureDisplay("CSM 0", light.shadowMap[0], ImVec2(100, 100));
+	//TextureDisplay("CSM 1", light.shadowMap[1], ImVec2(100, 100));
+	//TextureDisplay("CSM 2", light.shadowMap[2], ImVec2(100, 100));
 	return updated;
 }
 
 template <> const char* ComponentNode<MeshComponent>::name() { return "Mesh"; }
 template <> bool ComponentNode<MeshComponent>::draw(MeshComponent& mesh) 
 { 
-	if (mesh.submesh.mesh != nullptr)
+	if (mesh.mesh != nullptr)
 	{
 		uint32_t sizeOfVertex = 0;
-		for (uint32_t i = 0; i < mesh.submesh.mesh->getVertexAttributeCount(); i++)
-			sizeOfVertex += mesh.submesh.mesh->getVertexAttribute(i).size();
-		ImGui::Text("Vertices : %u", mesh.submesh.mesh->getVertexBuffer(0).size / sizeOfVertex);
-		ImGui::Text("Index count : %u", mesh.submesh.count);
-		ImGui::Text("Index offset : %u", mesh.submesh.offset);
-		String type = "Undefined";
-		switch (mesh.submesh.type)
+		for (uint32_t i = 0; i < mesh.mesh->bindings.count; i++)
+			sizeOfVertex += mesh.mesh->vertices[i]->size;
+		ImGui::Text("Vertices : %u", mesh.mesh->vertices[0]->size / sizeOfVertex);
+		ImGui::Text("Index count : %u", mesh.mesh->count);
+		ImGui::Text("Index offset : %u", 0);// mesh.mesh->offset);
+		/*String type = "Undefined";
+		switch (mesh.mesh->type)
 		{
 		case PrimitiveType::Lines:
 			type = "Lines";
@@ -262,7 +263,7 @@ template <> bool ComponentNode<MeshComponent>::draw(MeshComponent& mesh)
 			type = "Points";
 			break;
 		}
-		ImGui::Text("Primitive : %s", type.cstr());
+		ImGui::Text("Primitive : %s", type.cstr());*/
 		ImGui::Text("Bounds min : (%f, %f, %f)", mesh.bounds.min.x, mesh.bounds.min.y, mesh.bounds.min.z);
 		ImGui::Text("Bounds max : (%f, %f, %f)", mesh.bounds.max.x, mesh.bounds.max.y, mesh.bounds.max.z);
 	}
@@ -292,15 +293,16 @@ template <> const char* ComponentNode<TextComponent>::name() { return "Text"; }
 template <> bool ComponentNode<TextComponent>::draw(TextComponent& text)
 {
 	bool updated = false;
-	ResourceManager* resources = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resources = app->resource();
 	String name = resources->name<Font>(text.font);
 	if (ImGui::BeginCombo("Font", name.cstr()))
 	{
 		for (auto& font : resources->allocator<Font>())
 		{
-			bool sameFont = (text.font == font.second.resource);
+			bool sameFont = (text.font == font.second.resource.get());
 			if (ImGui::Selectable(font.first.cstr(), sameFont) && !sameFont)
-				text.font = font.second.resource;
+				text.font = font.second.resource.get();
 			if (sameFont)
 				ImGui::SetItemDefaultFocus();
 		}
@@ -363,11 +365,13 @@ void SceneEditor::onCreate(World& world)
 		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
 	};
-	ProgramManager* program = Application::program();
+	Application* app = Application::app();
+	ProgramManager* program = app->program();
+	GraphicDevice* graphic = app->graphic();
 	m_wireframeProgram = program->get("editor.wireframe");
-	m_wireframeMaterial = Material::create(m_wireframeProgram);
-	m_wireFrameUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
-	m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
+	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram->bindings[0]);
+	m_wireFrameUniformBuffer = graphic->createBuffer(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
+	//m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
 }
 
 void SceneEditor::onDestroy(World& world)
@@ -449,12 +453,12 @@ entt::entity pick(World& world)
 
 void SceneEditor::onUpdate(World& world, Time deltaTime)
 {
-	ImGuiIO& io = ImGui::GetIO();
+	/*ImGuiIO& io = ImGui::GetIO();
 	ImVec2 v = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
 	float l = sqrt(v.x * v.x + v.y * v.y);
 	float threshold = 1.f;
 	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && l < threshold && !io.WantCaptureMouse)
-		m_currentEntity = pick(world);
+		m_currentEntity = pick(world);*/
 }
 
 void recurse(World& world, entt::entity entity, const std::map<entt::entity, std::vector<entt::entity>>& childrens, entt::entity& current)
@@ -507,31 +511,32 @@ void recurse(World& world, entt::entity entity, const std::map<entt::entity, std
 
 void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat4f& projection, const SubMesh& submesh)
 {
-	GraphicDevice* device = Application::graphic();
-	RenderPass r;
-	r.framebuffer = device->backbuffer();
-	r.material = m_wireframeMaterial;
-	r.clear = Clear::none;
-	r.blend = Blending::none;
-	r.depth = Depth{ DepthCompare::LessOrEqual, false };
-	r.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-	r.stencil = Stencil::none;
-	r.viewport = aka::Rect{ 0 };
-	r.scissor = aka::Rect{ 0 };
-	r.submesh = submesh;
-	if (r.submesh.type == PrimitiveType::Triangles)
-	{
-		r.submesh.type = PrimitiveType::LineStrip;
-		mat4f mvp = projection * view * model;
-		m_wireFrameUniformBuffer->upload(&mvp);
-		r.execute();
-	}
+	//GraphicDevice* device = Application::graphic();
+	//RenderPass r;
+	//r.framebuffer = device->backbuffer();
+	//r.material = m_wireframeMaterial;
+	//r.clear = Clear::none;
+	//r.blend = Blending::none;
+	//r.depth = Depth{ DepthCompare::LessOrEqual, false };
+	//r.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	//r.stencil = Stencil::none;
+	//r.viewport = aka::Rect{ 0 };
+	//r.scissor = aka::Rect{ 0 };
+	//r.submesh = submesh;
+	//if (r.submesh.type == PrimitiveType::Triangles)
+	//{
+	//	r.submesh.type = PrimitiveType::LineStrip;
+	//	mat4f mvp = projection * view * model;
+	//	m_wireFrameUniformBuffer->upload(&mvp);
+	//	r.execute();
+	//}
 }
 
-void SceneEditor::onRender(World& world)
+void SceneEditor::onRender(World& world, aka::Frame* frame)
 {
 	// TODO draw a grid here and origin of the world
-	ResourceManager* resources = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resources = app->resource();
 
 	ImGuizmo::BeginFrame();
 	if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_MenuBar))
@@ -622,29 +627,29 @@ void SceneEditor::onRender(World& world)
 					}
 					if (ImGui::MenuItem("Mesh", nullptr, nullptr, !e.has<MeshComponent>()))
 						e.add<MeshComponent>(MeshComponent{});
-					if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
-						e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest} });
-					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
+					//if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
+					//	e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest} });
+					/*if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
 						e.add<PointLightComponent>(PointLightComponent{
 							color3f(1.f), 1.f, {},
-							TextureCubeMap::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
+							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 							vec3f(0,1,0),
 							color3f(1.f), 1.f, {}, {
-								Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-								Texture2D::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-								Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
+								Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+								Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
+								Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
 							}, {} }
-						);
+						);*/
 					if (ImGui::BeginMenu("Text", !e.has<TextComponent>()))
 					{
 						FontAllocator& allocator = resources->allocator<Font>();
 						for (auto& r : allocator)
 						{
-							if (ImGui::MenuItem(r.first.cstr(), nullptr, nullptr, !e.has<TextComponent>()))
-								e.add<TextComponent>(TextComponent{ r.second.resource, TextureSampler::nearest, "", color4f(1.f) });
+							//if (ImGui::MenuItem(r.first.cstr(), nullptr, nullptr, !e.has<TextComponent>()))
+							//	e.add<TextComponent>(TextComponent{ r.second.resource.get(), TextureSampler::nearest, "", color4f(1.f) });
 						}
 						ImGui::EndMenu();
 					}
@@ -791,7 +796,7 @@ void SceneEditor::onRender(World& world)
 				// Draw debug views
 				if (world.registry().has<MeshComponent>(m_currentEntity))
 				{
-					drawWireFrame(transform.transform, view, projection, world.registry().get<MeshComponent>(m_currentEntity).submesh);
+					//drawWireFrame(transform.transform, view, projection, world.registry().get<MeshComponent>(m_currentEntity).submesh);
 				}
 				if (world.registry().has<Camera3DComponent>(m_currentEntity))
 				{
@@ -803,24 +808,24 @@ void SceneEditor::onRender(World& world)
 					const PointLightComponent& l = world.registry().get<PointLightComponent>(m_currentEntity);
 					mat4f model = transform.transform * mat4f::scale(vec3f(l.radius));
 					// TODO render a sphere instead.
-					Renderer3D::drawTransform(model);
+					//Renderer3D::drawTransform(model);
 				}
 				if (world.registry().has<DirectionalLightComponent>(m_currentEntity))
 				{
 					// TODO draw an arrow.
 					const DirectionalLightComponent& l = world.registry().get<DirectionalLightComponent>(m_currentEntity);
-					Renderer3D::Line line{};
+					/*Renderer3D::Line line{};
 					line.vertices[0].position = point3f(transform.transform[3]);
 					line.vertices[0].color = color4f(1, 1, 1, 1);
 					line.vertices[1].position = point3f(transform.transform[3]) + l.direction * 3.f;
 					line.vertices[1].color = color4f(1, 0, 0, 1);
-					Renderer3D::draw(mat4f::identity(), line);
+					Renderer3D::draw(mat4f::identity(), line);*/
 				}
 
 				// Render
-				GraphicDevice* device = Application::graphic();
-				Renderer3D::render(device->backbuffer(), view, projection);
-				Renderer3D::clear();
+				//GraphicDevice* device = Application::graphic();
+				//Renderer3D::render(device->backbuffer(), view, projection);
+				//Renderer3D::clear();
 			}
 		
 		}

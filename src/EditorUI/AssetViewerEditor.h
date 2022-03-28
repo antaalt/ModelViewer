@@ -18,7 +18,7 @@ class AssetViewerEditor : public EditorWindow
 public:
 	AssetViewerEditor(const char* type);
 	virtual ~AssetViewerEditor() {}
-	virtual void onRender(aka::World& world) override;
+	virtual void onRender(aka::World& world, aka::Frame* frame) override;
 	// Set the resource for the viewer.
 	void set(const aka::String& name, const aka::Resource<T>& resource) { m_opened = true; m_name = name; m_resource = resource; onResourceChange(); }
 protected:
@@ -49,15 +49,15 @@ public:
 protected:
 	void draw(const aka::String& name, aka::Resource<aka::Mesh>& resource) override;
 	void onResourceChange() override;
-	void drawMesh(const aka::Mesh::Ptr& mesh);
+	void drawMesh(const aka::Mesh* mesh);
 private:
 	const uint32_t m_width = 512;
 	const uint32_t m_height = 512;
 	aka::mat4f m_projection;
-	aka::Texture2D::Ptr m_renderTarget;
-	aka::Framebuffer::Ptr m_target;
-	aka::Material::Ptr m_material;
-	aka::Buffer::Ptr m_uniform;
+	aka::Texture* m_renderTarget;
+	aka::Framebuffer* m_target;
+	aka::DescriptorSet* m_material;
+	aka::Buffer* m_uniform;
 	aka::CameraArcball m_arcball;
 };
 class BufferViewerEditor : public AssetViewerEditor<aka::Buffer>
@@ -94,9 +94,10 @@ inline AssetViewerEditor<T>::AssetViewerEditor(const char* type) :
 }
 
 template<typename T>
-inline void AssetViewerEditor<T>::onRender(aka::World& world)
+inline void AssetViewerEditor<T>::onRender(aka::World& world, aka::Frame* frame)
 {
-	ResourceManager* resources = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resources = app->resource();
 	if (m_opened)
 	{
 		// TODO add tabs when multiple resources opened

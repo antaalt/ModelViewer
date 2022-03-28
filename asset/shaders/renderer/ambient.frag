@@ -10,7 +10,7 @@ layout(binding = 2) uniform sampler2D u_normalTexture;
 //layout(binding = 3) uniform sampler2D u_materialTexture;
 layout(binding = 3) uniform samplerCube u_skyboxTexture;
 
-layout(std140, binding = 0) uniform CameraUniformBuffer {
+layout(std140, binding = 4) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
 	mat4 u_viewInverse;
@@ -33,8 +33,10 @@ void main(void)
 	vec3 reflection = texture(u_skyboxTexture, reflect(I, N)).rgb;
 
 	// Basic ambient shading
-	vec3 indirect = 0.03 * albedo; // ao broken for some
-	vec3 color = indirect + reflection * 0.01; // TODO use irradiance map
+	const float indirectFactor = 0.03; // TODO should use ao, but gltf has some broken ao
+	const float reflectionFactor = 0.5;
+	vec3 indirect = indirectFactor * albedo;
+	vec3 color = indirect + albedo * reflection * reflectionFactor; // TODO use irradiance map
 
 	o_color = vec4(color, 1.0);
 }

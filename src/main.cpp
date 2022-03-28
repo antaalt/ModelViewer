@@ -1,5 +1,7 @@
 ﻿#include "EditorApp.h"
 
+#include <cstdlib>
+
 struct Settings {
 	uint32_t width;
 	uint32_t height;
@@ -58,6 +60,20 @@ void parse(int argc, char* argv[], Settings& settings)
 	}
 }
 
+// Pick a graphic API
+aka::GraphicAPI pick()
+{
+#if   defined(AKA_USE_OPENGL)
+	return aka::GraphicAPI::OpenGL3;
+#elif defined(AKA_USE_D3D11)
+	return aka::GraphicAPI::DirectX11;
+#elif defined(AKA_USE_VULKAN)
+	return aka::GraphicAPI::Vulkan;
+#else
+	return aka::GraphicAPI::None;
+#endif
+}
+
 int main(int argc, char* argv[])
 {
 	Settings settings{};
@@ -74,11 +90,11 @@ int main(int argc, char* argv[])
 	cfg.platform.name = "Aka editor";
 	cfg.platform.width = settings.width;
 	cfg.platform.height = settings.height;
-	cfg.graphic.flags = aka::GraphicFlag::None;
+	//cfg.graphic.flags = aka::GraphicFlag::None;
+	cfg.graphic.api = pick();
 	cfg.argc = argc;
 	cfg.argv = argv;
 	cfg.directory = settings.directory;
 	aka::Application::run(cfg);
-
 	return 0;
 }

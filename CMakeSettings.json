@@ -9,7 +9,7 @@
       "installRoot": "${projectDir}\\out\\install\\${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
-      "ctestCommandArgs": "",
+      "ctestCommandArgs": ""
     },
     {
       "name": "D3DDebug",
@@ -30,6 +30,34 @@
         {
           "name": "GRAPHIC_OPENGL",
           "value": "False",
+          "type": "BOOL"
+        }
+      ]
+    },
+    {
+      "name": "VulkanDebug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\bin\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "variables": [
+        {
+          "name": "GRAPHIC_D3D11",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "GRAPHIC_OPENGL",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "GRAPHIC_VULKAN",
+          "value": "True",
           "type": "BOOL"
         }
       ]

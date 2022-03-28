@@ -17,8 +17,12 @@
 namespace app {
 
 Editor::Editor() :
-	Application(std::vector<Layer*>{new ImGuiLayer}),
-	m_debug(true)
+	Application(std::vector<Layer*>{
+#if defined(AKA_USE_IMGUI_LAYER)
+		new ImGuiLayer
+#endif
+	}),
+	m_debug(false)
 {
 }
 
@@ -44,9 +48,11 @@ void Editor::onCreate(int argc, char* argv[])
 
 	// --- Model
 	ResourceManager* resource = Application::resource();
-	resource->parse("library/library.json");
-	Scene::load(m_world, "library/scene.json");
-	//Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
+	//resource->parse("library/library.json");
+	//Scene::load(m_world, "library/scene.json");
+	Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
+	//resource->serialize("");
+	//Scene::save("", m_world);
 
 	// --- Lights
 	{ // Sun
@@ -112,6 +118,13 @@ void Editor::onCreate(int argc, char* argv[])
 
 void Editor::onDestroy()
 {
+	graphic()->wait(QueueType::Graphic);
+	Scene::destroy(m_world);
+	// TODO global detach
+	m_world.detach<SceneSystem>();
+	m_world.detach<ShadowMapSystem>();
+	m_world.detach<RenderSystem>();
+	m_world.detach<ScriptSystem>();
 	for (EditorWindow* editor : m_editors)
 	{
 		editor->onDestroy(m_world);
@@ -125,7 +138,13 @@ void Editor::onUpdate(aka::Time deltaTime)
 	PlatformDevice* platform = Application::platform();
 
 	// Camera status
-	m_camera.get<Camera3DComponent>().active = !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
+#if defined(AKA_USE_IMGUI_LAYER)
+	bool imguiCaptureKeyboard = ImGui::GetIO().WantCaptureKeyboard;
+	m_camera.get<Camera3DComponent>().active = !imguiCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse && !ImGuizmo::IsUsing();
+#else
+	bool imguiCaptureKeyboard = false;
+	m_camera.get<Camera3DComponent>().active = true;
+#endif
 
 	// TOD
 	const Mouse& mouse = platform->mouse();
@@ -143,7 +162,7 @@ void Editor::onUpdate(aka::Time deltaTime)
 
 	// Reset
 	const Keyboard& keyboard = platform->keyboard();
-	if (keyboard.down(KeyboardKey::R) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.down(KeyboardKey::R) && !imguiCaptureKeyboard)
 	{
 		// Compute scene bounds.
 		aabbox<> bounds;
@@ -154,20 +173,21 @@ void Editor::onUpdate(aka::Time deltaTime)
 		m_camera.get<Camera3DComponent>().controller->set(bounds);
 		m_world.registry().patch<Camera3DComponent>(m_camera.handle());
 	}
-	if (keyboard.down(KeyboardKey::D) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.down(KeyboardKey::D) && !imguiCaptureKeyboard)
 	{
 		m_debug = !m_debug;
 	}
-	if (keyboard.down(KeyboardKey::PrintScreen) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.down(KeyboardKey::PrintScreen) && !imguiCaptureKeyboard)
 	{
 		GraphicDevice* device = Application::graphic();
-		Backbuffer::Ptr backbuffer = device->backbuffer();
-		Image image(backbuffer->width(), backbuffer->height(), 4, ImageFormat::UnsignedByte);
-		device->backbuffer()->download(image.data());
-		image.encodePNG("screen.png");
+		// TODO create a flag to save in onRender.
+		//Backbuffer::Ptr backbuffer = device->backbuffer();
+		//Image image(backbuffer->width(), backbuffer->height(), 4, ImageFormat::UnsignedByte);
+		//device->backbuffer()->download(image.data());
+		//image.encodePNG("screen.png");
 	}
 	// Quit the app if requested
-	if (keyboard.pressed(KeyboardKey::Escape) && !ImGui::GetIO().WantCaptureKeyboard)
+	if (keyboard.pressed(KeyboardKey::Escape) && !imguiCaptureKeyboard)
 	{
 		EventDispatcher<QuitEvent>::emit();
 	}
@@ -180,13 +200,13 @@ void Editor::onResize(uint32_t width, uint32_t height)
 {
 }
 
-void Editor::onRender()
+void Editor::onRender(Frame* frame)
 {
 	if (m_debug)
 	{
 		// --- Editor pass
 		for (EditorWindow* editor : m_editors)
-			editor->onRender(m_world);
+			editor->onRender(m_world, frame);
 	}
 }
 

@@ -7,7 +7,7 @@ namespace app {
 class InfoEditor : public EditorWindow
 {
 public:
-	void onRender(aka::World& world) override;
+	void onRender(aka::World& world, aka::Frame* frame) override;
 };
 
 };

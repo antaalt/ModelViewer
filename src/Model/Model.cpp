@@ -20,7 +20,7 @@ Entity Scene::getMainCamera(World& world)
 	return cameraEntity;
 }
 
-Mesh::Ptr Scene::createCubeMesh(const point3f& position, float size)
+Mesh* Scene::createCubeMesh(const point3f& position, float size)
 {
 	struct Vertex {
 		point3f position;
@@ -104,18 +104,25 @@ Mesh::Ptr Scene::createCubeMesh(const point3f& position, float size)
 	vertices.push_back(Vertex{ p[0], n[5], u[1], color });
 	vertices.push_back(Vertex{ p[2], n[5], u[3], color });
 
-	VertexAttribute att[4] = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2},
-		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4}
-	};
-	Mesh::Ptr mesh = Mesh::create();
-	mesh->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size());
-	return mesh;
+	VertexBindingState bindings{};
+	// TODO pass bindings as arguments
+	bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	bindings.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
+	bindings.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
+	bindings.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+	bindings.count = 4;
+	bindings.offsets[0] = offsetof(Vertex, position);
+	bindings.offsets[1] = offsetof(Vertex, normal);
+	bindings.offsets[2] = offsetof(Vertex, uv);
+	bindings.offsets[3] = offsetof(Vertex, color);
+	return Mesh::createInterleaved(
+		bindings,
+		Buffer::createVertexBuffer(sizeof(Vertex) * (uint32_t)vertices.size(), BufferUsage::Default, BufferCPUAccess::None, vertices.data()),
+		(uint32_t)vertices.size()
+	);
 }
 
-Mesh::Ptr Scene::createSphereMesh(const point3f& position, float radius, uint32_t segmentCount, uint32_t ringCount)
+Mesh* Scene::createSphereMesh(const point3f& position, float radius, uint32_t segmentCount, uint32_t ringCount)
 {
 	struct Vertex {
 		point3f position;
@@ -183,31 +190,46 @@ Mesh::Ptr Scene::createSphereMesh(const point3f& position, float radius, uint32_
 			}
 		}
 	}
-	VertexAttribute att[4] = {
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3},
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2},
-		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4}
-	};
-	Mesh::Ptr mesh = Mesh::create();
-	mesh->uploadInterleaved(att, 4, vertices.data(), (uint32_t)vertices.size(), IndexFormat::UnsignedInt, indices.data(), (uint32_t)indices.size());
-	return mesh;
+	VertexBindingState bindings{};
+	// TODO pass bindings as arguments
+	bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	bindings.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
+	bindings.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
+	bindings.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+	bindings.count = 4;
+	bindings.offsets[0] = offsetof(Vertex, position);
+	bindings.offsets[1] = offsetof(Vertex, normal);
+	bindings.offsets[2] = offsetof(Vertex, uv);
+	bindings.offsets[3] = offsetof(Vertex, color);
+	return Mesh::createInterleaved(
+		bindings,
+		Buffer::createVertexBuffer(sizeof(Vertex) * (uint32_t)vertices.size(), BufferUsage::Default, BufferCPUAccess::None, vertices.data()),
+		(uint32_t)vertices.size(),
+		IndexFormat::UnsignedInt,
+		Buffer::createIndexBuffer(sizeof(uint32_t) * (uint32_t)indices.size(), BufferUsage::Default, BufferCPUAccess::None, indices.data()),
+		(uint32_t)indices.size()
+	);
 }
 
 Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t ringCount)
 {
-	Mesh::Ptr m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
+	Mesh* m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	Texture2D::Ptr blank = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, data);
+	Texture* blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	Texture2D::Ptr normal = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
-	TextureSampler s = TextureSampler::nearest;
+	Texture* normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
+	Sampler* s = Sampler::create(
+		Filter::Linear, Filter::Linear, 
+		SamplerMipMapMode::Nearest, 
+		SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, 
+		1.f
+	);
 
 	mat4f id = mat4f::identity();
 	Entity mesh = world.createEntity("New uv sphere");
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getIndexCount(), 0 }, aabbox<>(point3f(-1), point3f(1)) });
+	mesh.add<MeshComponent>(MeshComponent{ m, aabbox<>(point3f(-1), point3f(1)) });
 	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, {blank, s}, {normal, s}, {blank, s} });
 	return mesh;
 }
@@ -215,17 +237,22 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 Entity Scene::createCubeEntity(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	Texture2D::Ptr blank = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, colorData);
+	Texture* blank = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	Texture2D::Ptr normal = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::None, normalData);
-	TextureSampler s = TextureSampler::nearest;
+	Texture* normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, normalData);
+	Sampler* s = Sampler::create(
+		Filter::Linear, Filter::Linear,
+		SamplerMipMapMode::Nearest,
+		SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+		1.f
+	); // TODO cache this
 
-	Mesh::Ptr m = createCubeMesh(point3f(0.f), 1.f);
+	Mesh* m = createCubeMesh(point3f(0.f), 1.f);
 	mat4f id = mat4f::identity();
 	Entity mesh = world.createEntity("New cube");
 	mesh.add<Transform3DComponent>(Transform3DComponent{ id });
 	mesh.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-	mesh.add<MeshComponent>(MeshComponent{ SubMesh{ m, PrimitiveType::Triangles, (uint32_t)m->getVertexCount(0), 0 }, aabbox<>(point3f(-1), point3f(1)) });
+	mesh.add<MeshComponent>(MeshComponent{ m, aabbox<>(point3f(-1), point3f(1)) });
 	mesh.add<MaterialComponent>(MaterialComponent{ color4f(1.f), true, {blank, s}, {normal, s}, {blank, s} });
 	return mesh;
 }
@@ -251,7 +278,7 @@ Entity Scene::createDirectionalLightEntity(World& world)
 	Entity light = world.createEntity("New directionnal light");
 	light.add<Transform3DComponent>(Transform3DComponent{ id });
 	light.add<Hierarchy3DComponent>(Hierarchy3DComponent{ Entity::null(), id });
-	light.add<DirectionalLightComponent>(DirectionalLightComponent{
+	/*light.add<DirectionalLightComponent>(DirectionalLightComponent{
 		vec3f(0.f, 1.f, 0.f),
 		color3f(1.f),
 		1.f,
@@ -262,7 +289,7 @@ Entity Scene::createDirectionalLightEntity(World& world)
 			nullptr
 		},
 		{ 1.f, 1.f, 1.f }
-	});
+	});*/
 	return light;
 }
 
@@ -342,49 +369,49 @@ nlohmann::json serialize<Hierarchy3DComponent>(const entt::registry& r, entt::en
 template <>
 nlohmann::json serialize<MeshComponent>(const entt::registry& r, entt::entity e)
 {
-	ResourceManager* resource = Application::resource();
+	ResourceManager* resource = Application::app()->resource();
 	const MeshComponent& m = r.get<MeshComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["bounds"]["min"] = { m.bounds.min.x, m.bounds.min.y, m.bounds.min.z };
 	json["bounds"]["max"] = { m.bounds.max.x, m.bounds.max.y, m.bounds.max.z };
-	json["mesh"] = resource->name<Mesh>(m.submesh.mesh).cstr();
+	json["mesh"] = resource->name<Mesh>(m.mesh).cstr();
 	return json;
 }
 template <>
 nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entity e)
 {
-	ResourceManager* resource = Application::resource();
+	ResourceManager* resource = Application::app()->resource();
 	const MaterialComponent& m = r.get<MaterialComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["color"] = { m.color.r, m.color.g, m.color.b, m.color.a };
 	json["doublesided"] = m.doubleSided;
 
 	json["albedo"]["texture"] = resource->name<Texture>(m.albedo.texture).cstr();
-	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler.anisotropy;
-	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler.filterMin;
-	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler.filterMag;
-	json["albedo"]["sampler"]["wrapU"] = m.albedo.sampler.wrapU;
-	json["albedo"]["sampler"]["wrapV"] = m.albedo.sampler.wrapV;
-	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler.wrapW;
-	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler.mipmapMode;
+	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler->anisotropy;
+	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler->filterMin;
+	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler->filterMag;
+	json["albedo"]["sampler"]["wrapU"] = m.albedo.sampler->wrapU;
+	json["albedo"]["sampler"]["wrapV"] = m.albedo.sampler->wrapV;
+	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler->wrapW;
+	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler->mipmapMode;
 
 	json["normal"]["texture"] = resource->name<Texture>(m.normal.texture).cstr();
-	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler.anisotropy;
-	json["normal"]["sampler"]["filterMin"] = m.normal.sampler.filterMin;
-	json["normal"]["sampler"]["filterMag"] = m.normal.sampler.filterMag;
-	json["normal"]["sampler"]["wrapU"] = m.normal.sampler.wrapU;
-	json["normal"]["sampler"]["wrapV"] = m.normal.sampler.wrapV;
-	json["normal"]["sampler"]["wrapW"] = m.normal.sampler.wrapW;
-	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler.mipmapMode;
+	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler->anisotropy;
+	json["normal"]["sampler"]["filterMin"] = m.normal.sampler->filterMin;
+	json["normal"]["sampler"]["filterMag"] = m.normal.sampler->filterMag;
+	json["normal"]["sampler"]["wrapU"] = m.normal.sampler->wrapU;
+	json["normal"]["sampler"]["wrapV"] = m.normal.sampler->wrapV;
+	json["normal"]["sampler"]["wrapW"] = m.normal.sampler->wrapW;
+	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler->mipmapMode;
 
 	json["material"]["texture"] = resource->name<Texture>(m.material.texture).cstr();
-	json["material"]["sampler"]["anisotropy"] = m.material.sampler.anisotropy;
-	json["material"]["sampler"]["filterMin"] = m.material.sampler.filterMin;
-	json["material"]["sampler"]["filterMag"] = m.material.sampler.filterMag;
-	json["material"]["sampler"]["wrapU"] = m.material.sampler.wrapU;
-	json["material"]["sampler"]["wrapV"] = m.material.sampler.wrapV;
-	json["material"]["sampler"]["wrapW"] = m.material.sampler.wrapW;
-	json["material"]["sampler"]["mipmapMode"] = m.material.sampler.mipmapMode;
+	json["material"]["sampler"]["anisotropy"] = m.material.sampler->anisotropy;
+	json["material"]["sampler"]["filterMin"] = m.material.sampler->filterMin;
+	json["material"]["sampler"]["filterMag"] = m.material.sampler->filterMag;
+	json["material"]["sampler"]["wrapU"] = m.material.sampler->wrapU;
+	json["material"]["sampler"]["wrapV"] = m.material.sampler->wrapV;
+	json["material"]["sampler"]["wrapW"] = m.material.sampler->wrapW;
+	json["material"]["sampler"]["mipmapMode"] = m.material.sampler->mipmapMode;
 	return json;
 }
 template <>
@@ -446,19 +473,19 @@ nlohmann::json serialize<Camera3DComponent>(const entt::registry& r, entt::entit
 template <>
 nlohmann::json serialize<TextComponent>(const entt::registry& r, entt::entity e)
 {
-	ResourceManager* resource = Application::resource();
+	ResourceManager* resource = Application::app()->resource();
 	const TextComponent& t = r.get<TextComponent>(e);
 	nlohmann::json json = nlohmann::json::object();
 	json["font"] = resource->name<Font>(t.font).cstr();
 	json["text"] = t.text.cstr();
 	json["color"] = { t.color.r, t.color.g, t.color.b, t.color.a };
-	json["sampler"]["anisotropy"] = t.sampler.anisotropy;
-	json["sampler"]["filterMin"] = t.sampler.filterMin;
-	json["sampler"]["filterMag"] = t.sampler.filterMag;
-	json["sampler"]["wrapU"] = t.sampler.wrapU;
-	json["sampler"]["wrapV"] = t.sampler.wrapV;
-	json["sampler"]["wrapW"] = t.sampler.wrapW;
-	json["sampler"]["mipmapMode"] = t.sampler.mipmapMode;
+	json["sampler"]["anisotropy"] = t.sampler->anisotropy;
+	json["sampler"]["filterMin"] = t.sampler->filterMin;
+	json["sampler"]["filterMag"] = t.sampler->filterMag;
+	json["sampler"]["wrapU"] = t.sampler->wrapU;
+	json["sampler"]["wrapV"] = t.sampler->wrapV;
+	json["sampler"]["wrapW"] = t.sampler->wrapW;
+	json["sampler"]["mipmapMode"] = t.sampler->mipmapMode;
 	return json;
 }
 
@@ -521,7 +548,7 @@ void Scene::load(World& world, const Path& path)
 {
 	try
 	{
-		ResourceManager* resource = Application::resource();
+		ResourceManager* resource = Application::app()->resource();
 		String s;
 		OS::File::read(path, &s);
 		if (s.length() == 0)
@@ -580,10 +607,7 @@ void Scene::load(World& world, const Path& path)
 				{
 					world.registry().emplace<MeshComponent>(entity);
 					MeshComponent& mesh = world.registry().get<MeshComponent>(entity);
-					mesh.submesh.mesh = resource->get<Mesh>(component["mesh"].get<std::string>());
-					mesh.submesh.offset = 0;
-					mesh.submesh.count = mesh.submesh.mesh->getIndexCount();
-					mesh.submesh.type = PrimitiveType::Triangles;
+					mesh.mesh = resource->get<Mesh>(component["mesh"].get<std::string>());
 					mesh.bounds.min = point3f(
 						component["bounds"]["min"][0].get<float>(),
 						component["bounds"]["min"][1].get<float>(),
@@ -607,31 +631,37 @@ void Scene::load(World& world, const Path& path)
 					);
 					material.doubleSided = component["doublesided"].get<bool>();
 					material.albedo.texture = resource->get<Texture>(component["albedo"]["texture"].get<std::string>());
-					material.albedo.sampler.anisotropy = component["albedo"]["sampler"]["anisotropy"].get<float>();
-					material.albedo.sampler.wrapU = (TextureWrap)component["albedo"]["sampler"]["wrapU"].get<int>();
-					material.albedo.sampler.wrapV = (TextureWrap)component["albedo"]["sampler"]["wrapV"].get<int>();
-					material.albedo.sampler.wrapW = (TextureWrap)component["albedo"]["sampler"]["wrapW"].get<int>();
-					material.albedo.sampler.filterMin = (TextureFilter)component["albedo"]["sampler"]["filterMin"].get<int>();
-					material.albedo.sampler.filterMag = (TextureFilter)component["albedo"]["sampler"]["filterMag"].get<int>();
-					material.albedo.sampler.mipmapMode = (TextureMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>();
+					material.albedo.sampler = Sampler::create(
+						(Filter)component["albedo"]["sampler"]["filterMin"].get<int>(),
+						(Filter)component["albedo"]["sampler"]["filterMag"].get<int>(),
+						(SamplerMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>(),
+						(SamplerAddressMode)component["albedo"]["sampler"]["wrapU"].get<int>(),
+						(SamplerAddressMode)component["albedo"]["sampler"]["wrapV"].get<int>(),
+						(SamplerAddressMode)component["albedo"]["sampler"]["wrapW"].get<int>(),
+						component["albedo"]["sampler"]["anisotropy"].get<float>()
+					);
 
 					material.normal.texture = resource->get<Texture>(component["normal"]["texture"].get<std::string>());
-					material.normal.sampler.anisotropy = component["normal"]["sampler"]["anisotropy"].get<float>();
-					material.normal.sampler.wrapU = (TextureWrap)component["normal"]["sampler"]["wrapU"].get<int>();
-					material.normal.sampler.wrapV = (TextureWrap)component["normal"]["sampler"]["wrapV"].get<int>();
-					material.normal.sampler.wrapW = (TextureWrap)component["normal"]["sampler"]["wrapW"].get<int>();
-					material.normal.sampler.filterMin = (TextureFilter)component["normal"]["sampler"]["filterMin"].get<int>();
-					material.normal.sampler.filterMag = (TextureFilter)component["normal"]["sampler"]["filterMag"].get<int>();
-					material.normal.sampler.mipmapMode = (TextureMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>();
+					material.normal.sampler = Sampler::create(
+						(Filter)component["normal"]["sampler"]["filterMin"].get<int>(),
+						(Filter)component["normal"]["sampler"]["filterMag"].get<int>(),
+						(SamplerMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>(),
+						(SamplerAddressMode)component["normal"]["sampler"]["wrapU"].get<int>(),
+						(SamplerAddressMode)component["normal"]["sampler"]["wrapV"].get<int>(),
+						(SamplerAddressMode)component["normal"]["sampler"]["wrapW"].get<int>(),
+						component["normal"]["sampler"]["anisotropy"].get<float>()
+					);
 
 					material.material.texture = resource->get<Texture>(component["material"]["texture"].get<std::string>());
-					material.material.sampler.anisotropy = component["material"]["sampler"]["anisotropy"].get<float>();
-					material.material.sampler.wrapU = (TextureWrap)component["material"]["sampler"]["wrapU"].get<int>();
-					material.material.sampler.wrapV = (TextureWrap)component["material"]["sampler"]["wrapV"].get<int>();
-					material.material.sampler.wrapW = (TextureWrap)component["material"]["sampler"]["wrapW"].get<int>();
-					material.material.sampler.filterMin = (TextureFilter)component["material"]["sampler"]["filterMin"].get<int>();
-					material.material.sampler.filterMag = (TextureFilter)component["material"]["sampler"]["filterMag"].get<int>();
-					material.material.sampler.mipmapMode = (TextureMipMapMode)component["material"]["sampler"]["mipmapMode"].get<int>();
+					material.material.sampler = Sampler::create(
+						(Filter)component["material"]["sampler"]["filterMin"].get<int>(),
+						(Filter)component["material"]["sampler"]["filterMag"].get<int>(),
+						(SamplerMipMapMode)component["material"]["sampler"]["mipmapMode"].get<int>(),
+						(SamplerAddressMode)component["material"]["sampler"]["wrapU"].get<int>(),
+						(SamplerAddressMode)component["material"]["sampler"]["wrapV"].get<int>(),
+						(SamplerAddressMode)component["material"]["sampler"]["wrapW"].get<int>(),
+						component["material"]["sampler"]["anisotropy"].get<float>()
+					);
 				}
 				else if (name == "pointlight")
 				{
@@ -718,13 +748,15 @@ void Scene::load(World& world, const Path& path)
 						component["color"][2].get<float>(),
 						component["color"][3].get<float>()
 					);
-					text.sampler.anisotropy = component["sampler"]["anisotropy"].get<float>();
-					text.sampler.wrapU = (TextureWrap)component["sampler"]["wrapU"].get<int>();
-					text.sampler.wrapV = (TextureWrap)component["sampler"]["wrapV"].get<int>();
-					text.sampler.wrapW = (TextureWrap)component["sampler"]["wrapW"].get<int>();
-					text.sampler.filterMin = (TextureFilter)component["sampler"]["filterMin"].get<int>();
-					text.sampler.filterMag = (TextureFilter)component["sampler"]["filterMag"].get<int>();
-					text.sampler.mipmapMode = (TextureMipMapMode)component["sampler"]["mipmapMode"].get<int>();
+					text.sampler = Sampler::create(
+						(Filter)component["sampler"]["filterMin"].get<int>(),
+						(Filter)component["sampler"]["filterMag"].get<int>(),
+						(SamplerMipMapMode)component["sampler"]["mipmapMode"].get<int>(),
+						(SamplerAddressMode)component["sampler"]["wrapU"].get<int>(),
+						(SamplerAddressMode)component["sampler"]["wrapV"].get<int>(),
+						(SamplerAddressMode)component["sampler"]["wrapW"].get<int>(),
+						component["sampler"]["anisotropy"].get<float>()
+					);
 					text.text = component["text"].get<std::string>();
 				}
 			}
@@ -734,6 +766,28 @@ void Scene::load(World& world, const Path& path)
 	{
 		Logger::error("Failed to write JSON : ", e.what());
 	}
+}
+
+void Scene::destroy(World& world)
+{
+	ResourceManager* resource = Application::app()->resource();
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+	world.registry().view<MeshComponent>().each([&](const MeshComponent& mesh)
+	{
+		resource->unload<Buffer>(resource->name<Buffer>(mesh.mesh->indices));
+		resource->unload<Buffer>(resource->name<Buffer>(mesh.mesh->vertices[0]));
+		resource->unload<Mesh>(resource->name<Mesh>(mesh.mesh));
+	});
+	world.registry().view<MaterialComponent>().each([&](const MaterialComponent& mat)
+	{
+		resource->unload<Texture>(resource->name<Texture>(mat.albedo.texture));
+		resource->unload<Texture>(resource->name<Texture>(mat.normal.texture));
+		resource->unload<Texture>(resource->name<Texture>(mat.material.texture));
+		device->destroy(mat.albedo.sampler);
+		device->destroy(mat.normal.sampler);
+		device->destroy(mat.material.sampler);
+	});
 }
 
 };

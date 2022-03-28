@@ -247,33 +247,33 @@ const char* toString(BufferCPUAccess access)
 
 void BufferViewerEditor::draw(const String& name, Resource<Buffer>& resource)
 {
-	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
+	/*static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
 	ImGui::TextColored(color, name.cstr());
 
 	Buffer::Ptr buffer = resource.resource;
 	ImGui::Text("Type : %s", toString(buffer->type()));
 	ImGui::Text("Usage : %s", toString(buffer->usage()));
 	ImGui::Text("Access : %s", toString(buffer->access()));
-	ImGui::Text("Size : %u", buffer->size());
+	ImGui::Text("Size : %u", buffer->size());*/
 }
 void MeshViewerEditor::onCreate(World& world)
 {
-	// TODO if no data, bug ?
-	std::vector<uint8_t> data(m_width * m_height * 4, 0xff);
-	m_renderTarget = Texture2D::create(m_width, m_height, TextureFormat::RGBA8, TextureFlag::RenderTarget | TextureFlag::ShaderResource, data.data());
-	Attachment attachments[2] = {
-		{ AttachmentType::Depth, Texture2D::create(m_width, m_height, TextureFormat::Depth, TextureFlag::RenderTarget), AttachmentFlag::None, 0, 0 },
-		{ AttachmentType::Color0, m_renderTarget, AttachmentFlag::None, 0, 0 },
-	};
-	m_target = Framebuffer::create(attachments, 2);
+	//// TODO if no data, bug ?
+	//std::vector<uint8_t> data(m_width * m_height * 4, 0xff);
+	//m_renderTarget = Texture2D::create(m_width, m_height, TextureFormat::RGBA8, TextureFlag::RenderTarget | TextureFlag::ShaderResource, data.data());
+	//Attachment attachments[2] = {
+	//	{ AttachmentType::Depth, Texture2D::create(m_width, m_height, TextureFormat::Depth, TextureFlag::RenderTarget), AttachmentFlag::None, 0, 0 },
+	//	{ AttachmentType::Color0, m_renderTarget, AttachmentFlag::None, 0, 0 },
+	//};
+	//m_target = Framebuffer::create(attachments, 2);
 
-	ProgramManager* program = Application::program();
-	Program::Ptr p = program->get("editor.basic");
-	m_material = Material::create(p);
-	m_uniform = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
-	m_material->set("CameraUniformBuffer", m_uniform);
-	m_arcball.set(aabbox<>(point3f(-20.f), point3f(20.f)));
-	m_projection = mat4f::perspective(anglef::degree(90.f), m_width / (float)m_height, 0.1f, 100.f);
+	//ProgramManager* program = Application::program();
+	//Program::Ptr p = program->get("editor.basic");
+	//m_material = Material::create(p);
+	//m_uniform = Buffer::create(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
+	//m_material->set("CameraUniformBuffer", m_uniform);
+	//m_arcball.set(aabbox<>(point3f(-20.f), point3f(20.f)));
+	//m_projection = mat4f::perspective(anglef::degree(90.f), m_width / (float)m_height, 0.1f, 100.f);
 }
 void MeshViewerEditor::onDestroy(World& world)
 {
@@ -289,9 +289,9 @@ void MeshViewerEditor::onResourceChange()
 	m_arcball.set(aabbox<>(point3f(-20.f), point3f(20.f)));
 }
 
-void MeshViewerEditor::drawMesh(const Mesh::Ptr& mesh)
+void MeshViewerEditor::drawMesh(const Mesh* mesh)
 {
-	RenderPass pass;
+	/*RenderPass pass;
 	pass.framebuffer = m_target;
 	pass.submesh.mesh = mesh;
 	pass.submesh.count = mesh->isIndexed() ? mesh->getIndexCount() : mesh->getVertexCount(0);
@@ -302,188 +302,188 @@ void MeshViewerEditor::drawMesh(const Mesh::Ptr& mesh)
 	pass.clear = Clear{ ClearMask::Depth | ClearMask::Color, color4f(0.f), 1.f, 1 };
 	mat4f mvp = m_projection * m_arcball.view();
 	m_uniform->upload(&mvp);
-	pass.execute();
+	pass.execute();*/
 }
 
 void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 {
-	ResourceManager* resources = Application::resource();
-	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
-	ImGui::TextColored(color, name.cstr());
-	Mesh::Ptr mesh = resource.resource;
-	ImGui::Text("Vertices");
+	//ResourceManager* resources = Application::resource();
+	//static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
+	//ImGui::TextColored(color, name.cstr());
+	//Mesh::Ptr mesh = resource.resource;
+	//ImGui::Text("Vertices");
 
-	for (uint32_t i = 0; i < mesh->getVertexAttributeCount(); i++)
-	{
-		char buffer[256];
-		snprintf(buffer, 256, "Attribute %u", i);
-		if (ImGui::TreeNode(buffer))
-		{
-			ImGui::BulletText("Format : %s", toString(mesh->getVertexAttribute(i).format));
-			ImGui::BulletText("Semantic : %s", toString(mesh->getVertexAttribute(i).semantic));
-			ImGui::BulletText("Type : %s", toString(mesh->getVertexAttribute(i).type));
-			ImGui::BulletText("Count : %u", mesh->getVertexCount(i));
-			ImGui::BulletText("Offset : %u", mesh->getVertexOffset(i));
-			ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getVertexBuffer(i).buffer).cstr());
-			ImGui::TreePop();
-		}
-	}
-	ImGui::Separator();
-	ImGui::Text("Indices");
-	ImGui::BulletText("Format : %s", toString(mesh->getIndexFormat()));
-	ImGui::BulletText("Count : %u", mesh->getIndexCount());
-	ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getIndexBuffer().buffer).cstr());
-	ImGui::Separator();
+	//for (uint32_t i = 0; i < mesh->getVertexAttributeCount(); i++)
+	//{
+	//	char buffer[256];
+	//	snprintf(buffer, 256, "Attribute %u", i);
+	//	if (ImGui::TreeNode(buffer))
+	//	{
+	//		ImGui::BulletText("Format : %s", toString(mesh->getVertexAttribute(i).format));
+	//		ImGui::BulletText("Semantic : %s", toString(mesh->getVertexAttribute(i).semantic));
+	//		ImGui::BulletText("Type : %s", toString(mesh->getVertexAttribute(i).type));
+	//		ImGui::BulletText("Count : %u", mesh->getVertexCount(i));
+	//		ImGui::BulletText("Offset : %u", mesh->getVertexOffset(i));
+	//		ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getVertexBuffer(i).buffer).cstr());
+	//		ImGui::TreePop();
+	//	}
+	//}
+	//ImGui::Separator();
+	//ImGui::Text("Indices");
+	//ImGui::BulletText("Format : %s", toString(mesh->getIndexFormat()));
+	//ImGui::BulletText("Count : %u", mesh->getIndexCount());
+	//ImGui::BulletText("Buffer : %s", resources->name<Buffer>(mesh->getIndexBuffer().buffer).cstr());
+	//ImGui::Separator();
 
-	// Mesh viewer
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	if (ImGui::BeginChild("MeshDisplayChild", ImVec2(0.f, (float)m_height + 5.f), false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		if (ImGui::IsWindowHovered() && (ImGui::IsMouseDragging(0, 0.0f) || ImGui::IsMouseDragging(1, 0.0f) || !ImGui::IsAnyItemActive()))
-		{
-			// TODO use real deltatime
-			m_arcball.update(Time::milliseconds(10));
-		}
-		drawMesh(resource.resource);
+	//// Mesh viewer
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	//if (ImGui::BeginChild("MeshDisplayChild", ImVec2(0.f, (float)m_height + 5.f), false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize))
+	//{
+	//	if (ImGui::IsWindowHovered() && (ImGui::IsMouseDragging(0, 0.0f) || ImGui::IsMouseDragging(1, 0.0f) || !ImGui::IsAnyItemActive()))
+	//	{
+	//		// TODO use real deltatime
+	//		m_arcball.update(Time::milliseconds(10));
+	//	}
+	//	drawMesh(resource.resource);
 
-		ImGui::Image((ImTextureID)(uintptr_t)m_renderTarget->handle().value(), ImVec2((float)m_width, (float)m_height), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, 1), ImVec4(1, 1, 1, 1));
-	}
-	ImGui::EndChild();
-	ImGui::PopStyleVar();
+	//	ImGui::Image((ImTextureID)(uintptr_t)m_renderTarget->handle().value(), ImVec2((float)m_width, (float)m_height), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, 1), ImVec4(1, 1, 1, 1));
+	//}
+	//ImGui::EndChild();
+	//ImGui::PopStyleVar();
 }
 
 void TextureViewerEditor::draw(const String& name, Resource<Texture>& resource)
 {
-	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
-	ImGui::TextColored(color, name.cstr());
-	Texture::Ptr texture = resource.resource;
-	bool isRenderTarget = (texture->flags() & TextureFlag::RenderTarget) == TextureFlag::RenderTarget;
-	bool isShaderResource = (texture->flags() & TextureFlag::ShaderResource) == TextureFlag::ShaderResource;
-	bool hasMips = (texture->flags() & TextureFlag::GenerateMips) == TextureFlag::GenerateMips;
-	ImGui::Text("%s - %u x %u (%s)", toString(texture->type()), texture->width(), texture->height(), toString(texture->format()));
-	ImGui::Checkbox("Render target", &isRenderTarget); ImGui::SameLine();
-	ImGui::Checkbox("Shader resource", &isShaderResource); ImGui::SameLine();
-	ImGui::Checkbox("Mips", &hasMips);
+	//static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
+	//ImGui::TextColored(color, name.cstr());
+	//Texture::Ptr texture = resource.resource;
+	//bool isRenderTarget = (texture->flags() & TextureFlag::RenderTarget) == TextureFlag::RenderTarget;
+	//bool isShaderResource = (texture->flags() & TextureFlag::ShaderResource) == TextureFlag::ShaderResource;
+	//bool hasMips = (texture->flags() & TextureFlag::GenerateMips) == TextureFlag::GenerateMips;
+	//ImGui::Text("%s - %u x %u (%s)", toString(texture->type()), texture->width(), texture->height(), toString(texture->format()));
+	//ImGui::Checkbox("Render target", &isRenderTarget); ImGui::SameLine();
+	//ImGui::Checkbox("Shader resource", &isShaderResource); ImGui::SameLine();
+	//ImGui::Checkbox("Mips", &hasMips);
 
-	// TODO add zoom and mip viewer
-	ImGui::Separator();
-	static bool red = true;
-	static bool green = true;
-	static bool blue = true;
-	static bool alpha = true;
-	static int zoomInt = 100;
-	static const int minZoom = 1;
-	static const int maxZoom = 500;
-	static ImVec2 scrollPosition = ImVec2(0.f, 0.f);
-	ImGui::Checkbox("R", &red); ImGui::SameLine();
-	ImGui::Checkbox("G", &green); ImGui::SameLine();
-	ImGui::Checkbox("B", &blue); ImGui::SameLine();
-	ImGui::Checkbox("A", &alpha); ImGui::SameLine();
-	ImGui::DragInt("##Zoom", &zoomInt, 1, minZoom, maxZoom, "%d %%");
-	ImTextureID textureID = (ImTextureID)(uintptr_t)texture->handle().value();
-	ImVec4 mask = ImVec4(
-		red ? 1.f : 0.f,
-		green ? 1.f : 0.f,
-		blue ? 1.f : 0.f,
-		alpha ? 1.f : 0.f
-	);
-	// Image explorer
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	if (ImGui::BeginChild("TextureDisplayChild", ImVec2(0, 0), true, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
-	{
-		if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive())
-		{
-			zoomInt = min(max(zoomInt + (int)(ImGui::GetIO().MouseWheel * 2.f), minZoom), maxZoom);
-		}
-		float zoom = zoomInt / 100.f;
-		if (ImGui::IsWindowHovered() && (ImGui::IsMouseDragging(0, 0.0f) || ImGui::IsMouseDragging(1, 0.0f)))
-		{
-			ImVec2 windowSize = ImGui::GetWindowSize();
-			ImVec2 maxScroll(
-				zoom * texture->width() - windowSize.x,
-				zoom * texture->height() - windowSize.y
-			);
-			scrollPosition.x = fminf(fmaxf(scrollPosition.x - ImGui::GetIO().MouseDelta.x, 0.f), maxScroll.x);
-			scrollPosition.y = fminf(fmaxf(scrollPosition.y - ImGui::GetIO().MouseDelta.y, 0.f), maxScroll.y);
-		}
-		ImGui::SetScrollX(scrollPosition.x);
-		ImGui::SetScrollY(scrollPosition.y);
-		ImGui::Image(textureID, ImVec2(zoom * texture->width(), zoom * texture->height()), ImVec2(0, 0), ImVec2(1, 1), mask);
-	}
-	ImGui::EndChild();
-	ImGui::PopStyleVar();
+	//// TODO add zoom and mip viewer
+	//ImGui::Separator();
+	//static bool red = true;
+	//static bool green = true;
+	//static bool blue = true;
+	//static bool alpha = true;
+	//static int zoomInt = 100;
+	//static const int minZoom = 1;
+	//static const int maxZoom = 500;
+	//static ImVec2 scrollPosition = ImVec2(0.f, 0.f);
+	//ImGui::Checkbox("R", &red); ImGui::SameLine();
+	//ImGui::Checkbox("G", &green); ImGui::SameLine();
+	//ImGui::Checkbox("B", &blue); ImGui::SameLine();
+	//ImGui::Checkbox("A", &alpha); ImGui::SameLine();
+	//ImGui::DragInt("##Zoom", &zoomInt, 1, minZoom, maxZoom, "%d %%");
+	//ImTextureID textureID = (ImTextureID)(uintptr_t)texture->handle().value();
+	//ImVec4 mask = ImVec4(
+	//	red ? 1.f : 0.f,
+	//	green ? 1.f : 0.f,
+	//	blue ? 1.f : 0.f,
+	//	alpha ? 1.f : 0.f
+	//);
+	//// Image explorer
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	//if (ImGui::BeginChild("TextureDisplayChild", ImVec2(0, 0), true, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar))
+	//{
+	//	if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive())
+	//	{
+	//		zoomInt = min(max(zoomInt + (int)(ImGui::GetIO().MouseWheel * 2.f), minZoom), maxZoom);
+	//	}
+	//	float zoom = zoomInt / 100.f;
+	//	if (ImGui::IsWindowHovered() && (ImGui::IsMouseDragging(0, 0.0f) || ImGui::IsMouseDragging(1, 0.0f)))
+	//	{
+	//		ImVec2 windowSize = ImGui::GetWindowSize();
+	//		ImVec2 maxScroll(
+	//			zoom * texture->width() - windowSize.x,
+	//			zoom * texture->height() - windowSize.y
+	//		);
+	//		scrollPosition.x = fminf(fmaxf(scrollPosition.x - ImGui::GetIO().MouseDelta.x, 0.f), maxScroll.x);
+	//		scrollPosition.y = fminf(fmaxf(scrollPosition.y - ImGui::GetIO().MouseDelta.y, 0.f), maxScroll.y);
+	//	}
+	//	ImGui::SetScrollX(scrollPosition.x);
+	//	ImGui::SetScrollY(scrollPosition.y);
+	//	ImGui::Image(textureID, ImVec2(zoom * texture->width(), zoom * texture->height()), ImVec2(0, 0), ImVec2(1, 1), mask);
+	//}
+	//ImGui::EndChild();
+	//ImGui::PopStyleVar();
 }
 
 void FontViewerEditor::draw(const String& name, Resource<Font>& resource)
 {
-	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
-	ImGui::TextColored(color, name.cstr());
-	Font::Ptr font = resource.resource;
-
-	ImGui::Text("Family : %s", font->family().cstr());
-	ImGui::Text("Style : %s", font->style().cstr());
-	ImGui::Text("Count : %zu", font->count());
-	int height = font->height();
-	if (ImGui::SliderInt("Height", &height, 1, 50) && height != font->height())
-	{
-		// Resize font
-		// TODO This will invalid previous font.
-		FontStorage storage;
-		if (storage.load(resource.path))
-		{
-			resource.resource = Font::create(storage.ttf.data(), storage.ttf.size(), height);
-		}
-	}
-	// Display atlas
-	Texture::Ptr atlas = font->atlas();
-	float uvx = 1.f / (atlas->height() / font->height());
-	float uvy = 1.f / (atlas->width() / font->height());
-
-	uint32_t lineCount = 0;
-	for (uint32_t i = 0; i < (uint32_t)font->count(); i++)
-	{
-		const Character& character = font->getCharacter(i);
-		ImGui::Image(
-			(ImTextureID)character.texture.texture->handle().value(),
-			ImVec2(30, 30),
-#if defined(ORIGIN_BOTTOM_LEFT)
-			ImVec2(character.texture.get(0).u, character.texture.get(0).v + uvy),
-			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v),
-#else
-			ImVec2(character.texture.get(0).u, character.texture.get(0).v),
-			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v + uvy),
-#endif
-			ImVec4(1, 1, 1, 1),
-			ImVec4(1, 1, 1, 1)
-		);
-		if (ImGui::IsItemHovered())
-		{
-			ImGui::BeginTooltip();
-			ImGui::Text("Advance : %u", character.advance);
-			ImGui::Text("Size : (%d, %d)", character.size.x, character.size.y);
-			ImGui::Text("Bearing : (%d, %d)", character.bearing.x, character.bearing.y);
-			ImVec2 size = ImVec2(300, 300);
-			ImGui::Image(
-				(ImTextureID)character.texture.texture->handle().value(),
-				size,
-				ImVec2(0, 0),
-				ImVec2(1, 1),
-				ImVec4(1, 1, 1, 1),
-				ImVec4(1, 1, 1, 1)
-			);
-			uv2f start = character.texture.get(0);
-			uv2f end = character.texture.get(1);
-			ImVec2 startVec = ImVec2(ImGui::GetItemRectMin().x + start.u * size.x, ImGui::GetItemRectMin().y + start.v * size.y);
-			ImVec2 endVec = ImVec2(ImGui::GetItemRectMin().x + end.u * size.x + 1, ImGui::GetItemRectMin().y + end.v * size.y + 1);
-			ImU32 red = (93 << 24) | (4 << 16) | (26 << 8) | (255 << 0);
-			ImGui::GetWindowDrawList()->AddRect(startVec, endVec, ImU32(red), 0.f, ImDrawCornerFlags_All, 2.f);
-			ImGui::EndTooltip();
-		}
-		if (lineCount++ < 10)
-			ImGui::SameLine();
-		else
-			lineCount = 0;
-	}
+//	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
+//	ImGui::TextColored(color, name.cstr());
+//	Font::Ptr font = resource.resource;
+//
+//	ImGui::Text("Family : %s", font->family().cstr());
+//	ImGui::Text("Style : %s", font->style().cstr());
+//	ImGui::Text("Count : %zu", font->count());
+//	int height = font->height();
+//	if (ImGui::SliderInt("Height", &height, 1, 50) && height != font->height())
+//	{
+//		// Resize font
+//		// TODO This will invalid previous font.
+//		FontStorage storage;
+//		if (storage.load(resource.path))
+//		{
+//			resource.resource = Font::create(storage.ttf.data(), storage.ttf.size(), height);
+//		}
+//	}
+//	// Display atlas
+//	Texture::Ptr atlas = font->atlas();
+//	float uvx = 1.f / (atlas->height() / font->height());
+//	float uvy = 1.f / (atlas->width() / font->height());
+//
+//	uint32_t lineCount = 0;
+//	for (uint32_t i = 0; i < (uint32_t)font->count(); i++)
+//	{
+//		const Character& character = font->getCharacter(i);
+//		ImGui::Image(
+//			(ImTextureID)character.texture.texture->handle().value(),
+//			ImVec2(30, 30),
+//#if defined(ORIGIN_BOTTOM_LEFT)
+//			ImVec2(character.texture.get(0).u, character.texture.get(0).v + uvy),
+//			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v),
+//#else
+//			ImVec2(character.texture.get(0).u, character.texture.get(0).v),
+//			ImVec2(character.texture.get(0).u + uvx, character.texture.get(0).v + uvy),
+//#endif
+//			ImVec4(1, 1, 1, 1),
+//			ImVec4(1, 1, 1, 1)
+//		);
+//		if (ImGui::IsItemHovered())
+//		{
+//			ImGui::BeginTooltip();
+//			ImGui::Text("Advance : %u", character.advance);
+//			ImGui::Text("Size : (%d, %d)", character.size.x, character.size.y);
+//			ImGui::Text("Bearing : (%d, %d)", character.bearing.x, character.bearing.y);
+//			ImVec2 size = ImVec2(300, 300);
+//			ImGui::Image(
+//				(ImTextureID)character.texture.texture->handle().value(),
+//				size,
+//				ImVec2(0, 0),
+//				ImVec2(1, 1),
+//				ImVec4(1, 1, 1, 1),
+//				ImVec4(1, 1, 1, 1)
+//			);
+//			uv2f start = character.texture.get(0);
+//			uv2f end = character.texture.get(1);
+//			ImVec2 startVec = ImVec2(ImGui::GetItemRectMin().x + start.u * size.x, ImGui::GetItemRectMin().y + start.v * size.y);
+//			ImVec2 endVec = ImVec2(ImGui::GetItemRectMin().x + end.u * size.x + 1, ImGui::GetItemRectMin().y + end.v * size.y + 1);
+//			ImU32 red = (93 << 24) | (4 << 16) | (26 << 8) | (255 << 0);
+//			ImGui::GetWindowDrawList()->AddRect(startVec, endVec, ImU32(red), 0.f, ImDrawCornerFlags_All, 2.f);
+//			ImGui::EndTooltip();
+//		}
+//		if (lineCount++ < 10)
+//			ImGui::SameLine();
+//		else
+//			lineCount = 0;
+//	}
 }
 
 FontViewerEditor::FontViewerEditor() :

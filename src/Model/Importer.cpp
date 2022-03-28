@@ -14,16 +14,16 @@ struct AssimpImporter {
 	void processNode(Entity parent, aiNode* node);
 	Entity processMesh(aiMesh* mesh);
 
-	Texture::Ptr loadTexture(const Path& path, TextureFlag flags);
+	Texture* loadTexture(const Path& path, TextureFlag flags);
 private:
 	Path m_directory;
 	const aiScene* m_assimpScene;
 	aka::World& m_world;
 private:
-	Texture::Ptr m_missingColorTexture;
-	Texture::Ptr m_blankColorTexture;
-	Texture::Ptr m_missingNormalTexture;
-	Texture::Ptr m_missingRoughnessTexture;
+	Texture* m_missingColorTexture;
+	Texture* m_blankColorTexture;
+	Texture* m_missingNormalTexture;
+	Texture* m_missingRoughnessTexture;
 };
 
 AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world) :
@@ -35,10 +35,10 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
 	uint8_t bytesNormal[4] = { 128,128,255,255 };
 	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesMissingColor);
-	m_blankColorTexture = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesBlankColor);
-	m_missingNormalTexture = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesNormal);
-	m_missingRoughnessTexture = Texture2D::create(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesRoughness);
+	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesMissingColor);
+	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesBlankColor);
+	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesNormal);
+	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesRoughness);
 }
 
 void AssimpImporter::process()
@@ -98,7 +98,9 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	AKA_ASSERT(mesh->HasPositions(), "Mesh need positions");
 	AKA_ASSERT(mesh->HasNormals(), "Mesh needs normals");
 
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
+	GraphicDevice* device = app->graphic();
 	String meshName = mesh->mName.C_Str();
 	Entity e = m_world.createEntity(meshName);
 	e.add<MeshComponent>();
@@ -154,8 +156,8 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		if (!OS::Directory::exist(bufferDirectory))
 			OS::Directory::create(bufferDirectory);
 		Path meshDirectory = "library/mesh/";
-		if (!OS::Directory::exist(bufferDirectory))
-			OS::Directory::create(bufferDirectory);
+		if (!OS::Directory::exist(meshDirectory))
+			OS::Directory::create(meshDirectory);
 		// Index buffer
 		String indexBufferName = meshName + "-indices";
 		String indexBufferFileName = indexBufferName + ".buffer";
@@ -170,7 +172,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!indexBuffer.save(indexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer::Ptr indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource;
+		Buffer* indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource.get();
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
@@ -186,7 +188,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!vertexBuffer.save(vertexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer::Ptr vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource;
+		Buffer* vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource.get();
 
 		// Mesh
 		String meshFileName = meshName + ".mesh";
@@ -196,7 +198,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			uint32_t vertexBufferSize = (uint32_t)(vertices.size() * sizeof(Vertex));
 			MeshStorage storage;
 			storage.vertices = { {
-				MeshStorage::Vertex {
+				MeshStorage::VertexBinding {
 					VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
 					vertexBufferName,
 					vertexCount, // count
@@ -205,7 +207,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					vertexBufferSize, // size
 					sizeof(Vertex), // stride
 				},
-				MeshStorage::Vertex {
+				MeshStorage::VertexBinding {
 					VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
 					vertexBufferName,
 					vertexCount, // count
@@ -214,7 +216,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					vertexBufferSize, // size
 					sizeof(Vertex), // stride
 				},
-				MeshStorage::Vertex {
+				MeshStorage::VertexBinding {
 					VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
 					vertexBufferName,
 					vertexCount, // count
@@ -223,7 +225,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					vertexBufferSize, // size
 					sizeof(Vertex), // stride
 				},
-				MeshStorage::Vertex {
+				MeshStorage::VertexBinding {
 					VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
 					vertexBufferName,
 					vertexCount, // count
@@ -243,10 +245,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		}
 	}
 
-	meshComponent.submesh.mesh = resource->get<Mesh>(meshName);
-	meshComponent.submesh.type = PrimitiveType::Triangles;
-	meshComponent.submesh.count = meshComponent.submesh.mesh->getIndexCount();
-	meshComponent.submesh.offset = 0;
+	meshComponent.mesh = resource->get<Mesh>(meshName);
 	
 	// process material
 	if (mesh->mMaterialIndex >= 0)
@@ -256,7 +255,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		//aiTextureType_DIFFUSE_ROUGHNESS = 16,
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = m_assimpScene->mMaterials[mesh->mMaterialIndex];
-		TextureSampler defaultSampler = TextureSampler::trilinear;
 		TextureFlag flags = TextureFlag::ShaderResource | TextureFlag::GenerateMips;
 		aiColor4D c;
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
@@ -270,7 +268,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.albedo.sampler = defaultSampler;
+				materialComponent.albedo.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.albedo.texture == nullptr)
 					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
@@ -284,7 +287,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.albedo.sampler = defaultSampler;
+				materialComponent.albedo.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.albedo.texture == nullptr)
 					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
@@ -293,7 +301,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.albedo.texture = m_blankColorTexture;
-			materialComponent.albedo.sampler = defaultSampler;
+			materialComponent.albedo.sampler = device->createSampler(
+				Filter::Linear, Filter::Linear,
+				SamplerMipMapMode::Linear,
+				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+				1.f
+			);
 		}
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
@@ -303,7 +316,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.normal.sampler = defaultSampler;
+				materialComponent.normal.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.normal.texture == nullptr)
 					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
@@ -317,7 +335,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.normal.sampler = defaultSampler;
+				materialComponent.normal.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.normal.texture == nullptr)
 					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
@@ -326,7 +349,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.normal.texture = m_missingNormalTexture;
-			materialComponent.normal.sampler = defaultSampler;
+			materialComponent.normal.sampler = device->createSampler(
+				Filter::Linear, Filter::Linear,
+				SamplerMipMapMode::Linear,
+				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+				1.f
+			);
 		}
 
 		if (material->GetTextureCount(aiTextureType_UNKNOWN) > 0) // GLTF pbr texture is retrieved this way (?)
@@ -337,7 +365,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, 0, &str);
 				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.material.sampler = defaultSampler;
+				materialComponent.material.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.material.texture == nullptr)
 					materialComponent.material.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
@@ -351,7 +384,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.material.sampler = defaultSampler;
+				materialComponent.material.sampler = device->createSampler(
+					Filter::Linear, Filter::Linear,
+					SamplerMipMapMode::Linear,
+					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+					1.f
+				);
 				if (materialComponent.material.texture == nullptr)
 					materialComponent.material.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
@@ -360,7 +398,12 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.material.texture = m_missingRoughnessTexture;
-			materialComponent.material.sampler = defaultSampler;
+			materialComponent.material.sampler = device->createSampler(
+				Filter::Linear, Filter::Linear,
+				SamplerMipMapMode::Linear,
+				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+				1.f
+			);
 		}
 	}
 	else
@@ -369,18 +412,34 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.color = color4f(1.f);
 		materialComponent.doubleSided = true;
 		materialComponent.albedo.texture = m_blankColorTexture;
-		materialComponent.albedo.sampler = TextureSampler::nearest;
+		materialComponent.albedo.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 		materialComponent.normal.texture = m_missingNormalTexture;
-		materialComponent.normal.sampler = TextureSampler::nearest;
+		materialComponent.normal.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 		materialComponent.material.texture = m_missingRoughnessTexture;
-		materialComponent.material.sampler = TextureSampler::nearest;
+		materialComponent.material.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 	}
 	return e;
 }
 
-Texture::Ptr AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
+Texture* AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	String name = OS::File::name(path);
 	if (resource->has<Texture>(name))
 		return resource->get<Texture>(name);
@@ -427,7 +486,8 @@ bool Importer::importMesh(const aka::String& name, const aka::Path& path)
 
 bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, TextureFlag flags)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	// TODO use devil as importer to support a wider range of format ?
 	// Exporter would be a standalone exe to not overwhelm the engine with assimp, devil include...
 	// Or a library that include aka, assimp, devil...
@@ -463,7 +523,8 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 
 bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path, TextureFlag flags)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
@@ -494,7 +555,8 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 
 bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px, const aka::Path& py, const aka::Path& pz, const aka::Path& nx, const aka::Path& ny, const aka::Path& nz, TextureFlag flags)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
@@ -530,7 +592,8 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 
 bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	String libPath = "library/audio/" + name + ".audio";
 	// Convert and save (only copy for now)
 	if (!OS::File::create(libPath))
@@ -544,7 +607,8 @@ bool Importer::importAudio(const aka::String& name, const aka::Path& path)
 
 bool Importer::importFont(const aka::String& name, const aka::Path& path)
 {
-	ResourceManager* resource = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
 	if (!resource->has<Font>(name))
 	{
 		String directory = "library/font/";

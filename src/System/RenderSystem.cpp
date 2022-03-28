@@ -11,6 +11,7 @@ struct alignas(16) Aligned16Float {
 	float data;
 };
 
+// --- Lights
 struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) vec3f direction;
 	alignas(4) float intensity;
@@ -18,7 +19,6 @@ struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) mat4f worldToLightTextureSpace[DirectionalLightComponent::cascadeCount];
 	alignas(16) Aligned16Float cascadeEndClipSpace[DirectionalLightComponent::cascadeCount];
 };
-
 struct alignas(16) PointLightUniformBuffer {
 	alignas(16) vec3f lightPosition;
 	alignas(4) float lightIntensity;
@@ -26,6 +26,7 @@ struct alignas(16) PointLightUniformBuffer {
 	alignas(4) float farPointLight;
 };
 
+// --- View
 struct alignas(16) CameraUniformBuffer {
 	alignas(16) mat4f view;
 	alignas(16) mat4f projection;
@@ -36,44 +37,58 @@ struct alignas(16) ViewportUniformBuffer {
 	alignas(8) vec2f viewport;
 	alignas(8) vec2f rcp;
 };
-struct alignas(16) ModelUniformBuffer {
+// --- Object
+struct alignas(16) DescriptorSetUniformBuffer {
+	alignas(16) color4f color;
+};
+// --- Instance
+struct alignas(16) MatricesUniformBuffer {
 	alignas(16) mat4f model;
 	alignas(16) vec3f normalMatrix0;
 	alignas(16) vec3f normalMatrix1;
 	alignas(16) vec3f normalMatrix2;
-	alignas(16) color4f color;
 };
 
 void RenderSystem::onCreate(aka::World& world)
 {
-	GraphicDevice* device = Application::graphic();
-	Backbuffer::Ptr backbuffer = device->backbuffer();
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
 
-	ProgramManager* program = Application::program();
-	m_gbufferMaterial = Material::create(program->get("gbuffer"));
-	m_pointMaterial = Material::create(program->get("point"));
-	m_dirMaterial = Material::create(program->get("directional"));
-	m_ambientMaterial = Material::create(program->get("ambient"));
-	m_skyboxMaterial = Material::create(program->get("skybox"));
-	m_postprocessMaterial = Material::create(program->get("postProcess"));
-	m_textMaterial = Material::create(program->get("text"));
-
-	createRenderTargets(backbuffer->width(), backbuffer->height());
+	ProgramManager* program = app->program();
+	m_gbufferProgram = program->get("gbuffer");
+	//m_pointDescriptorSet = device->createDescriptorSet(0, program->get("point"));
+	m_dirProgram = program->get("directional");  m_dirDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[0]);
+	m_ambientProgram = program->get("ambient"); m_ambientDescriptorSet = device->createDescriptorSet(m_ambientProgram->bindings[0]);
+	m_skyboxProgram = program->get("skybox"); m_skyboxDescriptorSet = device->createDescriptorSet(m_skyboxProgram->bindings[0]);
+	m_postprocessProgram = program->get("postProcess"); m_postprocessDescriptorSet = device->createDescriptorSet(m_postprocessProgram->bindings[0]);
+	//m_textDescriptorSet = device->createDescriptorSet(0, program->get("text"));
+	m_viewDescriptorSet = device->createDescriptorSet(m_gbufferProgram->bindings[0]);
 
 	// --- Uniforms
-	m_cameraUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	m_viewportUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(ViewportUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(ModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot. use dynamic
-	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
-	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
+	m_cameraUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_viewportUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(ViewportUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	//m_pointLightUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
+	//m_directionalLightUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
 
 	// --- Lighting pass
-	m_shadowSampler.filterMag = TextureFilter::Nearest;
-	m_shadowSampler.filterMin = TextureFilter::Nearest;
-	m_shadowSampler.wrapU = TextureWrap::ClampToEdge;
-	m_shadowSampler.wrapV = TextureWrap::ClampToEdge;
-	m_shadowSampler.wrapW = TextureWrap::ClampToEdge;
-	m_shadowSampler.anisotropy = 1.f;
+	m_defaultSampler = device->createSampler(
+		Filter::Nearest,
+		Filter::Nearest,
+		SamplerMipMapMode::None,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		1.f
+	);
+	m_shadowSampler = device->createSampler(
+		Filter::Nearest,
+		Filter::Nearest,
+		SamplerMipMapMode::None,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		1.f
+	);
 
 	float quadVertices[] = {
 		-1.f, -1.f, // bottom left corner
@@ -83,30 +98,42 @@ void RenderSystem::onCreate(aka::World& world)
 	};
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
-	VertexAttribute quadAttributes = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 };
-	m_quad->uploadInterleaved(&quadAttributes, 1, quadVertices, 4, IndexFormat::UnsignedShort, quadIndices, 6);
+	m_quad->bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 };
+	m_quad->bindings.offsets[0] = 0;
+	m_quad->bindings.count = 1;
+	m_quad->vertices[0] = device->createBuffer(BufferType::Vertex, sizeof(quadVertices), BufferUsage::Default, BufferCPUAccess::None, quadVertices);
+	m_quad->indices = device->createBuffer(BufferType::Index, sizeof(quadIndices), BufferUsage::Default, BufferCPUAccess::None, quadIndices);
+	m_quad->format = IndexFormat::UnsignedShort;
+	m_quad->count = 6;
 
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
 
 	// --- Skybox pass
 	uint8_t data[] = { 
-		255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 
-		200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255,
-		170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255,
-		140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255,
-		110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255,
-		 90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,
-		 60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,
-		 30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,
+		255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+		200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255,
+		170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255,
+		140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255, 140, 140, 140, 255,
+		110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255, 110, 110, 110, 255,
+		 90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,  90,  90,  90, 255,
+		 60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,  60,  60,  60, 255,
+		 30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,  30,  30,  30, 255,
 	};
-	Texture2D::Ptr equirectangularMap = Texture2D::create(4, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, data);
-	m_skybox = TextureCubeMap::generate(512, 512, TextureFormat::RGBA8, TextureFlag::ShaderResource, equirectangularMap, TextureFilter::Linear);
-	m_skyboxSampler.filterMag = TextureFilter::Linear;
-	m_skyboxSampler.filterMin = TextureFilter::Linear;
-	m_skyboxSampler.wrapU = TextureWrap::ClampToEdge;
-	m_skyboxSampler.wrapV = TextureWrap::ClampToEdge;
-	m_skyboxSampler.wrapW = TextureWrap::ClampToEdge;
-	m_skyboxSampler.anisotropy = 1.f;
+	void* datas[6];
+	for (int i = 0; i < 6; i++)
+		datas[i] = data;
+	m_skybox = Texture::createCubemap(8, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, datas);
+	//Texture* equirectangularMap = Texture::create2D(4, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, data);
+	//m_skybox = Texture::generate(512, 512, TextureFormat::RGBA8, TextureFlag::ShaderResource, equirectangularMap, Filter::Linear);
+	m_skyboxSampler = device->createSampler(
+		Filter::Linear,
+		Filter::Linear,
+		SamplerMipMapMode::None,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		SamplerAddressMode::ClampToEdge,
+		1.f
+	);
 
 	float skyboxVertices[] = {
 		-1.0f,  1.0f, -1.0f,
@@ -150,46 +177,78 @@ void RenderSystem::onCreate(aka::World& world)
 		 1.0f, -1.0f, -1.0f,
 		-1.0f, -1.0f,  1.0f,
 		 1.0f, -1.0f,  1.0f
-	}; 
+	};
 	m_cube = Mesh::create();
-	VertexAttribute cubeAttributes = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
-	m_cube->uploadInterleaved(&cubeAttributes, 1, &skyboxVertices, 36);
+	m_cube->bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	m_cube->bindings.offsets[0] = 0;
+	m_cube->bindings.count = 1;
+	m_cube->vertices[0] = device->createBuffer(BufferType::Vertex, sizeof(skyboxVertices), BufferUsage::Default, BufferCPUAccess::None, skyboxVertices);
+	m_cube->indices = nullptr;
+	m_cube->format = IndexFormat::UnsignedShort;
+	m_cube->count = 36;
+
+	createRenderTargets(app->width(), app->height());
 }
 
 void RenderSystem::onDestroy(aka::World& world)
 {
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+
+	auto renderableView = world.registry().view<RenderComponent>();
+	for (entt::entity e : renderableView)
+	{
+		RenderComponent& r = world.registry().get<RenderComponent>(e);
+		device->destroy(r.ubo[0]);
+		device->destroy(r.ubo[1]);
+		device->destroy(r.material);
+		device->destroy(r.matrices);
+	}
 	// Gbuffer pass
-	m_position.reset();
-	m_albedo.reset();
-	m_normal.reset();
-	m_depth.reset();
-	m_material.reset();
-	m_gbuffer.reset();
-	m_gbufferMaterial.reset();
+	device->destroy(m_position);
+	device->destroy(m_albedo);
+	device->destroy(m_normal);
+	device->destroy(m_depth);
+	device->destroy(m_material);
+	device->destroy(m_gbuffer);
+	device->destroy(m_gbufferProgram);
+	device->destroy(m_viewDescriptorSet);
 
 	// Lighing pass
-	m_quad.reset();
-	m_sphere.reset();
-	m_ambientMaterial.reset();
-	m_pointMaterial.reset();
-	m_dirMaterial.reset();
+	device->destroy(m_quad->indices);
+	device->destroy(m_quad->vertices[0]);
+	device->destroy(m_sphere->indices);
+	device->destroy(m_sphere->vertices[0]);
+	device->destroy(m_ambientPipeline);
+	device->destroy(m_ambientProgram);
+	device->destroy(m_ambientDescriptorSet);
+	//device->destroy(m_pointProgram);
+	//device->destroy(m_pointDescriptorSet);
+	device->destroy(m_dirProgram);
+	device->destroy(m_dirDescriptorSet);
+	device->destroy(m_dirPipeline);
 
 	// Skybox
-	m_cube.reset();
-	m_skybox.reset();
-	m_skyboxMaterial.reset();
+	device->destroy(m_cube->indices);
+	device->destroy(m_cube->vertices[0]);
+	device->destroy(m_skybox);
+	device->destroy(m_skyboxProgram);
+	device->destroy(m_skyboxDescriptorSet);
 
 	// Post process pass
-	m_storageDepth.reset();
-	m_storage.reset();
-	m_storageFramebuffer.reset();
-	m_postprocessMaterial.reset();
+	//device->destroy(m_storageDepth);
+	device->destroy(m_storage);
+	device->destroy(m_storageFramebuffer);
+	device->destroy(m_postprocessProgram);
+	device->destroy(m_postprocessDescriptorSet);
 }
 
-void RenderSystem::onRender(aka::World& world)
+void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 {
-	GraphicDevice* device = Application::graphic();
-	Backbuffer::Ptr backbuffer = device->backbuffer();
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+
+	Framebuffer* backbuffer = device->backbuffer(frame); // TODO retrieve frame (check if is in render thread)
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -197,152 +256,186 @@ void RenderSystem::onRender(aka::World& world)
 	mat4f projection = camera.projection->projection();
 
 	// --- Update Uniforms
-	m_gbufferMaterial->set("ModelUniformBuffer", m_modelUniformBuffer);
-	m_gbufferMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
-	m_ambientMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
-	m_dirMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
-	m_dirMaterial->set("DirectionalLightUniformBuffer", m_directionalLightUniformBuffer);
-	m_pointMaterial->set("PointLightUniformBuffer", m_pointLightUniformBuffer);
-	m_pointMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
-	m_pointMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
-	m_pointMaterial->set("ModelUniformBuffer", m_modelUniformBuffer);
-	m_skyboxMaterial->set("CameraUniformBuffer", m_cameraUniformBuffer);
-	m_postprocessMaterial->set("ViewportUniformBuffer", m_viewportUniformBuffer);
+	//m_gbufferDescriptorSet->setUniformBuffer(0, m_modelUniformBuffer);
+	//m_gbufferDescriptorSet->setUniformBuffer(1, m_cameraUniformBuffer);
+	//m_ambientDescriptorSet->setUniformBuffer(4, m_cameraUniformBuffer);
+	//m_dirDescriptorSet->setUniformBuffer(0, m_directionalLightUniformBuffer);
+	//m_dirDescriptorSet->setUniformBuffer(1, m_cameraUniformBuffer);
+	//m_pointDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
+	//m_pointDescriptorSet->setUniformBuffer(1, m_modelUniformBuffer); // TODO updated
+	//m_pointDescriptorSet->setUniformBuffer(2, m_pointLightUniformBuffer);
+	//m_pointDescriptorSet->setUniformBuffer(3, m_viewportUniformBuffer);
+	//m_skyboxDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
+	m_postprocessDescriptorSet->setSampledImage(0, m_storage, m_shadowSampler);
+	m_postprocessDescriptorSet->setUniformBuffer(1, m_viewportUniformBuffer);
+	device->update(m_postprocessDescriptorSet);
+
 	// TODO only update on camera move / update
 	CameraUniformBuffer cameraUBO;
 	cameraUBO.view = view;
 	cameraUBO.projection = projection;
 	cameraUBO.viewInverse = cameraEntity.get<Transform3DComponent>().transform;
 	cameraUBO.projectionInverse = mat4f::inverse(projection);
-	m_cameraUniformBuffer->upload(&cameraUBO);
+	device->upload(m_cameraUniformBuffer, &cameraUBO, 0, sizeof(CameraUniformBuffer));
 	ViewportUniformBuffer viewportUBO;
-	viewportUBO.viewport = vec2f(backbuffer->width(), backbuffer->height());
-	m_viewportUniformBuffer->upload(&viewportUBO);
+	viewportUBO.viewport = vec2f(app->width(), app->height());
+	device->upload(m_viewportUniformBuffer , &viewportUBO, 0, sizeof(ViewportUniformBuffer));
 
 	// Samplers
-	TextureSampler samplers[] = { m_shadowSampler , m_shadowSampler , m_shadowSampler };
-	m_dirMaterial->set("u_shadowMap", samplers, DirectionalLightComponent::cascadeCount);
-	m_pointMaterial->set("u_shadowMap", m_shadowSampler);
+	Sampler* samplers[] = { m_shadowSampler , m_shadowSampler , m_shadowSampler };
+	//m_dirDescriptorSet->setSampledImage(5, samplers, DirectionalLightComponent::cascadeCount);
+	//m_pointDescriptorSet->setSampledImage(4, m_shadowSampler);
 
-	auto renderableView = world.registry().view<Transform3DComponent, MeshComponent, MaterialComponent>();
+	// Add render data to every component
+	// View
+	m_viewDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
+	m_viewDescriptorSet->setUniformBuffer(1, m_viewportUniformBuffer);
+	device->update(m_viewDescriptorSet);
+
+	auto notRenderSetView = world.registry().view<Transform3DComponent, MeshComponent, OpaqueMaterialComponent>(entt::exclude<RenderComponent>);
+	for (entt::entity e : notRenderSetView)
+	{
+		// TODO move to rendercomponent creation
+		RenderComponent& r = world.registry().emplace<RenderComponent>(e);
+		Transform3DComponent& transform = world.registry().get<Transform3DComponent>(e);
+		OpaqueMaterialComponent& material = world.registry().get<OpaqueMaterialComponent>(e);
+		//MeshComponent& mesh = world.registry().get<MeshComponent>(e);
+
+		// Matrices
+		MatricesUniformBuffer matricesUBO;
+		matricesUBO.model = transform.transform;
+		mat3f normalMatrix = mat3f::transpose(mat3f::inverse(mat3f(transform.transform)));
+		matricesUBO.normalMatrix0 = vec3f(normalMatrix[0]);
+		matricesUBO.normalMatrix1 = vec3f(normalMatrix[1]);
+		matricesUBO.normalMatrix2 = vec3f(normalMatrix[2]);
+		r.matrices = device->createDescriptorSet(m_gbufferProgram->bindings[2]);
+		r.ubo[0] = device->createBuffer(BufferType::Uniform, sizeof(MatricesUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &matricesUBO);
+		r.matrices->setUniformBuffer(0, r.ubo[0]);
+		device->update(r.matrices);
+
+
+		// DescriptorSet
+		DescriptorSetUniformBuffer materialUBO;
+		materialUBO.color = material.color;
+		r.ubo[1] = device->createBuffer(BufferType::Uniform, sizeof(DescriptorSetUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &materialUBO);
+		r.material = device->createDescriptorSet(m_gbufferProgram->bindings[1]);
+		r.material->setUniformBuffer(0, r.ubo[1]);
+		r.material->setSampledImage(1, material.albedo.texture, material.albedo.sampler);
+		r.material->setSampledImage(2, material.normal.texture, material.normal.sampler);
+		r.material->setSampledImage(3, material.material.texture, material.material.sampler);
+		device->update(r.material);
+	}
+
+	auto renderableView = world.registry().view<Transform3DComponent, MeshComponent, OpaqueMaterialComponent, RenderComponent>();
 
 	// --- G-Buffer pass
 	// TODO depth prepass
-	RenderPass gbufferPass;
-	gbufferPass.framebuffer = m_gbuffer;
-	gbufferPass.material = m_gbufferMaterial;
-	gbufferPass.clear = Clear::none;
-	gbufferPass.blend = Blending::none;
-	gbufferPass.depth = Depth{ DepthCompare::Less, true };
-	gbufferPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-	gbufferPass.stencil = Stencil::none;
-	gbufferPass.viewport = aka::Rect{ 0 };
-	gbufferPass.scissor = aka::Rect{ 0 };
-
-	m_gbuffer->clear(color4f(0.f), 1.f, 0, ClearMask::All);
-
-	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const MaterialComponent& material) {
+	CommandList* cmd = frame->commandList;
+	cmd->bindPipeline(m_gbufferPipeline);
+	cmd->beginRenderPass(m_gbuffer, ClearState{ ClearMask::None, {0.f}, 1.f, 0 });
+	//color4f c(0.f);
+	//cmd->clear(ClearMask::All, c.data, 1.f, 0);
+	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const OpaqueMaterialComponent& material, const RenderComponent& rendering) {
 		frustum<>::planes p = frustum<>::extract(projection * view);
 		// Check intersection in camera space
 		// https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
 		if (!p.intersect(transform.transform * mesh.bounds))
 			return;
 
-		ModelUniformBuffer modelUBO;
-		modelUBO.model = transform.transform;
-		mat3f normalMatrix = mat3f::transpose(mat3f::inverse(mat3f(transform.transform)));
-		modelUBO.normalMatrix0 = vec3f(normalMatrix[0]);
-		modelUBO.normalMatrix1 = vec3f(normalMatrix[1]);
-		modelUBO.normalMatrix2 = vec3f(normalMatrix[2]);
-		modelUBO.color = material.color;
-		m_modelUniformBuffer->upload(&modelUBO);
+		DescriptorSet* materials[3] = { m_viewDescriptorSet, rendering.material, rendering.matrices };
+		cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
+		cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
+		cmd->bindDescriptorSets(materials, 3);
 
-		gbufferPass.material->set("u_materialTexture", material.material.sampler);
-		gbufferPass.material->set("u_materialTexture", material.material.texture);
-		gbufferPass.material->set("u_colorTexture", material.albedo.sampler);
-		gbufferPass.material->set("u_colorTexture", material.albedo.texture);
-		gbufferPass.material->set("u_normalTexture", material.normal.sampler);
-		gbufferPass.material->set("u_normalTexture", material.normal.texture);
-
-		gbufferPass.submesh = mesh.submesh;
-
-		gbufferPass.execute();
+		cmd->drawIndexed(mesh.mesh->count, 0, 0, 1);
 	});
+	cmd->endRenderPass();
 
 	// --- Lighting pass
 	static const mat4f projectionToTextureCoordinateMatrix(
+#if defined(GEOMETRY_CLIP_SPACE_NEGATIVE)
 		col4f(0.5, 0.0, 0.0, 0.0),
 		col4f(0.0, 0.5, 0.0, 0.0),
 		col4f(0.0, 0.0, 0.5, 0.0),
 		col4f(0.5, 0.5, 0.5, 1.0)
+#elif defined(GEOMETRY_CLIP_SPACE_POSITIVE)
+		col4f(0.5, 0.0, 0.0, 0.0),
+		col4f(0.0, 0.5, 0.0, 0.0),
+		col4f(0.0, 0.0, 1.0, 0.0),
+		col4f(0.5, 0.5, 0.0, 1.0)
+#endif
 	);
 
-	m_storageFramebuffer->clear(color4f(0.f, 0.f, 0.f, 1.f), 1.f, 1, ClearMask::Color);
-
-	RenderPass lightingPass;
-	lightingPass.framebuffer = m_storageFramebuffer;
-	lightingPass.submesh.mesh = m_quad;
-	lightingPass.submesh.type = PrimitiveType::Triangles;
-	lightingPass.submesh.offset = 0;
-	lightingPass.submesh.count = m_quad->getIndexCount();
-	lightingPass.clear = Clear::none;
-	lightingPass.blend.colorModeSrc = BlendMode::One;
-	lightingPass.blend.colorModeDst = BlendMode::One;
-	lightingPass.blend.colorOp = BlendOp::Add;
-	lightingPass.blend.alphaModeSrc = BlendMode::One;
-	lightingPass.blend.alphaModeDst = BlendMode::Zero;
-	lightingPass.blend.alphaOp = BlendOp::Add;
-	lightingPass.blend.mask = BlendMask::Rgb;
-	lightingPass.blend.blendColor = color32(255);
-	lightingPass.depth = Depth::none;
-	lightingPass.stencil = Stencil::none;
-	lightingPass.viewport = aka::Rect{ 0 };
-	lightingPass.scissor = aka::Rect{ 0 };
-	lightingPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-
 	// --- Ambient light
-	lightingPass.material = m_ambientMaterial;
-	lightingPass.material->set("u_positionTexture", m_position);
-	lightingPass.material->set("u_albedoTexture", m_albedo);
-	lightingPass.material->set("u_normalTexture", m_normal);
-	//lightingPass.material->set<Texture::Ptr>("u_materialTexture", m_material);
-	lightingPass.material->set("u_skyboxTexture", m_skybox);
+	m_ambientDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
+	m_ambientDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
+	m_ambientDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
+	m_ambientDescriptorSet->setSampledImage(3, m_skybox, m_defaultSampler);
+	m_ambientDescriptorSet->setUniformBuffer(4, m_cameraUniformBuffer);
+	device->update(m_ambientDescriptorSet);
 
-	lightingPass.execute();
+	cmd->bindPipeline(m_ambientPipeline);
+	cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
+	cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
+	cmd->bindDescriptorSet(0, m_ambientDescriptorSet);
+
+	cmd->beginRenderPass(m_storageFramebuffer, ClearState{ ClearMask::None, {0.f, 0.f, 0.f, 1.f}, 1.f, 1 });
+
+	cmd->drawIndexed(m_quad->count, 0, 0, 1);
+
 
 	// --- Directional lights
-	lightingPass.material = m_dirMaterial;
-	lightingPass.material->set("u_positionTexture", m_position);
-	lightingPass.material->set("u_albedoTexture", m_albedo);
-	lightingPass.material->set("u_normalTexture", m_normal);
-	lightingPass.material->set("u_depthTexture", m_depth);
-	lightingPass.material->set("u_materialTexture", m_material);
+	m_dirDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
+	m_dirDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
+	m_dirDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
+	m_dirDescriptorSet->setSampledImage(3, m_depth, m_defaultSampler);
+	m_dirDescriptorSet->setSampledImage(4, m_material, m_defaultSampler);
+	m_dirDescriptorSet->setUniformBuffer(5, m_cameraUniformBuffer);
+	device->update(m_dirDescriptorSet);
 	
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
-		mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
-		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
-			worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
 
-		DirectionalLightUniformBuffer directionalUBO;
-		directionalUBO.direction = light.direction;
-		directionalUBO.intensity = light.intensity;
-		directionalUBO.color = vec3f(light.color.r, light.color.g, light.color.b);
-		memcpy(directionalUBO.worldToLightTextureSpace, worldToLightTextureSpaceMatrix, sizeof(worldToLightTextureSpaceMatrix));
-		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
-			directionalUBO.cascadeEndClipSpace[i].data = light.cascadeEndClipSpace[i];
-		m_directionalLightUniformBuffer->upload(&directionalUBO);
+		// TODO init data elsewhere to clean it
+		// TODO leak
+		if (light.renderDescriptorSet == nullptr)
+		{
+			light.renderDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[1]);
+			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);
+			light.renderDescriptorSet->setSampledImage(1, light.shadowMap, m_defaultSampler);
+			device->update(light.renderDescriptorSet);
+		}
+		//if (dirty)
+		{
+			mat4f worldToLightTextureSpaceMatrix[DirectionalLightComponent::cascadeCount];
+			for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+				worldToLightTextureSpaceMatrix[i] = projectionToTextureCoordinateMatrix * light.worldToLightSpaceMatrix[i];
+			DirectionalLightUniformBuffer directionalUBO;
+			directionalUBO.direction = light.direction;
+			directionalUBO.intensity = light.intensity;
+			directionalUBO.color = vec3f(light.color.r, light.color.g, light.color.b);
+			memcpy(directionalUBO.worldToLightTextureSpace, worldToLightTextureSpaceMatrix, sizeof(worldToLightTextureSpaceMatrix));
+			for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+				directionalUBO.cascadeEndClipSpace[i].data = light.cascadeEndClipSpace[i];
+			device->upload(light.renderUBO, &directionalUBO, 0, sizeof(DirectionalLightUniformBuffer));
+		}
 
-		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
-			lightingPass.material->set("u_shadowMap", light.shadowMap[i], (uint32_t)i);
-		lightingPass.execute();
+		DescriptorSet* materials[2] = { m_dirDescriptorSet, light.renderDescriptorSet };
+		cmd->bindPipeline(m_dirPipeline);
+		cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
+		cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
+		cmd->bindDescriptorSets(materials, 2);
+
+		cmd->drawIndexed(m_quad->count, 0, 0, 1);
 	});
+	cmd->endRenderPass();
 
 	// --- Point lights
 	// Using light volumes
-	lightingPass.submesh = SubMesh{ m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0 };
+	/*lightingPass.submesh = SubMesh{m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0};
 	lightingPass.cull = Culling{ CullMode::FrontFace, CullOrder::CounterClockWise }; // Important to avoid rendering 2 times or clipping
-	lightingPass.material = m_pointMaterial;
+	lightingPass.material = m_pointDescriptorSet;
 	lightingPass.material->set("u_positionTexture", m_position);
 	lightingPass.material->set("u_albedoTexture", m_albedo);
 	lightingPass.material->set("u_normalTexture", m_normal);
@@ -377,38 +470,28 @@ void RenderSystem::onRender(aka::World& world)
 		lightingPass.material->set("u_shadowMap", light.shadowMap);
 
 		lightingPass.execute();
-	});
-
-	// Copy depth to storage depth
-	Texture::copy(m_depth, m_storageDepth);
+	});*/
 
 	// --- Skybox pass
-	RenderPass skyboxPass;
-	skyboxPass.framebuffer = m_storageFramebuffer;
-	skyboxPass.submesh.type = PrimitiveType::Triangles;
-	skyboxPass.submesh.offset = 0;
-	skyboxPass.submesh.count = m_cube->getVertexCount(0);
-	skyboxPass.submesh.mesh = m_cube;
-	skyboxPass.material = m_skyboxMaterial;
-	skyboxPass.clear = Clear::none;
-	skyboxPass.blend = Blending::none;
-	skyboxPass.depth = Depth{ DepthCompare::LessOrEqual, false };
-	skyboxPass.stencil = Stencil::none;
-	skyboxPass.viewport = aka::Rect{ 0 };
-	skyboxPass.scissor = aka::Rect{ 0 };
-	skyboxPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	m_skyboxDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
+	m_skyboxDescriptorSet->setSampledImage(1, m_skybox, m_skyboxSampler);
+	device->update(m_skyboxDescriptorSet);
 
-	skyboxPass.material->set("u_skyboxTexture", m_skyboxSampler);
-	skyboxPass.material->set("u_skyboxTexture", m_skybox);
+	cmd->beginRenderPass(m_storageDepthFramebuffer, ClearState{});
+	cmd->bindPipeline(m_skyboxPipeline);
+	cmd->bindVertexBuffer(m_cube->vertices, 0, 1, m_cube->bindings.offsets);
+	cmd->bindDescriptorSet(0, m_skyboxDescriptorSet);
 
-	skyboxPass.execute();
+	cmd->draw(m_cube->count, 0, 1);
+	cmd->endRenderPass();
 
-	// --- Text pass
+
+	/*// --- Text pass
 	// Text should generate a mesh with its UV & co. This way, it will be easier to handle it.
 	// Dirty rendering for now, close your eyes.
 	RenderPass textPass;
 	textPass.framebuffer = m_storageFramebuffer;
-	textPass.material = m_textMaterial;
+	textPass.material = m_textDescriptorSet;
 	textPass.clear = Clear::none;
 	textPass.blend = Blending::none;
 	textPass.depth = Depth{ DepthCompare::LessOrEqual, false };
@@ -504,31 +587,21 @@ void RenderSystem::onRender(aka::World& world)
 			// now advance cursors for next glyph (note that advance is number of 1/64 pixels)
 			advance += ch.advance * scale;
 		}
-	});
+	});*/
 
 
 	// --- Post process pass
-	RenderPass postProcessPass;
-	postProcessPass.framebuffer = backbuffer;
-	postProcessPass.submesh.type = PrimitiveType::Triangles;
-	postProcessPass.submesh.offset = 0;
-	postProcessPass.submesh.count = m_quad->getIndexCount();
-	postProcessPass.submesh.mesh = m_quad;
-	postProcessPass.material = m_postprocessMaterial;
-	postProcessPass.clear = Clear::none;
-	postProcessPass.blend = Blending::none;
-	postProcessPass.depth = Depth::none;
-	postProcessPass.stencil = Stencil::none;
-	postProcessPass.viewport = aka::Rect{ 0 };
-	postProcessPass.scissor = aka::Rect{ 0 };
-	postProcessPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
+	cmd->bindPipeline(m_postPipeline);
+	cmd->bindDescriptorSet(0, m_postprocessDescriptorSet);
+	cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
+	cmd->bindIndexBuffer(m_quad->indices, IndexFormat::UnsignedShort, 0);
 
-	postProcessPass.material->set("u_inputTexture", m_storage);
-
-	postProcessPass.execute();
+	cmd->beginRenderPass(backbuffer, ClearState{});
+	cmd->drawIndexed(6, 0, 0, 1);
+	cmd->endRenderPass();
 
 	// Set depth for UI elements
-	backbuffer->blit(m_storageDepth, TextureFilter::Nearest);
+	//backbuffer->blit(m_storageDepth, TextureFilter::Nearest);
 }
 
 void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
@@ -538,62 +611,194 @@ void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
 
 void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 {
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+
+	// TODO fix hot reload
 	if (e.name == "gbuffer")
-		m_gbufferMaterial = Material::create(e.program);
-	else if (e.name == "point")
-		m_pointMaterial = Material::create(e.program);
+		m_gbufferProgram = e.program;
+	//else if (e.name == "point")
+	//	m_pointDescriptorSet = device->createDescriptorSet(0, e.program);
 	else if (e.name == "directional")
-		m_dirMaterial = Material::create(e.program);
+		m_dirProgram = e.program;
 	else if (e.name == "ambient")
-		m_ambientMaterial = Material::create(e.program);
+		m_ambientProgram = e.program;
 	else if (e.name == "skybox")
-		m_skyboxMaterial = Material::create(e.program);
+		m_skyboxProgram = e.program;
 	else if (e.name == "postProcess")
-		m_postprocessMaterial = Material::create(e.program);
-	else if (e.name == "text")
-		m_textMaterial = Material::create(e.program);
+		m_postprocessProgram = e.program;
+	//else if (e.name == "text")
+	//	m_textDescriptorSet = device->createDescriptorSet(0, e.program);
 }
 
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 {
-	// --- G-Buffer pass
-	//
-	// Depth | Stencil
-	// D     | S  
-	// 
-	// position | _
-	// R G B    | A
-	// 
-	// albedo | opacity
-	// R G B  | A
-	// 
-	// normal | _
-	// R G B  | A
-	// 
-	// ao | roughness | metalness | _
-	// R  | G         | B         | A
-	m_depth = Texture2D::create(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	m_position = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	m_albedo = Texture2D::create(width, height, TextureFormat::RGBA8, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	m_normal = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	m_material = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	Attachment gbufferAttachments[] = {
-		Attachment{ AttachmentType::DepthStencil, m_depth, AttachmentFlag::None, 0, 0 },
-		Attachment{ AttachmentType::Color0, m_position, AttachmentFlag::None, 0, 0 },
-		Attachment{ AttachmentType::Color1, m_albedo, AttachmentFlag::None, 0, 0 },
-		Attachment{ AttachmentType::Color2, m_normal, AttachmentFlag::None, 0, 0 },
-		Attachment{ AttachmentType::Color3, m_material, AttachmentFlag::None, 0, 0 }
-	};
-	m_gbuffer = Framebuffer::create(gbufferAttachments, sizeof(gbufferAttachments) / sizeof(Attachment));
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
 
-	// --- Post process
-	m_storageDepth = Texture2D::create(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	m_storage = Texture2D::create(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	Attachment storageAttachment[] = {
-		Attachment{ AttachmentType::DepthStencil, m_storageDepth, AttachmentFlag::None, 0, 0 },
-		Attachment{ AttachmentType::Color0, m_storage, AttachmentFlag::None, 0, 0 }
-	};
-	m_storageFramebuffer = Framebuffer::create(storageAttachment, 2);
+	ViewportState viewport{ Rect{0, 0, app->width(), app->height()}, Rect{0, 0, app->width(), app->height()} };
+
+	{
+		// --- G-Buffer pass
+		//
+		// Depth | Stencil
+		// D     | S  
+		// 
+		// position | _
+		// R G B    | A
+		// 
+		// albedo | opacity
+		// R G B  | A
+		// 
+		// normal | _
+		// R G B  | A
+		// 
+		// ao | roughness | metalness | _
+		// R  | G         | B         | A
+		FramebufferState fbDesc;
+		fbDesc.colors[0].format = TextureFormat::RGBA16F;
+		fbDesc.colors[1].format = TextureFormat::RGBA8;
+		fbDesc.colors[2].format = TextureFormat::RGBA16F;
+		fbDesc.colors[3].format = TextureFormat::RGBA16F;
+		fbDesc.depth.format = TextureFormat::DepthStencil;
+		fbDesc.count = 4;
+		m_depth = Texture::create2D(width, height, fbDesc.depth.format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		m_position = Texture::create2D(width, height, fbDesc.colors[0].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		m_albedo = Texture::create2D(width, height, fbDesc.colors[1].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		m_normal = Texture::create2D(width, height, fbDesc.colors[2].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		m_material = Texture::create2D(width, height, fbDesc.colors[3].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		Attachment colorAttachments[] = {
+			Attachment{ m_position, AttachmentFlag::None, 0, 0 },
+			Attachment{ m_albedo, AttachmentFlag::None, 0, 0 },
+			Attachment{ m_normal, AttachmentFlag::None, 0, 0 },
+			Attachment{ m_material, AttachmentFlag::None, 0, 0 }
+		};
+		Attachment depthAttachment = Attachment{ m_depth, AttachmentFlag::None,  0, 0 };
+		m_gbuffer = device->createFramebuffer(colorAttachments, sizeof(colorAttachments) / sizeof(Attachment), &depthAttachment);
+
+		m_gbufferVertices.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+		m_gbufferVertices.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
+		m_gbufferVertices.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
+		m_gbufferVertices.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+		m_gbufferVertices.count = 4;
+		m_gbufferVertices.offsets[0] = offsetof(Vertex, position);
+		m_gbufferVertices.offsets[1] = offsetof(Vertex, normal);
+		m_gbufferVertices.offsets[2] = offsetof(Vertex, texcoord);
+		m_gbufferVertices.offsets[3] = offsetof(Vertex, color);
+
+		Shader* shaders[2] = { m_gbufferProgram->vertex, m_gbufferProgram->fragment };
+		m_gbufferPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			fbDesc,
+			m_gbufferVertices,
+			m_gbufferProgram->bindings,
+			m_gbufferProgram->setCount,
+			viewport,
+			DepthState{ DepthOp::Less, true },
+			StencilState{ StencilState::Face { StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, StencilState::Face {StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, 0xff, 0xff },
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff }, 
+			FillState{ FillMode::Fill, 1.f } 
+		);
+	}
+	{
+		// --- Storage
+		//m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+		Attachment depth = Attachment{ m_depth, AttachmentFlag::Load, 0, 0 };
+		Attachment color = Attachment{ m_storage, AttachmentFlag::None, 0, 0 };
+		m_storageFramebuffer = device->createFramebuffer(&color, 1, nullptr);
+		color.flag = AttachmentFlag::Load;
+		m_storageDepthFramebuffer = device->createFramebuffer(&color, 1, &depth);
+	}
+	{
+		// --- Ambient
+		Shader* shaders[2] = { m_ambientProgram->vertex, m_ambientProgram->fragment };
+		m_ambientPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			m_storageFramebuffer->framebuffer,
+			m_quad->bindings,
+			m_ambientProgram->bindings,
+			m_ambientProgram->setCount,
+			viewport,
+			DepthState{},
+			StencilState{},
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
+			FillState{ FillMode::Fill, 1.f }
+		);
+	}
+
+	{
+		// --- Directional
+		Shader* shaders[2] = { m_dirProgram->vertex, m_dirProgram->fragment };
+		m_dirPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			m_storageFramebuffer->framebuffer,
+			m_quad->bindings,
+			m_dirProgram->bindings,
+			m_dirProgram->setCount,
+			viewport,
+			DepthState{},
+			StencilState{},
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
+			FillState{ FillMode::Fill, 1.f }
+		);
+	}
+
+	{
+		// --- Skybox
+		Shader* shaders[2] = { m_skyboxProgram->vertex, m_skyboxProgram->fragment };
+		m_skyboxPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			m_storageDepthFramebuffer->framebuffer,
+			m_cube->bindings,
+			m_skyboxProgram->bindings,
+			1,
+			viewport,
+			DepthState{ DepthOp::LessOrEqual, false },
+			StencilState{},
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, 
+			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff }, 
+			FillState{ FillMode::Fill, 1.f } 
+		);
+	}
+
+	{
+		// --- Post process
+		// TODO get backbuffer fbDesc.
+		// TODO blit as it is for storage
+		FramebufferState fbDesc{};
+		fbDesc.colors[0].format = TextureFormat::BGRA8;
+		fbDesc.depth.format = TextureFormat::Depth32F;
+		fbDesc.count = 1;
+
+		Shader* shaders[2] = { m_postprocessProgram->vertex, m_postprocessProgram->fragment};
+		m_postPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			fbDesc,
+			m_quad->bindings,
+			m_postprocessProgram->bindings,
+			1,
+			viewport,
+			DepthState{},
+			StencilState{},
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
+			FillState{ FillMode::Fill, 1.f }
+		);
+	}
 }
 
 };

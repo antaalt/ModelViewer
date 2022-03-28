@@ -9,15 +9,20 @@ layout(location = 0) out vec4 o_color;
 
 layout(location = 0) in vec2 v_uv;
 
-layout(binding = 0) uniform sampler2D u_positionTexture;
-layout(binding = 1) uniform sampler2D u_albedoTexture;
-layout(binding = 2) uniform sampler2D u_normalTexture;
-layout(binding = 3) uniform sampler2D u_depthTexture;
-layout(binding = 4) uniform sampler2D u_materialTexture;
+layout(set = 0, binding = 0) uniform sampler2D u_positionTexture;
+layout(set = 0, binding = 1) uniform sampler2D u_albedoTexture;
+layout(set = 0, binding = 2) uniform sampler2D u_normalTexture;
+layout(set = 0, binding = 3) uniform sampler2D u_depthTexture;
+layout(set = 0, binding = 4) uniform sampler2D u_materialTexture;
 
-layout(binding = 5) uniform sampler2D u_shadowMap[SHADOW_CASCADE_COUNT];
+layout(set = 0, binding = 5) uniform CameraUniformBuffer {
+	mat4 u_view;
+	mat4 u_projection;
+	mat4 u_viewInverse;
+	mat4 u_projectionInverse;
+};
 
-layout (std140, binding = 0) uniform DirectionalLightUniformBuffer {
+layout (set = 1, binding = 0) uniform DirectionalLightUniformBuffer {
 	vec3 u_lightDirection;
 	float u_lightIntensity;
 	vec3 u_lightColor;
@@ -25,12 +30,7 @@ layout (std140, binding = 0) uniform DirectionalLightUniformBuffer {
 	float u_cascadeEndClipSpace[SHADOW_CASCADE_COUNT];
 };
 
-layout(std140, binding = 1) uniform CameraUniformBuffer {
-	mat4 u_view;
-	mat4 u_projection;
-	mat4 u_viewInverse;
-	mat4 u_projectionInverse;
-};
+layout(set = 1, binding = 1) uniform sampler2DArray u_shadowMap;
 
 vec2 poissonDisk[16] = vec2[](
 	vec2( -0.94201624, -0.39906216 ),
@@ -62,7 +62,7 @@ vec3 computeDirectionalShadows(vec3 from)
 {
 	const float bias = 0.0003; // Low value to avoid peter panning
 	vec3 visibility = vec3(1);
-	float diffusion[3] = float[](1000.f, 3000.f, 5000.f); // TODO parameter
+	float diffusion[3] = float[](1000.f, 3000.f, 5000.f); // TODO parameter relative to frustum size
 	for (int iCascade = 0; iCascade < SHADOW_CASCADE_COUNT; iCascade++)
 	{
 		// Small offset to blend cascades together smoothly
@@ -76,19 +76,32 @@ vec3 computeDirectionalShadows(vec3 from)
 				(iCascade == 2) ? 1.0 : 0.0
 			);
 #else
-			// PCF
-			const int pass = 16;
 			vec4 lightTextureSpace = u_worldToLightTextureSpace[iCascade] * vec4(from, 1.0);
 			lightTextureSpace /= lightTextureSpace.w;
+#if defined(AKA_FLIP_UV)
+			lightTextureSpace.y = 1.0 - lightTextureSpace.y;
+#endif
+	#if 0 // PCF
+			const int pass = 16;
 			for (int iPoisson = 0; iPoisson < 16; iPoisson++)
 			{
 				int index = int(16.0 * random(v_uv.xyy, iPoisson)) % 16;
 				vec2 uv = lightTextureSpace.xy + poissonDisk[index] / diffusion[iCascade];
-				if (texture(u_shadowMap[iCascade], uv).z < lightTextureSpace.z - bias)
+				if (texture(u_shadowMap, vec3(uv, iCascade)).r < lightTextureSpace.z - bias)
 				{
 					visibility -= 1.f / pass;
 				}
 			}
+	#else // Linear
+			//if (lightTextureSpace.z > -1.0 && lightTextureSpace.z < 1.0)
+			{
+				float dist = texture(u_shadowMap, vec3(lightTextureSpace.xy, iCascade)).r;
+				if (lightTextureSpace.w > 0 && dist < lightTextureSpace.z - bias)
+				{
+					visibility = vec3(0);
+				}
+			}
+	#endif
 #endif
 			break;
 		}
@@ -116,10 +129,11 @@ void main(void)
 	vec3 visibility = computeDirectionalShadows(position);
 
 	// Shading
-	float distance = 1.0;
+	float distance = 1.0; // TODO use physical data (sun distance & intensity)
 	float attenuation = 1.0 / (distance * distance);
 	vec3 radiance = u_lightColor * u_lightIntensity * attenuation;
 
 	vec3 Lo = BRDF(albedo, metalness, roughness, L, V, N) * radiance * visibility;
+	//Lo = texture(u_shadowMap, vec3(v_uv, 0)).rgb;
 	o_color = vec4(Lo, 1);
 }

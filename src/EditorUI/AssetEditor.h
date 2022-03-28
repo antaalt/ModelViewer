@@ -11,7 +11,7 @@ public:
 	void onCreate(aka::World& world) override;
 	void onDestroy(aka::World& world) override;
 	void onUpdate(aka::World& world, aka::Time deltaTime) override;
-	void onRender(aka::World& world) override;
+	void onRender(aka::World& world, aka::Frame* frame) override;
 private:
 	void import(std::function<bool(const aka::Path&)> callback); // TODO add extension filter
 	//void drawResource(const char* type, aka::ResourceAllocator<T>& resources);

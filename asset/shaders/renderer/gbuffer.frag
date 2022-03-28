@@ -10,9 +10,9 @@ layout (location = 1) in vec3 v_normal;
 layout (location = 2) in vec2 v_uv;
 layout (location = 3) in vec4 v_color;
 
-layout (binding = 0) uniform sampler2D u_colorTexture;
-layout (binding = 1) uniform sampler2D u_normalTexture;
-layout (binding = 2) uniform sampler2D u_materialTexture;
+layout (set = 1, binding = 1) uniform sampler2D u_colorTexture;
+layout (set = 1, binding = 2) uniform sampler2D u_normalTexture;
+layout (set = 1, binding = 3) uniform sampler2D u_materialTexture;
 
 void main(void)
 {
@@ -51,7 +51,7 @@ void main(void)
 	}
 
 	o_position = v_position;
-	o_normal = normal;
+	o_normal = normal; // TODO store normal in 0 1 to support unsigned format
 	o_albedo = albedo;
-	o_roughness = texture(u_materialTexture, v_uv).rgb;
+	o_roughness = texture(u_materialTexture, v_uv).rgb; // RHM
 }

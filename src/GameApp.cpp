@@ -42,7 +42,7 @@ void Game::onResize(uint32_t width, uint32_t height)
 {
 }
 
-void Game::onRender()
+void Game::onRender(Frame* frame)
 {
 }
 

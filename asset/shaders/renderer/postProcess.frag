@@ -6,7 +6,7 @@ layout(location = 0) in vec2 v_uv;
 
 layout(binding = 0) uniform sampler2D u_inputTexture;
 
-layout(std140, binding = 0) uniform ViewportUniformBuffer {
+layout(binding = 1) uniform ViewportUniformBuffer {
 	vec2 u_screen;
 };
 
@@ -61,6 +61,42 @@ vec3 fxaa()
 		return rgbB;
 }
 
+// From https://github.com/Unity-Technologies/PostProcessing/
+// blob/v2/PostProcessing/Shaders/Builtins/DiskKernels.hlsl
+const int kernelSampleCount = 16;
+vec2 kernel[kernelSampleCount] = vec2[](
+	vec2(0, 0),
+	vec2(0.54545456, 0),
+	vec2(0.16855472, 0.5187581),
+	vec2(-0.44128203, 0.3206101),
+	vec2(-0.44128197, -0.3206102),
+	vec2(0.1685548, -0.5187581),
+	vec2(1, 0),
+	vec2(0.809017, 0.58778524),
+	vec2(0.30901697, 0.95105654),
+	vec2(-0.30901703, 0.9510565),
+	vec2(-0.80901706, 0.5877852),
+	vec2(-1, 0),
+	vec2(-0.80901694, -0.58778536),
+	vec2(-0.30901664, -0.9510566),
+	vec2(0.30901712, -0.9510565),
+	vec2(0.80901694, -0.5877853)
+);
+
+vec3 dof()
+{
+	vec3 color = vec3(0);
+	for (int u = -4; u <= 4; u++) {
+		for (int v = -4; v <= 4; v++) {
+			vec2 o = vec2(u, v) * 1.0 / u_screen * 2.0;
+			if (length(o) <= 4)
+			color += texture(u_inputTexture, v_uv + o).rgb;
+		}
+	}
+	color *= 1.0 / 81;
+	return color;
+}
+
 vec3 ACESFilm(vec3 x)
 {
 	const float a = 2.51f;
@@ -73,10 +109,12 @@ vec3 ACESFilm(vec3 x)
 
 void main()
 {
-	vec3 antialiased = fxaa();
+	vec3 color = fxaa();
+
+	//vec3 color = dof();
 	// Tonemapping
 	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-	vec3 color = ACESFilm(antialiased); // ACES approximation tonemapping
+	color = ACESFilm(color); // ACES approximation tonemapping
 	//color = color / (color + vec3(1.0)); // Reinhard operator
 
 	// Gamma correction

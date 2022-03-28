@@ -6,10 +6,6 @@ namespace app {
 
 using namespace aka;
 
-struct alignas(16) LightModelUniformBuffer {
-	alignas(16) mat4f model;
-};
-
 struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) mat4f light;
 };
@@ -23,47 +19,123 @@ struct alignas(16) PointLightUniformBuffer {
 void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	DirectionalLightComponent& l = registry.get<DirectionalLightComponent>(entity);
-	l.shadowMap[0] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	l.shadowMap[1] = Texture2D::create(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	l.shadowMap[2] = Texture2D::create(4096, 4096, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.shadowMap = Texture::create2DArray(
+		DirectionalLightComponent::cascadeResolution, 
+		DirectionalLightComponent::cascadeResolution, 
+		DirectionalLightComponent::cascadeCount, 
+		TextureFormat::Depth, 
+		TextureFlag::RenderTarget | TextureFlag::ShaderResource
+	);
+	for (uint32_t iLayer = 0; iLayer < DirectionalLightComponent::cascadeCount; iLayer++)
+	{
+		// TODO use push constant to send cascade index instead.
+		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
+		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, iLayer, 0 };
+		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
+		l.descriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowDirectional")->bindings[0]);
+		l.descriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
+	}
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
 }
 
 void onDirectionalLightDestroy(entt::registry& registry, entt::entity entity)
 {
-	// nothing to do here
+	DirectionalLightComponent& l = registry.get<DirectionalLightComponent>(entity);
+	for (uint32_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
+	{
+		Buffer::destroy(l.ubo[i]);
+		Framebuffer::destroy(l.framebuffer[i]);
+		DescriptorSet::destroy(l.descriptorSet[i]);
+	}
+	Texture::destroy(l.shadowMap);
 }
 
 void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
-	l.shadowMap = TextureCubeMap::create(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.shadowMap = Texture::createCubemap(PointLightComponent::faceResolution, PointLightComponent::faceResolution, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.ubo = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
+	Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, 0, 0 };
+	l.framebuffer = Framebuffer::create(nullptr, 0, &shadowAttachment);
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
 }
 
 void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 {
-	// nothing to do here
+	PointLightComponent& l = registry.get<PointLightComponent>(entity);
+	Buffer::destroy(l.ubo);
+	Framebuffer::destroy(l.framebuffer);
+	Texture::destroy(l.shadowMap);
 }
 
 void ShadowMapSystem::onCreate(aka::World& world)
 {
-	ProgramManager* program = Application::program();
-	m_shadowMaterial = Material::create(program->get("shadowDirectional"));
-	m_shadowPointMaterial = Material::create(program->get("shadowPoint"));
+	Application* app = Application::app();
+	ProgramManager* program = app->program();
+	GraphicDevice* device = app->graphic();
 
-	GraphicDevice* device = Application::graphic();
-	Backbuffer::Ptr backbuffer = device->backbuffer();
-	Texture::Ptr dummyDepth = Texture2D::create(1, 1, TextureFormat::Depth, TextureFlag::RenderTarget);
-	Attachment shadowAttachments[] = {
-		Attachment{ AttachmentType::Depth, dummyDepth, AttachmentFlag::None, 0, 0 }
-	};
-	m_shadowFramebuffer = Framebuffer::create(shadowAttachments, 1);
-	m_modelUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(LightModelUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	m_pointLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	m_directionalLightUniformBuffer = Buffer::create(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	FramebufferState fbDesc;
+	fbDesc.colors[0].format = TextureFormat::Unknown;
+	fbDesc.depth.format = TextureFormat::Depth;
+	fbDesc.count = 0;
+
+	// TODO do not need as many bindings
+	VertexBindingState vertexBindings{};
+	vertexBindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	vertexBindings.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
+	vertexBindings.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
+	vertexBindings.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+	vertexBindings.count = 4;
+	vertexBindings.offsets[0] = offsetof(Vertex, position);
+	vertexBindings.offsets[1] = offsetof(Vertex, normal);
+	vertexBindings.offsets[2] = offsetof(Vertex, texcoord);
+	vertexBindings.offsets[3] = offsetof(Vertex, color);
+
+	{
+		m_shadowProgram = program->get("shadowDirectional");
+		Rect rectDir = Rect{ 0, 0, DirectionalLightComponent::cascadeResolution, DirectionalLightComponent::cascadeResolution };
+		ViewportState viewportDir{ rectDir, rectDir };
+		Shader* shaders[2] = { m_shadowProgram->vertex, m_shadowProgram->fragment };
+		m_shadowPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			fbDesc,
+			vertexBindings,
+			m_shadowProgram->bindings,
+			m_shadowProgram->setCount,
+			viewportDir,
+			DepthState{ DepthOp::Less, true },
+			StencilState{}, // TODO None
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, // TODO None
+			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff }, // TODO None
+			FillState{ FillMode::Fill, 1.f } // TODO None
+		);
+	}
+
+	{
+		m_shadowPointProgram = program->get("shadowPoint");
+		Rect rectPoint = Rect{ 0, 0, PointLightComponent::faceResolution, PointLightComponent::faceResolution };
+		ViewportState viewportPoint{ rectPoint, rectPoint };
+		Shader* shadersPoint[2] = { m_shadowPointProgram->vertex, m_shadowPointProgram->fragment };
+		m_shadowPointPipeline = device->createPipeline(
+			shadersPoint,
+			2,
+			PrimitiveType::Triangles,
+			fbDesc,
+			vertexBindings,
+			m_shadowPointProgram->bindings,
+			m_shadowPointProgram->setCount,
+			viewportPoint,
+			DepthState{ DepthOp::Less, true },
+			StencilState{}, // TODO None
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, // TODO None
+			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff }, // TODO None
+			FillState{ FillMode::Fill, 1.f } // TODO None
+		);
+	}
 
 	world.registry().on_construct<DirectionalLightComponent>().connect<&onDirectionalLightConstruct>();
 	world.registry().on_destroy<DirectionalLightComponent>().connect<&onDirectionalLightDestroy>();
@@ -73,55 +145,63 @@ void ShadowMapSystem::onCreate(aka::World& world)
 
 void ShadowMapSystem::onDestroy(aka::World& world)
 {
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+
 	world.registry().on_construct<DirectionalLightComponent>().disconnect<&onDirectionalLightConstruct>();
 	world.registry().on_destroy<DirectionalLightComponent>().disconnect<&onDirectionalLightDestroy>();
 	world.registry().on_construct<PointLightComponent>().disconnect<&onPointLightConstruct>();
 	world.registry().on_destroy<PointLightComponent>().disconnect<&onPointLightDestroy>();
+
+	device->destroy(m_shadowPipeline);
+	device->destroy(m_shadowPointPipeline);
+	device->destroy(m_shadowProgram);
+	device->destroy(m_shadowPointProgram);
 }
 
 // Compute the shadow projection around the view projection.
 mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projection, uint32_t resolution, const vec3f& lightDirWorld)
 {
-	frustum<> f = frustum<>::fromProjection(projection * view);
-	point3f centerWorld = f.center();
+	mat4f clipToWorld = mat4f::inverse(projection * view);
+	frustum<> f = frustum<>::fromInverseProjection(clipToWorld); // Frustum corners in world space
+
+	point3f frustumCenter = f.center();
 	// http://alextardif.com/shadowmapping.html
-	vec3f extentDepth = f.corners[0] - f.corners[7];
-	vec3f extentWidth = f.corners[1] - f.corners[7];
-	vec3f e = vec3f(
-		max(abs(extentDepth.x), abs(extentWidth.x)),
-		max(abs(extentDepth.y), abs(extentWidth.y)),
-		max(abs(extentDepth.z), abs(extentWidth.z))
-	);
-	float radius = e.norm() / 2.f;
-	float texelsPerUnit = (float)resolution / (radius * 2.f);
+	float frustumRadius = f.radius();
+	float texelsPerUnit = (float)resolution / (frustumRadius * 2.f);
 
 	mat4f lookAt = mat4f::lookAtView(point3f(0.f), point3f(-lightDirWorld), norm3f(0, 1, 0));
 	mat4f scalar = mat4f::scale(vec3f(texelsPerUnit));
 	lookAt *= scalar;
 	mat4f lookAtInverse = mat4f::inverse(lookAt);
 
-	centerWorld = lookAt * centerWorld;
-	centerWorld.x = floor(centerWorld.x);
-	centerWorld.y = floor(centerWorld.y);
-	centerWorld = lookAtInverse * centerWorld;
+	// Snap frustum center to texel grid
+	point3f newFrustumCenter = lookAt * frustumCenter;
+	newFrustumCenter.x = floor(newFrustumCenter.x);
+	newFrustumCenter.y = floor(newFrustumCenter.y);
+	newFrustumCenter = lookAtInverse * newFrustumCenter;
 
-	point3f eye = centerWorld + (lightDirWorld * radius * 2.f);
+	vec3f offset = newFrustumCenter - frustumCenter; // old + offset = new
+	//offset.norm(); // TODO take offset into account instead of * 2 ?
+	
+	// Get view matrix
+	point3f eye = newFrustumCenter + (lightDirWorld * frustumRadius * 2.f);
+	mat4f lightViewMatrix = mat4f::lookAtView(eye, newFrustumCenter, norm3f(0, 1, 0));
 
-	mat4f lightViewMatrix = mat4f::lookAtView(eye, centerWorld, norm3f(0, 1, 0));
-
+	// Get projection matrix
 	float scale = 6.f; // scalar to improve depth so that we don't miss shadow of tall objects
+	// TODO Ideally, compute the scale using some scene bounds data.
 	mat4 lightProjectionMatrix = mat4f::orthographic(
-		-radius, radius,
-		-radius, radius,
-		-radius * scale, radius * scale
+		-frustumRadius, frustumRadius,
+		-frustumRadius, frustumRadius,
+		-frustumRadius * scale, frustumRadius * scale
 	);
 	return lightProjectionMatrix * lightViewMatrix;
 }
 
-void ShadowMapSystem::onRender(aka::World& world)
+void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 {
-	GraphicDevice* device = Application::graphic();
-	Backbuffer::Ptr backbuffer = device->backbuffer();
+	GraphicDevice* device = Application::app()->graphic();
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -131,14 +211,15 @@ void ShadowMapSystem::onRender(aka::World& world)
 	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(camera.projection.get());
 	AKA_ASSERT(perspective != nullptr, "Only support perspective camera for now.");
 
-	m_shadowPointMaterial->set("LightModelUniformBuffer", m_modelUniformBuffer);
-	m_shadowPointMaterial->set("PointLightUniformBuffer", m_pointLightUniformBuffer);
-	m_shadowMaterial->set("LightModelUniformBuffer", m_modelUniformBuffer);
-	m_shadowMaterial->set("DirectionalLightUniformBuffer", m_directionalLightUniformBuffer);
+	CommandList* cmd = frame->commandList;
 
 	// --- Shadow map system
 	auto pointLightUpdate = world.registry().view<DirtyLightComponent, PointLightComponent>();
 	auto dirLightUpdate = world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
+	/*
+
+	cmd->bindPipeline(m_shadowPointPipeline);
+	
 	for (entt::entity e : pointLightUpdate)
 	{
 		Transform3DComponent& lightTransform = world.registry().get<Transform3DComponent>(e);
@@ -154,40 +235,36 @@ void ShadowMapSystem::onRender(aka::World& world)
 		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, 1.0), norm3f(0.0, -1.0, 0.0));
 		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, -1.0), norm3f(0.0, -1.0, 0.0));
 
-		RenderPass shadowPass;
-		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.material = m_shadowPointMaterial;
-		shadowPass.clear = Clear::none;
-		shadowPass.blend = Blending::none;
-		shadowPass.depth = Depth{ DepthCompare::Less, true };
-		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		shadowPass.stencil = Stencil::none;
-		shadowPass.viewport = aka::Rect{ 0 };
-		shadowPass.scissor = aka::Rect{ 0 };
-
 		// Update light ubo
 		PointLightUniformBuffer pointUBO;
 		pointUBO.far = light.radius;
 		pointUBO.lightPos = lightPos;
+		for (int i = 0; i < 6; ++i)
+			pointUBO.lightView[i] = light.worldToLightSpaceMatrix[i];
+		device->upload(light.ubo, &pointUBO, 0, light.ubo->size);
+		m_shadowPointMaterial->setUniformBuffer(0, light.ubo);
 
-		LightModelUniformBuffer modelUBO;
-		auto view = world.registry().view<Transform3DComponent, MeshComponent>();
+		auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
 		for (int i = 0; i < 6; ++i)
 		{
-			pointUBO.lightView = light.worldToLightSpaceMatrix[i];
-			m_pointLightUniformBuffer->upload(&pointUBO);
 			// Set output target and clear it.
-			shadowPass.framebuffer->set(AttachmentType::Depth, light.shadowMap, AttachmentFlag::None, i);
-			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-				modelUBO.model = transform.transform;
-				m_modelUniformBuffer->upload(&modelUBO);
-				shadowPass.submesh = mesh.submesh;
-				shadowPass.execute();
+			m_shadowFramebuffer->depth.layer = i;
+			cmd->beginRenderPass(light.framebuffer, ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
+			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
+				m_shadowPointMaterial->setUniformBuffer(0, render.ubo);
+
+				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
+				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
+				cmd->bindMaterial(m_shadowPointMaterial);
+
+				cmd->drawIndexed(mesh.mesh->count, 0, 0, 1);
 			});
+			cmd->endRenderPass();
 		}
 		world.registry().remove<DirtyLightComponent>(e);
-	}
+	}*/
+
+	cmd->bindPipeline(m_shadowPipeline);
 
 	for (entt::entity e : dirLightUpdate)
 	{
@@ -197,45 +274,40 @@ void ShadowMapSystem::onRender(aka::World& world)
 		// Generate shadow cascades
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
-			float w = (float)backbuffer->width();
-			float h = (float)backbuffer->height();
+			float w = (float)Application::app()->width();
+			float h = (float)Application::app()->height();
 			float n = offset[i];
 			float f = offset[i + 1];
 			mat4f p = mat4f::perspective(perspective->hFov, w / h, n, f);
-			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap[i]->width(), light.direction);
+			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap->width, light.direction);
 			vec4f clipSpace = projection * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 			light.cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 		}
 
-		RenderPass shadowPass;
-		shadowPass.framebuffer = m_shadowFramebuffer;
-		shadowPass.material = m_shadowMaterial;
-		shadowPass.clear = Clear::none;
-		shadowPass.blend = Blending::none;
-		shadowPass.depth = Depth{ DepthCompare::Less, true };
-		shadowPass.cull = Culling{ CullMode::BackFace, CullOrder::CounterClockWise };
-		shadowPass.stencil = Stencil::none;
-		shadowPass.viewport = aka::Rect{ 0 };
-		shadowPass.scissor = aka::Rect{ 0 };
+
 		for (size_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 		{
-			m_shadowFramebuffer->set(AttachmentType::Depth, light.shadowMap[i]);
-			m_shadowFramebuffer->clear(color4f(1.f), 1.f, 0, ClearMask::Depth);
-			DirectionalLightUniformBuffer lightUBO;
+			DirectionalLightUniformBuffer lightUBO{};
 			lightUBO.light = light.worldToLightSpaceMatrix[i];
-			m_directionalLightUniformBuffer->upload(&lightUBO);
+			device->upload(light.ubo[i], &lightUBO, 0, light.ubo[i]->size);
+			device->update(light.descriptorSet[i]); // TODO only once
 
-			LightModelUniformBuffer modelUBO;
-			auto view = world.registry().view<Transform3DComponent, MeshComponent>();
-			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh) {
-				frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
-				if (!p.intersect(transform.transform * mesh.bounds))
-					return;
-				modelUBO.model = transform.transform;
-				m_modelUniformBuffer->upload(&modelUBO);
-				shadowPass.submesh = mesh.submesh;
-				shadowPass.execute();
+			cmd->beginRenderPass(light.framebuffer[i], ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
+
+			auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
+			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
+				//frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
+				//if (!p.intersect(transform.transform * mesh.bounds))
+				//	return;
+
+				DescriptorSet* descriptorSets[2] = { render.matrices, light.descriptorSet[i] };
+				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
+				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
+				cmd->bindDescriptorSets(descriptorSets, 2);
+
+				cmd->drawIndexed(mesh.mesh->count, 0, 0, 1);
 			});
+			cmd->endRenderPass();
 		}
 		world.registry().remove<DirtyLightComponent>(e);
 	}
@@ -243,10 +315,11 @@ void ShadowMapSystem::onRender(aka::World& world)
 
 void ShadowMapSystem::onReceive(const ProgramReloadedEvent& e)
 {
+	// TODO fix this
 	if (e.name == "shadowDirectional")
-		m_shadowMaterial = Material::create(e.program);
+		m_shadowProgram = e.program;
 	else if (e.name == "shadowPoint")
-		m_shadowPointMaterial = Material::create(e.program);
+		m_shadowPointProgram = e.program;
 }
 
 };

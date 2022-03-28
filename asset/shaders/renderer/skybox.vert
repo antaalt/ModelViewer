@@ -4,7 +4,7 @@ layout (location = 0) in vec3 a_position;
 
 layout (location = 0) out vec3 v_uv;
 
-layout(std140, binding = 0) uniform CameraUniformBuffer {
+layout(binding = 0) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
 	mat4 u_viewInverse;

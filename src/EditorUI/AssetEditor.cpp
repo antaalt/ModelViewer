@@ -45,7 +45,8 @@ void AssetEditor::onUpdate(aka::World& world, Time deltaTime)
 template <typename T>
 static void drawResource(const char* type, AssetViewerEditor<T>* viewer)
 {
-	aka::ResourceAllocator<T>& resources = Application::resource()->allocator<T>();
+	Application* app = Application::app();
+	aka::ResourceAllocator<T>& resources = app->resource()->allocator<T>();
 	bool opened = false;
 	std::pair<String, Resource<T>> pair;
 	ImGui::TableNextRow();
@@ -86,9 +87,10 @@ static void drawResource(const char* type, AssetViewerEditor<T>* viewer)
 		viewer->set(pair.first, pair.second);
 }
 
-void AssetEditor::onRender(aka::World& world)
+void AssetEditor::onRender(aka::World& world, aka::Frame* frame)
 {
-	ResourceManager* resources = Application::resource();
+	Application* app = Application::app();
+	ResourceManager* resources = app->resource();
 	// store every texture, mesh & things, responsible of loading and unloading files
 	if (ImGui::Begin("Assets", nullptr, ImGuiWindowFlags_MenuBar))
 	{
@@ -281,7 +283,7 @@ void AssetEditor::onRender(aka::World& world)
 	ImGui::End();
 
 	for (EditorWindow* viewer : m_viewers)
-		viewer->onRender(world);
+		viewer->onRender(world, frame);
 }
 
 };

@@ -146,14 +146,14 @@ void SceneSystem::onUpdate(aka::World& world, aka::Time deltaTime)
 	// --- Update camera ratio
 	// TODO use event instead
 	auto cameraView = world.registry().view<Camera3DComponent>();
-	GraphicDevice* device = Application::graphic();
-	Framebuffer::Ptr backbuffer = device->backbuffer();
+	Application* app = Application::app();
+	//Framebuffer* backbuffer = device->backbuffer();
 	for (entt::entity entity : cameraView)
 	{
 		Camera3DComponent& camera = world.registry().get<Camera3DComponent>(entity);
 		aka::CameraPerspective* proj = dynamic_cast<aka::CameraPerspective*>(camera.projection.get());
 		if (proj != nullptr)
-			proj->ratio = backbuffer->width() / (float)backbuffer->height();
+			proj->ratio = app->width() / (float)app->height();
 	}
 }
 
