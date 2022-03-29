@@ -55,9 +55,15 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
 	l.shadowMap = Texture::createCubemap(PointLightComponent::faceResolution, PointLightComponent::faceResolution, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-	l.ubo = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
-	Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, 0, 0 };
-	l.framebuffer = Framebuffer::create(nullptr, 0, &shadowAttachment);
+
+	for (uint32_t iLayer = 0; iLayer < 6; iLayer++)
+	{
+		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
+		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, iLayer, 0 };
+		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
+		l.renderDescriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
+		l.renderDescriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
+	}
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
 }
@@ -65,8 +71,11 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 {
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
-	Buffer::destroy(l.ubo);
-	Framebuffer::destroy(l.framebuffer);
+	for (uint32_t iLayer = 0; iLayer < 6; iLayer++)
+	{
+		Buffer::destroy(l.ubo[iLayer]);
+		Framebuffer::destroy(l.framebuffer[iLayer]);
+	}
 	Texture::destroy(l.shadowMap);
 }
 
@@ -216,7 +225,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 	// --- Shadow map system
 	auto pointLightUpdate = world.registry().view<DirtyLightComponent, PointLightComponent>();
 	auto dirLightUpdate = world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
-	/*
+	
 
 	cmd->bindPipeline(m_shadowPointPipeline);
 	
@@ -239,30 +248,32 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 		PointLightUniformBuffer pointUBO;
 		pointUBO.far = light.radius;
 		pointUBO.lightPos = lightPos;
-		for (int i = 0; i < 6; ++i)
-			pointUBO.lightView[i] = light.worldToLightSpaceMatrix[i];
-		device->upload(light.ubo, &pointUBO, 0, light.ubo->size);
-		m_shadowPointMaterial->setUniformBuffer(0, light.ubo);
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			pointUBO.lightView = light.worldToLightSpaceMatrix[i];
+			device->upload(light.ubo[i], &pointUBO, 0, light.ubo[i]->size);
+			AKA_ASSERT(light.ubo[i]->size == sizeof(PointLightUniformBuffer), "Invalid sizes");
+		}
 
 		auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
-		for (int i = 0; i < 6; ++i)
+
+		for (uint32_t iLayer = 0; iLayer < 6; ++iLayer) // for each faces
 		{
 			// Set output target and clear it.
-			m_shadowFramebuffer->depth.layer = i;
-			cmd->beginRenderPass(light.framebuffer, ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
+			cmd->beginRenderPass(light.framebuffer[iLayer], ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
-				m_shadowPointMaterial->setUniformBuffer(0, render.ubo);
 
+				DescriptorSet* sets[2] = { render.matrices, light.renderDescriptorSet[iLayer] };
 				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
 				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
-				cmd->bindMaterial(m_shadowPointMaterial);
+				cmd->bindDescriptorSets(sets, 2);
 
 				cmd->drawIndexed(mesh.mesh->count, 0, 0, 1);
 			});
 			cmd->endRenderPass();
 		}
-		world.registry().remove<DirtyLightComponent>(e);
-	}*/
+		//world.registry().remove<DirtyLightComponent>(e);
+	}
 
 	cmd->bindPipeline(m_shadowPipeline);
 
@@ -296,9 +307,9 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 
 			auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
-				//frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
-				//if (!p.intersect(transform.transform * mesh.bounds))
-				//	return;
+				frustum<>::planes p = frustum<>::extract(light.worldToLightSpaceMatrix[i]);
+				if (!p.intersect(transform.transform * mesh.bounds))
+					return;
 
 				DescriptorSet* descriptorSets[2] = { render.matrices, light.descriptorSet[i] };
 				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);

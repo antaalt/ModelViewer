@@ -81,19 +81,22 @@ vec3 computeDirectionalShadows(vec3 from)
 #if defined(AKA_FLIP_UV)
 			lightTextureSpace.y = 1.0 - lightTextureSpace.y;
 #endif
-	#if 0 // PCF
+	#if 1 // PCF
 			const int pass = 16;
-			for (int iPoisson = 0; iPoisson < 16; iPoisson++)
+			if (lightTextureSpace.z > -1.0 && lightTextureSpace.z < 1.0)
 			{
-				int index = int(16.0 * random(v_uv.xyy, iPoisson)) % 16;
-				vec2 uv = lightTextureSpace.xy + poissonDisk[index] / diffusion[iCascade];
-				if (texture(u_shadowMap, vec3(uv, iCascade)).r < lightTextureSpace.z - bias)
+				for (int iPoisson = 0; iPoisson < 16; iPoisson++)
 				{
-					visibility -= 1.f / pass;
+					int index = int(16.0 * random(v_uv.xyy, iPoisson)) % 16;
+					vec2 uv = lightTextureSpace.xy + poissonDisk[index] / diffusion[iCascade];
+					if (texture(u_shadowMap, vec3(uv, iCascade)).r < lightTextureSpace.z - bias)
+					{
+						visibility -= 1.f / pass;
+					}
 				}
 			}
 	#else // Linear
-			//if (lightTextureSpace.z > -1.0 && lightTextureSpace.z < 1.0)
+			if (lightTextureSpace.z > -1.0 && lightTextureSpace.z < 1.0)
 			{
 				float dist = texture(u_shadowMap, vec3(lightTextureSpace.xy, iCascade)).r;
 				if (lightTextureSpace.w > 0 && dist < lightTextureSpace.z - bias)

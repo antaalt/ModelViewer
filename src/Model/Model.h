@@ -61,10 +61,11 @@ struct PointLightComponent {
 	// Rendering
 	static constexpr size_t faceResolution = 1024;
 	mat4f worldToLightSpaceMatrix[6];
-	Framebuffer* framebuffer;
+	Framebuffer* framebuffer[6];
 	Texture* shadowMap;
 	float radius;
-	Buffer* ubo;
+	Buffer* ubo[6];
+	DescriptorSet* renderDescriptorSet[6];
 };
 
 // with a preetham component or something, we can emulate sky

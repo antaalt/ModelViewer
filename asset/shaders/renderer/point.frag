@@ -12,32 +12,33 @@ layout(location = 1) in vec2 v_uv;
 #define v_uv (gl_FragCoord.xy / u_screen)
 #endif
 
-layout(binding = 0) uniform sampler2D u_positionTexture;
-layout(binding = 1) uniform sampler2D u_albedoTexture;
-layout(binding = 2) uniform sampler2D u_normalTexture;
-layout(binding = 3) uniform sampler2D u_materialTexture;
+layout(set = 0, binding = 0) uniform sampler2D u_positionTexture;
+layout(set = 0, binding = 1) uniform sampler2D u_albedoTexture;
+layout(set = 0, binding = 2) uniform sampler2D u_normalTexture;
+layout(set = 0, binding = 3) uniform sampler2D u_depthTexture;
+layout(set = 0, binding = 4) uniform sampler2D u_materialTexture;
 
-layout(binding = 4) uniform samplerCube u_shadowMap;
-
-layout(std140, binding = 0) uniform CameraUniformBuffer {
+layout(set = 0, binding = 5) uniform CameraUniformBuffer {
 	mat4 u_view;
 	mat4 u_projection;
 	mat4 u_viewInverse;
 	mat4 u_projectionInverse;
 };
 
-layout(std140, binding = 2) uniform PointLightUniformBuffer {
+#ifndef QUAD
+layout(set = 0, binding = 7) uniform ViewportUniformBuffer {
+	vec2 u_screen;
+};
+#endif
+
+layout(set = 1, binding = 0) uniform samplerCube u_shadowMap;
+
+layout(set = 1, binding = 1) uniform PointLightUniformBuffer {
 	vec3 u_lightPosition;
 	float u_lightIntensity;
 	vec3 u_lightColor;
 	float u_farPointLight;
 };
-
-#ifndef QUAD
-layout(std140, binding = 3) uniform ViewportUniformBuffer {
-	vec2 u_screen;
-};
-#endif
 
 vec3 sampleOffsetDirections[20] = vec3[]
 (
