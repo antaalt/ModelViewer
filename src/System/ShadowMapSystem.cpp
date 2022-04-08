@@ -30,7 +30,7 @@ void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 	{
 		// TODO use push constant to send cascade index instead.
 		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
-		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, iLayer, 0 };
+		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
 		l.descriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowDirectional")->bindings[0]);
 		l.descriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
@@ -59,7 +59,7 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 	for (uint32_t iLayer = 0; iLayer < 6; iLayer++)
 	{
 		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
-		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, iLayer, 0 };
+		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
 		l.renderDescriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
 		l.renderDescriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
@@ -75,6 +75,7 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 	{
 		Buffer::destroy(l.ubo[iLayer]);
 		Framebuffer::destroy(l.framebuffer[iLayer]);
+		DescriptorSet::destroy(l.renderDescriptorSet[iLayer]);
 	}
 	Texture::destroy(l.shadowMap);
 }
@@ -164,8 +165,6 @@ void ShadowMapSystem::onDestroy(aka::World& world)
 
 	device->destroy(m_shadowPipeline);
 	device->destroy(m_shadowPointPipeline);
-	device->destroy(m_shadowProgram);
-	device->destroy(m_shadowPointProgram);
 }
 
 // Compute the shadow projection around the view projection.

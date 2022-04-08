@@ -211,8 +211,9 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_depth);
 	device->destroy(m_material);
 	device->destroy(m_gbuffer);
-	device->destroy(m_gbufferProgram);
 	device->destroy(m_viewDescriptorSet);
+	device->destroy(m_defaultSampler);
+	device->destroy(m_shadowSampler);
 
 	// Lighing pass
 	device->destroy(m_quad->indices);
@@ -220,11 +221,8 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_sphere->indices);
 	device->destroy(m_sphere->vertices[0]);
 	device->destroy(m_ambientPipeline);
-	device->destroy(m_ambientProgram);
 	device->destroy(m_ambientDescriptorSet);
-	//device->destroy(m_pointProgram);
 	//device->destroy(m_pointDescriptorSet);
-	device->destroy(m_dirProgram);
 	device->destroy(m_dirDescriptorSet);
 	device->destroy(m_dirPipeline);
 
@@ -232,15 +230,16 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_cube->indices);
 	device->destroy(m_cube->vertices[0]);
 	device->destroy(m_skybox);
-	device->destroy(m_skyboxProgram);
 	device->destroy(m_skyboxDescriptorSet);
+	device->destroy(m_skyboxSampler);
 
 	// Post process pass
-	//device->destroy(m_storageDepth);
 	device->destroy(m_storage);
 	device->destroy(m_storageFramebuffer);
-	device->destroy(m_postprocessProgram);
+	device->destroy(m_storageDepthFramebuffer);
 	device->destroy(m_postprocessDescriptorSet);
+
+	// program and shaders self destroyed
 }
 
 void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
@@ -594,10 +593,10 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	cmd->bindPipeline(m_postPipeline);
 	cmd->bindDescriptorSet(0, m_postprocessDescriptorSet);
 	cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
-	cmd->bindIndexBuffer(m_quad->indices, IndexFormat::UnsignedShort, 0);
+	cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
 
 	cmd->beginRenderPass(backbuffer, ClearState{});
-	cmd->drawIndexed(6, 0, 0, 1);
+	cmd->drawIndexed(m_quad->count, 0, 0, 1);
 	cmd->endRenderPass();
 
 	// Set depth for UI elements
@@ -668,12 +667,12 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_normal = Texture::create2D(width, height, fbDesc.colors[2].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
 		m_material = Texture::create2D(width, height, fbDesc.colors[3].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
 		Attachment colorAttachments[] = {
-			Attachment{ m_position, AttachmentFlag::None, 0, 0 },
-			Attachment{ m_albedo, AttachmentFlag::None, 0, 0 },
-			Attachment{ m_normal, AttachmentFlag::None, 0, 0 },
-			Attachment{ m_material, AttachmentFlag::None, 0, 0 }
+			Attachment{ m_position, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
+			Attachment{ m_albedo, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
+			Attachment{ m_normal, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
+			Attachment{ m_material, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 }
 		};
-		Attachment depthAttachment = Attachment{ m_depth, AttachmentFlag::None,  0, 0 };
+		Attachment depthAttachment = Attachment{ m_depth, AttachmentFlag::None, AttachmentLoadOp::Clear,  0, 0 };
 		m_gbuffer = device->createFramebuffer(colorAttachments, sizeof(colorAttachments) / sizeof(Attachment), &depthAttachment);
 
 		m_gbufferVertices.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
@@ -707,10 +706,10 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// --- Storage
 		//m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
 		m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		Attachment depth = Attachment{ m_depth, AttachmentFlag::Load, 0, 0 };
-		Attachment color = Attachment{ m_storage, AttachmentFlag::None, 0, 0 };
+		Attachment depth = Attachment{ m_depth, AttachmentFlag::None, AttachmentLoadOp::Load, 0, 0 };
+		Attachment color = Attachment{ m_storage, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 };
 		m_storageFramebuffer = device->createFramebuffer(&color, 1, nullptr);
-		color.flag = AttachmentFlag::Load;
+		color.loadOp = AttachmentLoadOp::Load;
 		m_storageDepthFramebuffer = device->createFramebuffer(&color, 1, &depth);
 	}
 	{
@@ -779,7 +778,9 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// TODO blit as it is for storage
 		FramebufferState fbDesc{};
 		fbDesc.colors[0].format = TextureFormat::BGRA8;
+		fbDesc.colors[0].loadOp = AttachmentLoadOp::Load;
 		fbDesc.depth.format = TextureFormat::Depth32F;
+		fbDesc.depth.loadOp = AttachmentLoadOp::Load;
 		fbDesc.count = 1;
 
 		Shader* shaders[2] = { m_postprocessProgram->vertex, m_postprocessProgram->fragment};

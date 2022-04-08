@@ -26,14 +26,14 @@ layout(set = 0, binding = 5) uniform CameraUniformBuffer {
 };
 
 #ifndef QUAD
-layout(set = 0, binding = 7) uniform ViewportUniformBuffer {
+layout(set = 0, binding = 6) uniform ViewportUniformBuffer {
 	vec2 u_screen;
 };
 #endif
 
-layout(set = 1, binding = 0) uniform samplerCube u_shadowMap;
+layout(set = 2, binding = 0) uniform samplerCube u_shadowMap;
 
-layout(set = 1, binding = 1) uniform PointLightUniformBuffer {
+layout(set = 2, binding = 1) uniform PointLightUniformBuffer {
 	vec3 u_lightPosition;
 	float u_lightIntensity;
 	vec3 u_lightColor;

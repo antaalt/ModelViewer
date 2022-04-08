@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec4 v_position;
 
-layout(set = 1, binding = 0) uniform PointLightUniformBuffer {
+layout(set = 0, binding = 0) uniform PointLightUniformBuffer {
 	mat4 u_light;
 	vec3 u_lightPos;
 	float u_far;
