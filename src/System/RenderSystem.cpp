@@ -68,14 +68,13 @@ void RenderSystem::onCreate(aka::World& world)
 	// --- Uniforms
 	m_cameraUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
 	m_viewportUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(ViewportUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	//m_pointLightUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
-	//m_directionalLightUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None); // This one change a lot.
 
 	// --- Lighting pass
 	m_defaultSampler = device->createSampler(
 		Filter::Nearest,
 		Filter::Nearest,
 		SamplerMipMapMode::None,
+		1,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
@@ -85,6 +84,7 @@ void RenderSystem::onCreate(aka::World& world)
 		Filter::Nearest,
 		Filter::Nearest,
 		SamplerMipMapMode::None,
+		1,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
@@ -107,7 +107,7 @@ void RenderSystem::onCreate(aka::World& world)
 	m_quad->format = IndexFormat::UnsignedShort;
 	m_quad->count = 6;
 
-	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 8, 8); // TODO reduce size
+	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 8, 8);
 
 	// --- Skybox pass
 	uint8_t data[] = { 
@@ -130,6 +130,7 @@ void RenderSystem::onCreate(aka::World& world)
 		Filter::Linear,
 		Filter::Linear,
 		SamplerMipMapMode::None,
+		1,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
 		SamplerAddressMode::ClampToEdge,
@@ -241,6 +242,10 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_storageDepthFramebuffer);
 	device->destroy(m_postprocessDescriptorSet);
 
+	// Uniforms
+	device->destroy(m_cameraUniformBuffer);
+	device->destroy(m_viewportUniformBuffer);
+
 	// program and shaders self destroyed
 }
 
@@ -257,16 +262,6 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	mat4f projection = camera.projection->projection();
 
 	// --- Update Uniforms
-	//m_gbufferDescriptorSet->setUniformBuffer(0, m_modelUniformBuffer);
-	//m_gbufferDescriptorSet->setUniformBuffer(1, m_cameraUniformBuffer);
-	//m_ambientDescriptorSet->setUniformBuffer(4, m_cameraUniformBuffer);
-	//m_dirDescriptorSet->setUniformBuffer(0, m_directionalLightUniformBuffer);
-	//m_dirDescriptorSet->setUniformBuffer(1, m_cameraUniformBuffer);
-	//m_pointDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
-	//m_pointDescriptorSet->setUniformBuffer(1, m_modelUniformBuffer); // TODO updated
-	//m_pointDescriptorSet->setUniformBuffer(2, m_pointLightUniformBuffer);
-	//m_pointDescriptorSet->setUniformBuffer(3, m_viewportUniformBuffer);
-	//m_skyboxDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
 	m_postprocessDescriptorSet->setSampledImage(0, m_storage, m_shadowSampler);
 	m_postprocessDescriptorSet->setUniformBuffer(1, m_viewportUniformBuffer);
 	device->update(m_postprocessDescriptorSet);
@@ -284,8 +279,6 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 
 	// Samplers
 	Sampler* samplers[] = { m_shadowSampler , m_shadowSampler , m_shadowSampler };
-	//m_dirDescriptorSet->setSampledImage(5, samplers, DirectionalLightComponent::cascadeCount);
-	//m_pointDescriptorSet->setSampledImage(4, m_shadowSampler);
 
 	// Add render data to every component
 	// View
@@ -334,8 +327,6 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	CommandList* cmd = frame->commandList;
 	cmd->bindPipeline(m_gbufferPipeline);
 	cmd->beginRenderPass(m_gbuffer, ClearState{ ClearMask::None, {0.f}, 1.f, 0 });
-	//color4f c(0.f);
-	//cmd->clear(ClearMask::All, c.data, 1.f, 0);
 	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const OpaqueMaterialComponent& material, const RenderComponent& rendering) {
 		frustum<>::planes p = frustum<>::extract(projection * view);
 		// Check intersection in camera space
@@ -397,12 +388,11 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	cmd->bindPipeline(m_dirPipeline);
 	
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
-	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
+	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light){
 
-		// TODO init data elsewhere to clean it
-		// TODO leak
 		if (light.renderDescriptorSet == nullptr)
 		{
+			// Init is here because we dont have access to DirectionalLightUniformBuffer in shadowMapSystem
 			light.renderDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[1]);
 			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
 			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);
@@ -453,10 +443,9 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 		if (!p.intersect(bounds))
 			return;
 
-		// TODO init data elsewhere to clean it
-		// TODO leak
 		if (light.renderDescriptorSet == nullptr)
 		{
+			// Init is here because we dont have access to PointLightUniformBuffer in shadowMapSystem
 			light.renderDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[1]);
 			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
 			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);

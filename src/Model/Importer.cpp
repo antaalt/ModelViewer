@@ -268,12 +268,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.albedo.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.albedo.texture == nullptr)
 					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
@@ -287,12 +281,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.albedo.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.albedo.texture == nullptr)
 					materialComponent.albedo.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
@@ -301,13 +289,14 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.albedo.texture = m_blankColorTexture;
-			materialComponent.albedo.sampler = device->createSampler(
-				Filter::Linear, Filter::Linear,
-				SamplerMipMapMode::Linear,
-				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-				1.f
-			);
 		}
+		materialComponent.albedo.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
 		{
 			aiTextureType type = aiTextureType_NORMAL_CAMERA;
@@ -316,12 +305,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.normal.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.normal.texture == nullptr)
 					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
@@ -335,12 +318,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.normal.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.normal.texture == nullptr)
 					materialComponent.normal.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
@@ -349,13 +326,14 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.normal.texture = m_missingNormalTexture;
-			materialComponent.normal.sampler = device->createSampler(
-				Filter::Linear, Filter::Linear,
-				SamplerMipMapMode::Linear,
-				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-				1.f
-			);
 		}
+		materialComponent.normal.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 
 		if (material->GetTextureCount(aiTextureType_UNKNOWN) > 0) // GLTF pbr texture is retrieved this way (?)
 		{
@@ -365,12 +343,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, 0, &str);
 				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.material.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.material.texture == nullptr)
 					materialComponent.material.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
@@ -384,12 +356,6 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 				aiString str;
 				material->GetTexture(type, i, &str);
 				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				materialComponent.material.sampler = device->createSampler(
-					Filter::Linear, Filter::Linear,
-					SamplerMipMapMode::Linear,
-					SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-					1.f
-				);
 				if (materialComponent.material.texture == nullptr)
 					materialComponent.material.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
@@ -398,13 +364,14 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		else
 		{
 			materialComponent.material.texture = m_missingRoughnessTexture;
-			materialComponent.material.sampler = device->createSampler(
-				Filter::Linear, Filter::Linear,
-				SamplerMipMapMode::Linear,
-				SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
-				1.f
-			);
 		}
+		materialComponent.material.sampler = device->createSampler(
+			Filter::Linear, Filter::Linear,
+			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
+			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			1.f
+		);
 	}
 	else
 	{
@@ -415,6 +382,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.albedo.sampler = device->createSampler(
 			Filter::Linear, Filter::Linear,
 			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
 			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -422,6 +390,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.normal.sampler = device->createSampler(
 			Filter::Linear, Filter::Linear,
 			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
 			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -429,6 +398,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.material.sampler = device->createSampler(
 			Filter::Linear, Filter::Linear,
 			SamplerMipMapMode::Linear,
+			Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
 			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -506,6 +476,8 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 		storage.flags = flags;
 		storage.format = TextureFormat::RGBA8;
 		storage.images.push_back(Image::load(path));
+		if (has(flags, TextureFlag::GenerateMips))
+			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))
@@ -538,6 +510,8 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 		storage.flags = flags;
 		storage.format = TextureFormat::RGBA32F;
 		storage.images.push_back(Image::loadHDR(path));
+		if (has(flags, TextureFlag::GenerateMips))
+			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))
@@ -575,6 +549,8 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 		storage.images.push_back(Image::load(nx));
 		storage.images.push_back(Image::load(ny));
 		storage.images.push_back(Image::load(nz));
+		if (has(flags, TextureFlag::GenerateMips))
+			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))

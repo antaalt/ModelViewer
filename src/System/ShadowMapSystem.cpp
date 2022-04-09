@@ -282,7 +282,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 			});
 			cmd->endRenderPass();
 		}
-		//world.registry().remove<DirtyLightComponent>(e);
+		world.registry().remove<DirtyLightComponent>(e);
 	}
 
 	cmd->bindPipeline(m_shadowPipeline);

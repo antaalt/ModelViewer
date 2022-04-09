@@ -376,6 +376,8 @@ void SceneEditor::onCreate(World& world)
 
 void SceneEditor::onDestroy(World& world)
 {
+	Buffer::destroy(m_wireFrameUniformBuffer);
+	DescriptorSet::destroy(m_wireframeDescriptorSet);
 }
 
 bool intersectBounds(const aabbox<>& bounds, const point3f& origin, const vec3f& direction, float& tmin, float& tmax)

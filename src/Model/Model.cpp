@@ -220,7 +220,8 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 	Texture* normal = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::None, n);
 	Sampler* s = Sampler::create(
 		Filter::Linear, Filter::Linear, 
-		SamplerMipMapMode::Nearest, 
+		SamplerMipMapMode::Nearest,
+		1,
 		SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, 
 		1.f
 	);
@@ -243,6 +244,7 @@ Entity Scene::createCubeEntity(World& world)
 	Sampler* s = Sampler::create(
 		Filter::Linear, Filter::Linear,
 		SamplerMipMapMode::Nearest,
+		1,
 		SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
 		1.f
 	); // TODO cache this
@@ -635,6 +637,7 @@ void Scene::load(World& world, const Path& path)
 						(Filter)component["albedo"]["sampler"]["filterMin"].get<int>(),
 						(Filter)component["albedo"]["sampler"]["filterMag"].get<int>(),
 						(SamplerMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>(),
+						Sampler::mipLevelCount(material.albedo.texture->width, material.albedo.texture->height),
 						(SamplerAddressMode)component["albedo"]["sampler"]["wrapU"].get<int>(),
 						(SamplerAddressMode)component["albedo"]["sampler"]["wrapV"].get<int>(),
 						(SamplerAddressMode)component["albedo"]["sampler"]["wrapW"].get<int>(),
@@ -646,6 +649,7 @@ void Scene::load(World& world, const Path& path)
 						(Filter)component["normal"]["sampler"]["filterMin"].get<int>(),
 						(Filter)component["normal"]["sampler"]["filterMag"].get<int>(),
 						(SamplerMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>(),
+						Sampler::mipLevelCount(material.normal.texture->width, material.normal.texture->height),
 						(SamplerAddressMode)component["normal"]["sampler"]["wrapU"].get<int>(),
 						(SamplerAddressMode)component["normal"]["sampler"]["wrapV"].get<int>(),
 						(SamplerAddressMode)component["normal"]["sampler"]["wrapW"].get<int>(),
@@ -657,6 +661,7 @@ void Scene::load(World& world, const Path& path)
 						(Filter)component["material"]["sampler"]["filterMin"].get<int>(),
 						(Filter)component["material"]["sampler"]["filterMag"].get<int>(),
 						(SamplerMipMapMode)component["material"]["sampler"]["mipmapMode"].get<int>(),
+						Sampler::mipLevelCount(material.material.texture->width, material.material.texture->height),
 						(SamplerAddressMode)component["material"]["sampler"]["wrapU"].get<int>(),
 						(SamplerAddressMode)component["material"]["sampler"]["wrapV"].get<int>(),
 						(SamplerAddressMode)component["material"]["sampler"]["wrapW"].get<int>(),
@@ -752,6 +757,7 @@ void Scene::load(World& world, const Path& path)
 						(Filter)component["sampler"]["filterMin"].get<int>(),
 						(Filter)component["sampler"]["filterMag"].get<int>(),
 						(SamplerMipMapMode)component["sampler"]["mipmapMode"].get<int>(),
+						Sampler::mipLevelCount(text.font->atlas()->width, text.font->atlas()->height),
 						(SamplerAddressMode)component["sampler"]["wrapU"].get<int>(),
 						(SamplerAddressMode)component["sampler"]["wrapV"].get<int>(),
 						(SamplerAddressMode)component["sampler"]["wrapW"].get<int>(),
