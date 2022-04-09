@@ -20,6 +20,7 @@ struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) Aligned16Float cascadeEndClipSpace[DirectionalLightComponent::cascadeCount];
 };
 struct alignas(16) PointLightUniformBuffer {
+	alignas(16) mat4f model;
 	alignas(16) vec3f lightPosition;
 	alignas(4) float lightIntensity;
 	alignas(16) color3f lightColor;
@@ -38,7 +39,7 @@ struct alignas(16) ViewportUniformBuffer {
 	alignas(8) vec2f rcp;
 };
 // --- Object
-struct alignas(16) DescriptorSetUniformBuffer {
+struct alignas(16) MaterialUniformBuffer {
 	alignas(16) color4f color;
 };
 // --- Instance
@@ -56,8 +57,8 @@ void RenderSystem::onCreate(aka::World& world)
 
 	ProgramManager* program = app->program();
 	m_gbufferProgram = program->get("gbuffer");
-	//m_pointDescriptorSet = device->createDescriptorSet(0, program->get("point"));
-	m_dirProgram = program->get("directional");  m_dirDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[0]);
+	m_pointProgram = program->get("point"); m_pointDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[0]);
+	m_dirProgram = program->get("directional"); m_dirDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[0]);
 	m_ambientProgram = program->get("ambient"); m_ambientDescriptorSet = device->createDescriptorSet(m_ambientProgram->bindings[0]);
 	m_skyboxProgram = program->get("skybox"); m_skyboxDescriptorSet = device->createDescriptorSet(m_skyboxProgram->bindings[0]);
 	m_postprocessProgram = program->get("postProcess"); m_postprocessDescriptorSet = device->createDescriptorSet(m_postprocessProgram->bindings[0]);
@@ -106,7 +107,7 @@ void RenderSystem::onCreate(aka::World& world)
 	m_quad->format = IndexFormat::UnsignedShort;
 	m_quad->count = 6;
 
-	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 32, 16);
+	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 8, 8); // TODO reduce size
 
 	// --- Skybox pass
 	uint8_t data[] = { 
@@ -222,7 +223,8 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_sphere->vertices[0]);
 	device->destroy(m_ambientPipeline);
 	device->destroy(m_ambientDescriptorSet);
-	//device->destroy(m_pointDescriptorSet);
+	device->destroy(m_pointPipeline);
+	device->destroy(m_pointDescriptorSet);
 	device->destroy(m_dirDescriptorSet);
 	device->destroy(m_dirPipeline);
 
@@ -314,9 +316,9 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 
 
 		// DescriptorSet
-		DescriptorSetUniformBuffer materialUBO;
+		MaterialUniformBuffer materialUBO;
 		materialUBO.color = material.color;
-		r.ubo[1] = device->createBuffer(BufferType::Uniform, sizeof(DescriptorSetUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &materialUBO);
+		r.ubo[1] = device->createBuffer(BufferType::Uniform, sizeof(MaterialUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &materialUBO);
 		r.material = device->createDescriptorSet(m_gbufferProgram->bindings[1]);
 		r.material->setUniformBuffer(0, r.ubo[1]);
 		r.material->setSampledImage(1, material.albedo.texture, material.albedo.sampler);
@@ -391,6 +393,8 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	m_dirDescriptorSet->setSampledImage(4, m_material, m_defaultSampler);
 	m_dirDescriptorSet->setUniformBuffer(5, m_cameraUniformBuffer);
 	device->update(m_dirDescriptorSet);
+
+	cmd->bindPipeline(m_dirPipeline);
 	
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light) {
@@ -421,55 +425,63 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 		}
 
 		DescriptorSet* materials[2] = { m_dirDescriptorSet, light.renderDescriptorSet };
-		cmd->bindPipeline(m_dirPipeline);
 		cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
 		cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
 		cmd->bindDescriptorSets(materials, 2);
 
 		cmd->drawIndexed(m_quad->count, 0, 0, 1);
 	});
-	cmd->endRenderPass();
 
 	// --- Point lights
 	// Using light volumes
-	/*lightingPass.submesh = SubMesh{m_sphere, PrimitiveType::Triangles, m_sphere->getIndexCount(), 0};
-	lightingPass.cull = Culling{ CullMode::FrontFace, CullOrder::CounterClockWise }; // Important to avoid rendering 2 times or clipping
-	lightingPass.material = m_pointDescriptorSet;
-	lightingPass.material->set("u_positionTexture", m_position);
-	lightingPass.material->set("u_albedoTexture", m_albedo);
-	lightingPass.material->set("u_normalTexture", m_normal);
-	lightingPass.material->set("u_materialTexture", m_material);
+	m_pointDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
+	m_pointDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
+	m_pointDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
+	m_pointDescriptorSet->setSampledImage(3, m_depth, m_defaultSampler);
+	m_pointDescriptorSet->setSampledImage(4, m_material, m_defaultSampler);
+	m_pointDescriptorSet->setUniformBuffer(5, m_cameraUniformBuffer);
+	m_pointDescriptorSet->setUniformBuffer(6, m_viewportUniformBuffer);
+	device->update(m_pointDescriptorSet);
 
-	ModelUniformBuffer modelUBO;
-	modelUBO.color = color4f(1.f);
-	modelUBO.normalMatrix0 = vec3f(1, 0, 0);
-	modelUBO.normalMatrix1 = vec3f(0, 1, 0);
-	modelUBO.normalMatrix2 = vec3f(0, 0, 1);
+	cmd->bindPipeline(m_pointPipeline);
 
 	auto pointShadows = world.registry().view<Transform3DComponent, PointLightComponent>();
 	pointShadows.each([&](const Transform3DComponent& transform, PointLightComponent& light) {
 		point3f position(transform.transform.cols[3]);
 		aabbox<> bounds(position + vec3f(-light.radius), position + vec3f(light.radius));
 		frustum<>::planes p = frustum<>::extract(projection * view);
-		if (!p.intersect(transform.transform * bounds))
+		if (!p.intersect(bounds))
 			return;
 
-		PointLightUniformBuffer pointUBO;
-		pointUBO.lightPosition = vec3f(position);
-		pointUBO.lightIntensity = light.intensity;
-		pointUBO.lightColor = light.color;
-		pointUBO.farPointLight = light.radius;
-		m_pointLightUniformBuffer->upload(&pointUBO);
+		// TODO init data elsewhere to clean it
+		// TODO leak
+		if (light.renderDescriptorSet == nullptr)
+		{
+			light.renderDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[1]);
+			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);
+			light.renderDescriptorSet->setSampledImage(1, light.shadowMap, m_defaultSampler);
+			device->update(light.renderDescriptorSet);
+		}
+		//if (dirty)
+		{
+			PointLightUniformBuffer pointUBO;
+			pointUBO.model = transform.transform * mat4f::scale(vec3f(light.radius));
+			pointUBO.lightPosition = vec3f(position);
+			pointUBO.lightIntensity = light.intensity;
+			pointUBO.lightColor = light.color;
+			pointUBO.farPointLight = light.radius;
+			device->upload(light.renderUBO, &pointUBO, 0, sizeof(PointLightUniformBuffer));
+		}
 
+		DescriptorSet* materials[2] = { m_pointDescriptorSet, light.renderDescriptorSet };
+		cmd->bindIndexBuffer(m_sphere->indices, m_sphere->format, 0);
+		cmd->bindVertexBuffer(m_sphere->vertices, 0, 1, m_sphere->bindings.offsets);
+		cmd->bindDescriptorSets(materials, 2);
 
-		ModelUniformBuffer modelUBO;
-		modelUBO.model = transform.transform * mat4f::scale(vec3f(light.radius));
-		m_modelUniformBuffer->upload(&modelUBO);
-
-		lightingPass.material->set("u_shadowMap", light.shadowMap);
-
-		lightingPass.execute();
-	});*/
+		cmd->drawIndexed(m_sphere->count, 0, 0, 1);
+	});
+	cmd->endRenderPass();
 
 	// --- Skybox pass
 	m_skyboxDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
@@ -616,8 +628,8 @@ void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 	// TODO fix hot reload
 	if (e.name == "gbuffer")
 		m_gbufferProgram = e.program;
-	//else if (e.name == "point")
-	//	m_pointDescriptorSet = device->createDescriptorSet(0, e.program);
+	else if (e.name == "point")
+		m_pointProgram = e.program;
 	else if (e.name == "directional")
 		m_dirProgram = e.program;
 	else if (e.name == "ambient")
@@ -627,7 +639,7 @@ void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 	else if (e.name == "postProcess")
 		m_postprocessProgram = e.program;
 	//else if (e.name == "text")
-	//	m_textDescriptorSet = device->createDescriptorSet(0, e.program);
+	//	m_textDescriptorSet = e.program;
 }
 
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
@@ -747,6 +759,26 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 			DepthState{},
 			StencilState{},
 			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
+			FillState{ FillMode::Fill, 1.f }
+		);
+	}
+
+	{
+		// --- Point
+		Shader* shaders[2] = { m_pointProgram->vertex, m_pointProgram->fragment };
+		m_pointPipeline = device->createPipeline(
+			shaders,
+			2,
+			PrimitiveType::Triangles,
+			m_storageFramebuffer->framebuffer,
+			m_sphere->bindings,
+			m_pointProgram->bindings,
+			m_pointProgram->setCount,
+			viewport,
+			DepthState{},
+			StencilState{},
+			CullState{ CullMode::FrontFace, CullOrder::CounterClockWise }, // Important to avoid rendering 2 times or clipping
 			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
 			FillState{ FillMode::Fill, 1.f }
 		);

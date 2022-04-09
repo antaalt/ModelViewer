@@ -117,7 +117,7 @@ Mesh* Scene::createCubeMesh(const point3f& position, float size)
 	bindings.offsets[3] = offsetof(Vertex, color);
 	return Mesh::createInterleaved(
 		bindings,
-		Buffer::createVertexBuffer(sizeof(Vertex) * (uint32_t)vertices.size(), BufferUsage::Default, BufferCPUAccess::None, vertices.data()),
+		vertices.data(),
 		(uint32_t)vertices.size()
 	);
 }
@@ -203,10 +203,10 @@ Mesh* Scene::createSphereMesh(const point3f& position, float radius, uint32_t se
 	bindings.offsets[3] = offsetof(Vertex, color);
 	return Mesh::createInterleaved(
 		bindings,
-		Buffer::createVertexBuffer(sizeof(Vertex) * (uint32_t)vertices.size(), BufferUsage::Default, BufferCPUAccess::None, vertices.data()),
+		vertices.data(),
 		(uint32_t)vertices.size(),
 		IndexFormat::UnsignedInt,
-		Buffer::createIndexBuffer(sizeof(uint32_t) * (uint32_t)indices.size(), BufferUsage::Default, BufferCPUAccess::None, indices.data()),
+		indices.data(),
 		(uint32_t)indices.size()
 	);
 }

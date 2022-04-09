@@ -61,8 +61,9 @@ private:
 	aka::Pipeline* m_ambientPipeline;
 	aka::DescriptorSet* m_ambientDescriptorSet;
 	aka::Program* m_ambientProgram;
+	aka::Pipeline* m_pointPipeline;
 	aka::DescriptorSet* m_pointDescriptorSet;
-	//aka::Program* m_pointProgram;
+	aka::Program* m_pointProgram;
 	aka::Pipeline* m_dirPipeline;
 	aka::DescriptorSet* m_dirDescriptorSet;
 	aka::Program* m_dirProgram;

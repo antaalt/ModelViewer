@@ -31,14 +31,15 @@ layout(set = 0, binding = 6) uniform ViewportUniformBuffer {
 };
 #endif
 
-layout(set = 2, binding = 0) uniform samplerCube u_shadowMap;
-
-layout(set = 2, binding = 1) uniform PointLightUniformBuffer {
+layout(set = 1, binding = 0) uniform PointLightUniformBuffer {
+	mat4 u_model;
 	vec3 u_lightPosition;
 	float u_lightIntensity;
 	vec3 u_lightColor;
 	float u_farPointLight;
 };
+
+layout(set = 1, binding = 1) uniform samplerCube u_shadowCubeMap;
 
 vec3 sampleOffsetDirections[20] = vec3[]
 (
@@ -56,22 +57,30 @@ float random(vec3 seed, int i)
 	return fract(sin(dot_product) * 43758.5453);
 }
 
-vec3 computePointShadows(vec3 from)
+vec3 computePointShadows(vec3 inWorldPosition)
 {
-	vec3 fragToLight = from - u_lightPosition;
-	float currentDepth = length(fragToLight);
-	float shadow  = 0.0;
-	float bias    = 0.15;
+	vec3 fragToLight = inWorldPosition - u_lightPosition;
+	fragToLight.z = -fragToLight.z;
+	float dist = length(fragToLight);
+	float shadow = 0.0;
+	float bias   = 0.15;
+#if 1 // Linear
+	float sampledDist = texture(u_shadowCubeMap, fragToLight).r;
+	sampledDist *= u_farPointLight;
+	if(dist - bias > sampledDist)
+		shadow = 1.0;
+#else // Filter
 	float samples = 20;
 	float diskRadius = 0.05;
 	for(int i = 0; i < samples; ++i)
 	{
-		float closestDepth = texture(u_shadowMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
-		closestDepth *= u_farPointLight;
-		if(currentDepth - bias > closestDepth)
+		float sampledDist = texture(u_shadowCubeMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
+		sampledDist *= u_farPointLight;
+		if(dist - bias > sampledDist)
 			shadow += 1.0;
 	}
 	shadow /= float(samples);
+#endif
 	return vec3(1.0 - shadow);
 }
 
@@ -100,4 +109,5 @@ void main(void)
 
 	vec3 Lo = BRDF(albedo, metalness, roughness, L, V, N) * radiance * visibility;
 	o_color = vec4(Lo, 1);
+	//o_color = vec4(visibility, 1);
 }

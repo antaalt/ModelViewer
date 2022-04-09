@@ -8,9 +8,12 @@ layout(set = 0, binding = 5) uniform CameraUniformBuffer {
 	mat4 u_projectionInverse;
 };
 
-layout(set = 1, binding = 0) uniform ModelUniformBuffer {
+layout(set = 1, binding = 0) uniform PointLightUniformBuffer {
 	mat4 u_model;
-	mat3 u_normalMatrix;
+	vec3 u_lightPosition;
+	float u_lightIntensity;
+	vec3 u_lightColor;
+	float u_farPointLight;
 };
 
 void main(void)

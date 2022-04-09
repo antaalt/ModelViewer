@@ -65,7 +65,9 @@ struct PointLightComponent {
 	Texture* shadowMap;
 	float radius;
 	Buffer* ubo[6];
-	DescriptorSet* renderDescriptorSet[6];
+	DescriptorSet* descriptorSet[6];
+	Buffer* renderUBO;
+	DescriptorSet* renderDescriptorSet;
 };
 
 // with a preetham component or something, we can emulate sky

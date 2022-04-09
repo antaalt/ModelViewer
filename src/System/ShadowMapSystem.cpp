@@ -48,6 +48,8 @@ void onDirectionalLightDestroy(entt::registry& registry, entt::entity entity)
 		Framebuffer::destroy(l.framebuffer[i]);
 		DescriptorSet::destroy(l.descriptorSet[i]);
 	}
+	DescriptorSet::destroy(l.renderDescriptorSet);
+	Buffer::destroy(l.renderUBO);
 	Texture::destroy(l.shadowMap);
 }
 
@@ -61,8 +63,8 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
 		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.renderDescriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
-		l.renderDescriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
+		l.descriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
+		l.descriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
 	}
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
@@ -75,8 +77,10 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 	{
 		Buffer::destroy(l.ubo[iLayer]);
 		Framebuffer::destroy(l.framebuffer[iLayer]);
-		DescriptorSet::destroy(l.renderDescriptorSet[iLayer]);
+		DescriptorSet::destroy(l.descriptorSet[iLayer]);
 	}
+	DescriptorSet::destroy(l.renderDescriptorSet);
+	Buffer::destroy(l.renderUBO);
 	Texture::destroy(l.shadowMap);
 }
 
@@ -225,7 +229,6 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 	auto pointLightUpdate = world.registry().view<DirtyLightComponent, PointLightComponent>();
 	auto dirLightUpdate = world.registry().view<DirtyLightComponent, DirectionalLightComponent>();
 	
-
 	cmd->bindPipeline(m_shadowPointPipeline);
 	
 	for (entt::entity e : pointLightUpdate)
@@ -233,15 +236,22 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 		Transform3DComponent& lightTransform = world.registry().get<Transform3DComponent>(e);
 		PointLightComponent& light = world.registry().get<PointLightComponent>(e);
 
-		// Generate shadow cascades
-		mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 0.1f, light.radius);
-		point3f lightPos = point3f(lightTransform.transform.cols[3]);
-		light.worldToLightSpaceMatrix[0] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0));
-		light.worldToLightSpaceMatrix[1] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(-1.0, 0.0, 0.0), norm3f(0.0, -1.0, 0.0));
-		light.worldToLightSpaceMatrix[2] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 1.0, 0.0), norm3f(0.0, 0.0, 1.0));
-		light.worldToLightSpaceMatrix[3] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, -1.0, 0.0), norm3f(0.0, 0.0, -1.0));
-		light.worldToLightSpaceMatrix[4] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, 1.0), norm3f(0.0, -1.0, 0.0));
-		light.worldToLightSpaceMatrix[5] = shadowProjection * mat4f::lookAtView(lightPos, lightPos + vec3f(0.0, 0.0, -1.0), norm3f(0.0, -1.0, 0.0));
+		// Generate shadow projection
+		const point3f lightPos = point3f(lightTransform.transform.cols[3]);
+		const mat4f faceView[6] = {
+			mat4f::lookAtView(lightPos, lightPos + vec3f( 1.0,  0.0,  0.0), norm3f(0.0, 1.0,  0.0)), // POSITIVE_X
+			mat4f::lookAtView(lightPos, lightPos + vec3f(-1.0,  0.0,  0.0), norm3f(0.0, 1.0,  0.0)), // NEGATIVE_X
+			mat4f::lookAtView(lightPos, lightPos + vec3f( 0.0,  1.0,  0.0), norm3f(0.0, 0.0,  1.0)), // POSITIVE_Y
+			mat4f::lookAtView(lightPos, lightPos + vec3f( 0.0, -1.0,  0.0), norm3f(0.0, 0.0, -1.0)), // NEGATIVE_Y
+			mat4f::lookAtView(lightPos, lightPos + vec3f( 0.0,  0.0, -1.0), norm3f(0.0, 1.0,  0.0)), // POSITIVE_Z
+			mat4f::lookAtView(lightPos, lightPos + vec3f( 0.0,  0.0,  1.0), norm3f(0.0, 1.0,  0.0)), // NEGATIVE_Z
+		};
+		const mat4f shadowProjection = mat4f::perspective(anglef::degree(90.f), 1.f, 0.1f, light.radius);
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			// TODO do we need to store this ?
+			light.worldToLightSpaceMatrix[i] = shadowProjection * faceView[i];
+		}
 
 		// Update light ubo
 		PointLightUniformBuffer pointUBO;
@@ -259,10 +269,11 @@ void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
 		for (uint32_t iLayer = 0; iLayer < 6; ++iLayer) // for each faces
 		{
 			// Set output target and clear it.
+			device->update(light.descriptorSet[iLayer]); // TODO only once
 			cmd->beginRenderPass(light.framebuffer[iLayer], ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
 
-				DescriptorSet* sets[2] = { render.matrices, light.renderDescriptorSet[iLayer] };
+				DescriptorSet* sets[2] = { light.descriptorSet[iLayer], render.matrices };
 				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
 				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
 				cmd->bindDescriptorSets(sets, 2);
