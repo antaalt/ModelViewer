@@ -18,7 +18,7 @@ class AssetViewerEditor : public EditorWindow
 public:
 	AssetViewerEditor(const char* type);
 	virtual ~AssetViewerEditor() {}
-	virtual void onRender(aka::World& world, aka::Frame* frame) override;
+	virtual void onRender(aka::World& world, aka::gfx::Frame* frame) override;
 	// Set the resource for the viewer.
 	void set(const aka::String& name, const aka::Resource<T>& resource) { m_opened = true; m_name = name; m_resource = resource; onResourceChange(); }
 protected:
@@ -54,26 +54,27 @@ private:
 	const uint32_t m_width = 512;
 	const uint32_t m_height = 512;
 	aka::mat4f m_projection;
-	aka::Texture* m_renderTarget;
-	aka::Framebuffer* m_target;
-	aka::DescriptorSet* m_material;
-	aka::Buffer* m_uniform;
+	aka::gfx::Texture* m_renderTarget;
+	aka::gfx::Texture* m_depthTarget;
+	aka::gfx::Framebuffer* m_target;
+	aka::gfx::DescriptorSet* m_descriptorSet;
+	aka::gfx::Buffer* m_uniform;
 	aka::CameraArcball m_arcball;
 };
-class BufferViewerEditor : public AssetViewerEditor<aka::Buffer>
+class BufferViewerEditor : public AssetViewerEditor<aka::gfx::Buffer>
 {
 public:
 	BufferViewerEditor();
 protected:
-	void draw(const aka::String& name, aka::Resource<aka::Buffer>& resource) override;
+	void draw(const aka::String& name, aka::Resource<aka::gfx::Buffer>& resource) override;
 };
 
-class TextureViewerEditor : public AssetViewerEditor<aka::Texture>
+class TextureViewerEditor : public AssetViewerEditor<aka::gfx::Texture>
 {
 public:
 	TextureViewerEditor();
 protected:
-	void draw(const aka::String& name, aka::Resource<aka::Texture>& resource) override;
+	void draw(const aka::String& name, aka::Resource<aka::gfx::Texture>& resource) override;
 };
 
 class AudioViewerEditor : public AssetViewerEditor<aka::AudioStream>
@@ -94,7 +95,7 @@ inline AssetViewerEditor<T>::AssetViewerEditor(const char* type) :
 }
 
 template<typename T>
-inline void AssetViewerEditor<T>::onRender(aka::World& world, aka::Frame* frame)
+inline void AssetViewerEditor<T>::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	Application* app = Application::app();
 	ResourceManager* resources = app->resource();

@@ -5,10 +5,10 @@
 
 namespace app {
 
-void InfoEditor::onRender(aka::World& world, aka::Frame* frame)
+void InfoEditor::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	aka::Application* app = aka::Application::app();
-	aka::GraphicDevice* graphic = app->graphic();
+	aka::gfx::GraphicDevice* graphic = app->graphic();
 	uint32_t width = graphic->backbuffer(frame)->width;
 	uint32_t height = graphic->backbuffer(frame)->height;
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;

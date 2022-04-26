@@ -10,7 +10,7 @@
 
 namespace app {
 
-void TextureDisplay(const String& name, const Texture* texture, const ImVec2& size)
+void TextureDisplay(const String& name, const gfx::Texture* texture, const ImVec2& size)
 {
 	// TODO open a window on click for a complete texture inspector ?
 	if (texture == nullptr)
@@ -25,7 +25,7 @@ void TextureDisplay(const String& name, const Texture* texture, const ImVec2& si
 		ImGui::Image(textureID, size);
 	}
 }
-void TextureSamplerDisplay(Sampler* sampler)
+gfx::Sampler* TextureSamplerDisplay(gfx::Sampler* sampler)
 {
 	static const char* filters[] = {
 		"Nearest",
@@ -44,35 +44,69 @@ void TextureSamplerDisplay(Sampler* sampler)
 	};
 	char buffer[256];
 	int error = snprintf(buffer, 256, "Sampler##%p", &sampler);
+	bool updated = false;
 	if (ImGui::TreeNode(buffer))
 	{
-		// TODO recreate a new sampler.
 		// Filters
-		/*int current = (int)sampler->filterMin;
+		int current = (int)sampler->filterMin;
 		if (ImGui::Combo("Filter min", &current, filters, 2))
-			sampler->filterMin = (TextureFilter)current;
+		{
+			updated = true;
+			sampler->filterMin = (gfx::Filter)current;
+		}
 		current = (int)sampler->filterMag;
 		if (ImGui::Combo("Filter mag", &current, filters, 2))
-			sampler->filterMag = (TextureFilter)current;
+		{
+			updated = true;
+			sampler->filterMag = (gfx::Filter)current;
+		}
 		// Mips
-		current = (int)sampler.mipmapMode;
+		current = (int)sampler->mipmapMode;
 		if (ImGui::Combo("Mips", &current, mipmaps, 3))
-			sampler->mipmapMode = (TextureMipMapMode)current;
+		{
+			updated = true;
+			sampler->mipmapMode = (gfx::SamplerMipMapMode)current;
+		}
 		// Wraps
-		current = (int)sampler.wrapU;
+		current = (int)sampler->wrapU;
 		if (ImGui::Combo("WrapU", &current, wraps, 4))
-			sampler->wrapU = (TextureWrap)current;
-		current = (int)sampler.wrapV;
+		{
+			updated = true;
+			sampler->wrapU = (gfx::SamplerAddressMode)current;
+		}
+		current = (int)sampler->wrapV;
 		if (ImGui::Combo("WrapV", &current, wraps, 4))
-			sampler->wrapV = (TextureWrap)current;
-		current = (int)sampler.wrapW;
+		{
+			updated = true;
+			sampler->wrapV = (gfx::SamplerAddressMode)current;
+		}
+		current = (int)sampler->wrapW;
 		if (ImGui::Combo("WrapW", &current, wraps, 4))
-			sampler->wrapW = (TextureWrap)current;
+		{
+			updated = true;
+			sampler->wrapW = (gfx::SamplerAddressMode)current;
+		}
 		// Anisotropy
-		ImGui::SliderFloat("Anisotropy", &sampler->anisotropy, 1.f, 16.f);*/
+		ImGui::SliderFloat("Anisotropy", &sampler->anisotropy, 1.f, 16.f);
 
 		ImGui::TreePop();
 	}
+	if (updated)
+	{
+		gfx::Sampler* old = sampler;
+		sampler = Application::app()->graphic()->createSampler(
+			old->filterMin,
+			old->filterMag,
+			old->mipmapMode,
+			old->mipLevels,
+			old->wrapU,
+			old->wrapV,
+			old->wrapW,
+			old->anisotropy
+		);
+		Application::app()->graphic()->destroy(old);
+	}
+	return sampler;
 }
 
 template <typename T>
@@ -281,11 +315,11 @@ template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& mater
 	updated |= ImGui::ColorEdit4("Color", material.color.data);
 	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
 	TextureDisplay("Color", material.albedo.texture, ImVec2(100, 100));
-	TextureSamplerDisplay(material.albedo.sampler);
+	material.albedo.sampler = TextureSamplerDisplay(material.albedo.sampler);
 	TextureDisplay("Normal", material.normal.texture, ImVec2(100, 100));
-	TextureSamplerDisplay(material.normal.sampler);
+	material.normal.sampler = TextureSamplerDisplay(material.normal.sampler);
 	TextureDisplay("Material", material.material.texture, ImVec2(100, 100));
-	TextureSamplerDisplay(material.material.sampler);
+	material.material.sampler = TextureSamplerDisplay(material.material.sampler);
 	return updated; 
 }
 
@@ -359,25 +393,25 @@ SceneEditor::SceneEditor() :
 
 void SceneEditor::onCreate(World& world)
 {
-	std::vector<VertexAttribute> att{
-		VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
-		VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
-		VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 }
+	std::vector<gfx::VertexAttribute> att{
+		gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec3 },
+		gfx::VertexAttribute{ gfx::VertexSemantic::Normal, gfx::VertexFormat::Float, gfx::VertexType::Vec3 },
+		gfx::VertexAttribute{ gfx::VertexSemantic::TexCoord0, gfx::VertexFormat::Float, gfx::VertexType::Vec2 },
+		gfx::VertexAttribute{ gfx::VertexSemantic::Color0, gfx::VertexFormat::Float, gfx::VertexType::Vec4 }
 	};
 	Application* app = Application::app();
 	ProgramManager* program = app->program();
-	GraphicDevice* graphic = app->graphic();
+	gfx::GraphicDevice* graphic = app->graphic();
 	m_wireframeProgram = program->get("editor.wireframe");
 	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram->bindings[0]);
-	m_wireFrameUniformBuffer = graphic->createBuffer(BufferType::Uniform, sizeof(mat4f), BufferUsage::Default, BufferCPUAccess::None);
+	m_wireFrameUniformBuffer = graphic->createBuffer(gfx::BufferType::Uniform, sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 	//m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
 }
 
 void SceneEditor::onDestroy(World& world)
 {
-	Buffer::destroy(m_wireFrameUniformBuffer);
-	DescriptorSet::destroy(m_wireframeDescriptorSet);
+	gfx::Buffer::destroy(m_wireFrameUniformBuffer);
+	gfx::DescriptorSet::destroy(m_wireframeDescriptorSet);
 }
 
 bool intersectBounds(const aabbox<>& bounds, const point3f& origin, const vec3f& direction, float& tmin, float& tmax)
@@ -534,7 +568,7 @@ void SceneEditor::drawWireFrame(const mat4f& model, const mat4f& view, const mat
 	//}
 }
 
-void SceneEditor::onRender(World& world, aka::Frame* frame)
+void SceneEditor::onRender(World& world, aka::gfx::Frame* frame)
 {
 	// TODO draw a grid here and origin of the world
 	Application* app = Application::app();
@@ -631,20 +665,15 @@ void SceneEditor::onRender(World& world, aka::Frame* frame)
 						e.add<MeshComponent>(MeshComponent{});
 					//if (ImGui::MenuItem("Material", nullptr, nullptr, !e.has<MaterialComponent>()))
 					//	e.add<MaterialComponent>(MaterialComponent{ color4f(1.f), false, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest}, { nullptr, TextureSampler::nearest} });
-					/*if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
+					if (ImGui::MenuItem("Point light", nullptr, nullptr, !e.has<PointLightComponent>()))
 						e.add<PointLightComponent>(PointLightComponent{
-							color3f(1.f), 1.f, {},
-							Texture::createCubemap(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget)
+							color3f(1.f), 1.f, {}
 						});
 					if (ImGui::MenuItem("Directional light", nullptr, nullptr, !e.has<DirectionalLightComponent>()))
 						e.add<DirectionalLightComponent>(DirectionalLightComponent{
 							vec3f(0,1,0),
-							color3f(1.f), 1.f, {}, {
-								Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-								Texture::create2D(1024, 1024, TextureFormat::Depth, TextureFlag::RenderTarget),
-								Texture::create2D(2048, 2048, TextureFormat::Depth, TextureFlag::RenderTarget)
-							}, {} }
-						);*/
+							color3f(1.f), 1.f, {}
+						});
 					if (ImGui::BeginMenu("Text", !e.has<TextComponent>()))
 					{
 						FontAllocator& allocator = resources->allocator<Font>();

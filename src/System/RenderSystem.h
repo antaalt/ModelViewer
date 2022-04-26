@@ -20,6 +20,45 @@ struct RenderComponent
 	aka::Buffer* ubo[2]; // model buffer
 };
 
+inline aka::Pipeline* resizePipeline(aka::GraphicDevice* device, aka::Pipeline* pipeline, uint32_t w, uint32_t h)
+{
+	aka::Pipeline p = *pipeline;
+	device->destroy(pipeline);
+	p.viewport.viewport.w = w;
+	p.viewport.viewport.h = h;
+	p.viewport.scissor.w = w;
+	p.viewport.scissor.h = h;
+	return device->createPipeline(
+		p.program,
+		p.primitive,
+		p.framebuffer,
+		p.vertices,
+		p.viewport,
+		p.depth,
+		p.stencil,
+		p.cull,
+		p.blend,
+		p.fill
+	);
+}
+inline aka::Pipeline* reloadPipeline(aka::GraphicDevice* device, aka::Pipeline* pipeline, aka::Program* program)
+{
+	aka::Pipeline p = *pipeline;
+	device->destroy(pipeline);
+	return device->createPipeline(
+		program,
+		p.primitive,
+		p.framebuffer,
+		p.vertices,
+		p.viewport,
+		p.depth,
+		p.stencil,
+		p.cull,
+		p.blend,
+		p.fill
+	);
+}
+
 class RenderSystem : 
 	public aka::System,
 	public aka::EventListener<aka::BackbufferResizeEvent>,
@@ -29,17 +68,16 @@ protected:
 	void onCreate(aka::World& world) override;
 	void onDestroy(aka::World& world) override;
 
-	void onRender(aka::World& world, aka::Frame* frame) override;
+	void onRender(aka::World& world, aka::gfx::Frame* frame) override;
 	void onReceive(const aka::BackbufferResizeEvent& e) override;
 	void onReceive(const aka::ProgramReloadedEvent& e) override;
  private:
 	void createRenderTargets(uint32_t width, uint32_t height);
+	void destroyRenderTargets();
 private:
 	// Uniforms
 	aka::Buffer* m_cameraUniformBuffer;
 	aka::Buffer* m_viewportUniformBuffer;
-	//aka::Buffer* m_directionalLightUniformBuffer;
-	//aka::Buffer* m_pointLightUniformBuffer;
 
 	// gbuffers pass
 	aka::VertexBindingState m_gbufferVertices;

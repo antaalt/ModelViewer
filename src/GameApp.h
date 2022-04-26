@@ -14,7 +14,7 @@ public:
 	void onDestroy() override;
 	void onUpdate(Time deltaTime) override;
 	void onResize(uint32_t width, uint32_t height) override;
-	void onRender(Frame* frame) override;
+	void onRender(gfx::Frame* frame) override;
 private:
 	// Scene
 	aka::World m_world;

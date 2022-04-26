@@ -1,6 +1,7 @@
 #include "Importer.h"
 
 #include <assimp/Importer.hpp>
+#include <assimp/DefaultLogger.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/pbrmaterial.h>
@@ -14,16 +15,16 @@ struct AssimpImporter {
 	void processNode(Entity parent, aiNode* node);
 	Entity processMesh(aiMesh* mesh);
 
-	Texture* loadTexture(const Path& path, TextureFlag flags);
+	gfx::Texture* loadTexture(const Path& path, gfx::TextureFlag flags);
 private:
 	Path m_directory;
 	const aiScene* m_assimpScene;
 	aka::World& m_world;
 private:
-	Texture* m_missingColorTexture;
-	Texture* m_blankColorTexture;
-	Texture* m_missingNormalTexture;
-	Texture* m_missingRoughnessTexture;
+	gfx::Texture* m_missingColorTexture;
+	gfx::Texture* m_blankColorTexture;
+	gfx::Texture* m_missingNormalTexture;
+	gfx::Texture* m_missingRoughnessTexture;
 };
 
 AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world) :
@@ -35,10 +36,10 @@ AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka:
 	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
 	uint8_t bytesNormal[4] = { 128,128,255,255 };
 	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesMissingColor);
-	m_blankColorTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesBlankColor);
-	m_missingNormalTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesNormal);
-	m_missingRoughnessTexture = Texture::create2D(1, 1, TextureFormat::RGBA8, TextureFlag::ShaderResource, bytesRoughness);
+	m_missingColorTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesMissingColor);
+	m_blankColorTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesBlankColor);
+	m_missingNormalTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesNormal);
+	m_missingRoughnessTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesRoughness);
 }
 
 void AssimpImporter::process()
@@ -100,7 +101,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 	String meshName = mesh->mName.C_Str();
 	Entity e = m_world.createEntity(meshName);
 	e.add<MeshComponent>();
@@ -164,15 +165,15 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Path indexBufferPath = bufferDirectory + indexBufferFileName;
 		{
 			BufferStorage indexBuffer;
-			indexBuffer.type = BufferType::Index;
-			indexBuffer.access = BufferCPUAccess::None;
-			indexBuffer.usage = BufferUsage::Immutable;
+			indexBuffer.type = gfx::BufferType::Index;
+			indexBuffer.access = gfx::BufferCPUAccess::None;
+			indexBuffer.usage = gfx::BufferUsage::Immutable;
 			indexBuffer.bytes.resize(indices.size() * sizeof(uint32_t));
 			memcpy(indexBuffer.bytes.data(), indices.data(), indexBuffer.bytes.size());
 			if (!indexBuffer.save(indexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer* indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource.get();
+		gfx::Buffer* indexBuffer = resource->load<gfx::Buffer>(indexBufferName, indexBufferPath).resource.get();
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
@@ -180,15 +181,15 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		Path vertexBufferPath = bufferDirectory + vertexBufferFileName;
 		{
 			BufferStorage vertexBuffer;
-			vertexBuffer.type = BufferType::Vertex;
-			vertexBuffer.access = BufferCPUAccess::None;
-			vertexBuffer.usage = BufferUsage::Immutable;
+			vertexBuffer.type = gfx::BufferType::Vertex;
+			vertexBuffer.access = gfx::BufferCPUAccess::None;
+			vertexBuffer.usage = gfx::BufferUsage::Immutable;
 			vertexBuffer.bytes.resize(vertices.size() * sizeof(Vertex));
 			memcpy(vertexBuffer.bytes.data(), vertices.data(), vertexBuffer.bytes.size());
 			if (!vertexBuffer.save(vertexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		Buffer* vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource.get();
+		gfx::Buffer* vertexBuffer = resource->load<gfx::Buffer>(vertexBufferName, vertexBufferPath).resource.get();
 
 		// Mesh
 		String meshFileName = meshName + ".mesh";
@@ -199,7 +200,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			MeshStorage storage;
 			storage.vertices = { {
 				MeshStorage::VertexBinding {
-					VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 },
+					gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec3 },
 					vertexBufferName,
 					vertexCount, // count
 					offsetof(Vertex, position), // offset
@@ -208,7 +209,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					sizeof(Vertex), // stride
 				},
 				MeshStorage::VertexBinding {
-					VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 },
+					gfx::VertexAttribute{ gfx::VertexSemantic::Normal, gfx::VertexFormat::Float, gfx::VertexType::Vec3 },
 					vertexBufferName,
 					vertexCount, // count
 					offsetof(Vertex, normal), // offset
@@ -217,7 +218,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					sizeof(Vertex), // stride
 				},
 				MeshStorage::VertexBinding {
-					VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+					gfx::VertexAttribute{ gfx::VertexSemantic::TexCoord0, gfx::VertexFormat::Float, gfx::VertexType::Vec2 },
 					vertexBufferName,
 					vertexCount, // count
 					offsetof(Vertex, uv), // offset
@@ -226,7 +227,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 					sizeof(Vertex), // stride
 				},
 				MeshStorage::VertexBinding {
-					VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 },
+					gfx::VertexAttribute{ gfx::VertexSemantic::Color0, gfx::VertexFormat::Float, gfx::VertexType::Vec4 },
 					vertexBufferName,
 					vertexCount, // count
 					offsetof(Vertex, color), // offset
@@ -238,7 +239,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			storage.indexBufferName = indexBufferName;
 			storage.indexBufferOffset = 0;
 			storage.indexCount = (uint32_t)indices.size();
-			storage.indexFormat = IndexFormat::UnsignedInt;
+			storage.indexFormat = gfx::IndexFormat::UnsignedInt;
 			if (!storage.save(meshPath))
 				Logger::error("Failed to save mesh");
 			resource->load<Mesh>(meshName, meshPath);
@@ -255,7 +256,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		//aiTextureType_DIFFUSE_ROUGHNESS = 16,
 		//aiTextureType_AMBIENT_OCCLUSION = 17,
 		aiMaterial* material = m_assimpScene->mMaterials[mesh->mMaterialIndex];
-		TextureFlag flags = TextureFlag::ShaderResource | TextureFlag::GenerateMips;
+		gfx::TextureFlag flags = gfx::TextureFlag::ShaderResource | gfx::TextureFlag::GenerateMips;
 		aiColor4D c;
 		material->Get(AI_MATKEY_COLOR_DIFFUSE, c);
 		material->Get(AI_MATKEY_TWOSIDED, materialComponent.doubleSided);
@@ -291,10 +292,10 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			materialComponent.albedo.texture = m_blankColorTexture;
 		}
 		materialComponent.albedo.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 		if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
@@ -328,10 +329,10 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			materialComponent.normal.texture = m_missingNormalTexture;
 		}
 		materialComponent.normal.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 
@@ -366,10 +367,10 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			materialComponent.material.texture = m_missingRoughnessTexture;
 		}
 		materialComponent.material.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 	}
@@ -380,42 +381,42 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		materialComponent.doubleSided = true;
 		materialComponent.albedo.texture = m_blankColorTexture;
 		materialComponent.albedo.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 		materialComponent.normal.texture = m_missingNormalTexture;
 		materialComponent.normal.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 		materialComponent.material.texture = m_missingRoughnessTexture;
 		materialComponent.material.sampler = device->createSampler(
-			Filter::Linear, Filter::Linear,
-			SamplerMipMapMode::Linear,
-			Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
-			SamplerAddressMode::Repeat, SamplerAddressMode::Repeat, SamplerAddressMode::Repeat,
+			gfx::Filter::Linear, gfx::Filter::Linear,
+			gfx::SamplerMipMapMode::Linear,
+			gfx::Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
+			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
 	}
 	return e;
 }
 
-Texture* AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
+gfx::Texture* AssimpImporter::loadTexture(const Path& path, gfx::TextureFlag flags)
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
 	String name = OS::File::name(path);
-	if (resource->has<Texture>(name))
-		return resource->get<Texture>(name);
+	if (resource->has<gfx::Texture>(name))
+		return resource->get<gfx::Texture>(name);
 	if (Importer::importTexture2D(name, path, flags))
 	{
-		return resource->get<Texture>(name);
+		return resource->get<gfx::Texture>(name);
 	}
 	else
 	{
@@ -424,8 +425,61 @@ Texture* AssimpImporter::loadTexture(const Path& path, TextureFlag flags)
 	}
 }
 
+template <Assimp::Logger::ErrorSeverity Severity>
+class LogStream : public Assimp::LogStream
+{
+public:
+	LogStream() {}
+
+	virtual void write(const char* message) override
+	{
+		// TODO better parsing
+		std::string str(message);
+		if (str.size() == 0)
+			return;
+		str.pop_back();
+		switch (Severity)
+		{
+		case Assimp::Logger::Debugging:
+			Logger::debug("[assimp]", str);
+			break;
+		case Assimp::Logger::Info:
+			Logger::info("[assimp]", str);
+			break;
+		case Assimp::Logger::Warn:
+			Logger::warn("[assimp]", str);
+			break;
+		case Assimp::Logger::Err:
+			Logger::error("[assimp]", str);
+			break;
+		default:
+			break;
+		}
+	}
+};
+using DebugLogStream = LogStream<Assimp::Logger::Debugging>;
+using InfoLogStream = LogStream<Assimp::Logger::Info>;
+using WarnLogStream = LogStream<Assimp::Logger::Warn>;
+using ErrorLogStream = LogStream<Assimp::Logger::Err>;
+
+Assimp::Logger* createAssimpLogger()
+{
+#if defined(AKA_DEBUG)
+	Assimp::Logger::LogSeverity severity = Assimp::Logger::LogSeverity::VERBOSE;
+#else
+	Assimp::Logger::LogSeverity severity = Assimp::Logger::LogSeverity::NORMAL;
+#endif
+	Assimp::Logger* logger = Assimp::DefaultLogger::create("", severity, 0);
+	logger->attachStream(new DebugLogStream(), Assimp::Logger::Debugging);
+	logger->attachStream(new InfoLogStream(), Assimp::Logger::Info);
+	logger->attachStream(new WarnLogStream(), Assimp::Logger::Warn);
+	logger->attachStream(new ErrorLogStream(), Assimp::Logger::Err);
+	return logger;
+}
+
 bool Importer::importScene(const Path& path, aka::World& world)
 {
+	createAssimpLogger();
 	Assimp::Importer assimpImporter;
 	const aiScene* aiScene = assimpImporter.ReadFile(path.cstr(),
 		aiProcess_Triangulate |
@@ -446,6 +500,7 @@ bool Importer::importScene(const Path& path, aka::World& world)
 	Path directory = path.up();
 	AssimpImporter importer(directory, aiScene, world);
 	importer.process();
+	Assimp::DefaultLogger::kill();
 	return true;
 }
 
@@ -454,7 +509,7 @@ bool Importer::importMesh(const aka::String& name, const aka::Path& path)
 	return false;
 }
 
-bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, TextureFlag flags)
+bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, gfx::TextureFlag flags)
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
@@ -463,7 +518,7 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 	// Or a library that include aka, assimp, devil...
 	// Use it as library for a project. 
 	// AkaImporter.h
-	if (!resource->has<Texture>(name))
+	if (!resource->has<gfx::Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -472,18 +527,18 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 
 		// Convert and save
 		TextureStorage storage;
-		storage.type = TextureType::Texture2D;
+		storage.type = gfx::TextureType::Texture2D;
 		storage.flags = flags;
-		storage.format = TextureFormat::RGBA8;
+		storage.format = gfx::TextureFormat::RGBA8;
 		storage.images.push_back(Image::load(path));
-		if (has(flags, TextureFlag::GenerateMips))
-			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
+		if (has(flags, gfx::TextureFlag::GenerateMips))
+			storage.levels = gfx::Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -493,11 +548,11 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, T
 	return true;
 }
 
-bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path, TextureFlag flags)
+bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path, gfx::TextureFlag flags)
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
-	if (!resource->has<Texture>(name))
+	if (!resource->has<gfx::Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -506,18 +561,18 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 
 		// Convert and save
 		TextureStorage storage;
-		storage.type = TextureType::Texture2D;
+		storage.type = gfx::TextureType::Texture2D;
 		storage.flags = flags;
-		storage.format = TextureFormat::RGBA32F;
+		storage.format = gfx::TextureFormat::RGBA32F;
 		storage.images.push_back(Image::loadHDR(path));
-		if (has(flags, TextureFlag::GenerateMips))
-			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
+		if (has(flags, gfx::TextureFlag::GenerateMips))
+			storage.levels = gfx::Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -527,11 +582,11 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 	return true;
 }
 
-bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px, const aka::Path& py, const aka::Path& pz, const aka::Path& nx, const aka::Path& ny, const aka::Path& nz, TextureFlag flags)
+bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px, const aka::Path& py, const aka::Path& pz, const aka::Path& nx, const aka::Path& ny, const aka::Path& nz, gfx::TextureFlag flags)
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
-	if (!resource->has<Texture>(name))
+	if (!resource->has<gfx::Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -540,23 +595,23 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 
 		// Convert and save
 		TextureStorage storage;
-		storage.type = TextureType::TextureCubeMap;
+		storage.type = gfx::TextureType::TextureCubeMap;
 		storage.flags = flags;
-		storage.format = TextureFormat::RGBA8;
+		storage.format = gfx::TextureFormat::RGBA8;
 		storage.images.push_back(Image::load(px));
 		storage.images.push_back(Image::load(py));
 		storage.images.push_back(Image::load(pz));
 		storage.images.push_back(Image::load(nx));
 		storage.images.push_back(Image::load(ny));
 		storage.images.push_back(Image::load(nz));
-		if (has(flags, TextureFlag::GenerateMips))
-			storage.levels = Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
+		if (has(flags, gfx::TextureFlag::GenerateMips))
+			storage.levels = gfx::Sampler::mipLevelCount(storage.images[0].width(), storage.images[0].height());
 
 		// blabla
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<Texture>(name, libPath).resource == nullptr)
+		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else

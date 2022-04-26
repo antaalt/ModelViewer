@@ -5,6 +5,7 @@
 namespace app {
 
 using namespace aka;
+using namespace gfx;
 
 struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) mat4f light;
@@ -111,15 +112,11 @@ void ShadowMapSystem::onCreate(aka::World& world)
 		m_shadowProgram = program->get("shadowDirectional");
 		Rect rectDir = Rect{ 0, 0, DirectionalLightComponent::cascadeResolution, DirectionalLightComponent::cascadeResolution };
 		ViewportState viewportDir{ rectDir, rectDir };
-		Shader* shaders[2] = { m_shadowProgram->vertex, m_shadowProgram->fragment };
 		m_shadowPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_shadowProgram,
 			PrimitiveType::Triangles,
 			fbDesc,
 			vertexBindings,
-			m_shadowProgram->bindings,
-			m_shadowProgram->setCount,
 			viewportDir,
 			DepthState{ DepthOp::Less, true },
 			StencilState{}, // TODO None
@@ -133,15 +130,11 @@ void ShadowMapSystem::onCreate(aka::World& world)
 		m_shadowPointProgram = program->get("shadowPoint");
 		Rect rectPoint = Rect{ 0, 0, PointLightComponent::faceResolution, PointLightComponent::faceResolution };
 		ViewportState viewportPoint{ rectPoint, rectPoint };
-		Shader* shadersPoint[2] = { m_shadowPointProgram->vertex, m_shadowPointProgram->fragment };
 		m_shadowPointPipeline = device->createPipeline(
-			shadersPoint,
-			2,
+			m_shadowPointProgram,
 			PrimitiveType::Triangles,
 			fbDesc,
 			vertexBindings,
-			m_shadowPointProgram->bindings,
-			m_shadowPointProgram->setCount,
 			viewportPoint,
 			DepthState{ DepthOp::Less, true },
 			StencilState{}, // TODO None
@@ -211,7 +204,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 	return lightProjectionMatrix * lightViewMatrix;
 }
 
-void ShadowMapSystem::onRender(aka::World& world, aka::Frame* frame)
+void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	GraphicDevice* device = Application::app()->graphic();
 

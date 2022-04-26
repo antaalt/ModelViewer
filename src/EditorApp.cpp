@@ -22,7 +22,7 @@ Editor::Editor() :
 		new ImGuiLayer
 #endif
 	}),
-	m_debug(false)
+	m_debug(true)
 {
 }
 
@@ -48,9 +48,11 @@ void Editor::onCreate(int argc, char* argv[])
 
 	// --- Model
 	ResourceManager* resource = Application::resource();
-	//resource->parse("library/library.json");
-	//Scene::load(m_world, "library/scene.json");
-	Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
+	resource->parse("library/library.json");
+	Scene::load(m_world, "library/scene.json");
+	//Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
+	//Importer::importScene("asset/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.glTF", m_world);
+	//Importer::importScene("D:/Bibliotheque/Download/Bistro_v5_2/Bistro_v5_2/BistroExterior.fbx", m_world);
 	//resource->serialize("");
 	//Scene::save("", m_world);
 
@@ -118,7 +120,7 @@ void Editor::onCreate(int argc, char* argv[])
 
 void Editor::onDestroy()
 {
-	graphic()->wait(QueueType::Graphic);
+	graphic()->wait(gfx::QueueType::Graphic);
 	Scene::destroy(m_world);
 	// TODO global detach
 	m_world.detach<SceneSystem>();
@@ -179,7 +181,7 @@ void Editor::onUpdate(aka::Time deltaTime)
 	}
 	if (keyboard.down(KeyboardKey::PrintScreen) && !imguiCaptureKeyboard)
 	{
-		GraphicDevice* device = Application::graphic();
+		gfx::GraphicDevice* device = Application::graphic();
 		// TODO create a flag to save in onRender.
 		//Backbuffer::Ptr backbuffer = device->backbuffer();
 		//Image image(backbuffer->width(), backbuffer->height(), 4, ImageFormat::UnsignedByte);
@@ -200,7 +202,7 @@ void Editor::onResize(uint32_t width, uint32_t height)
 {
 }
 
-void Editor::onRender(Frame* frame)
+void Editor::onRender(gfx::Frame* frame)
 {
 	if (m_debug)
 	{

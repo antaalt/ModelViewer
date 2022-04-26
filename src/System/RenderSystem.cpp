@@ -5,8 +5,9 @@
 namespace app {
 
 using namespace aka;
+using namespace gfx;
 
-// Array of type are aligned as 16 in std140 (???) 
+// Array of type are aligned as 16 in std140 (???)
 struct alignas(16) Aligned16Float {
 	float data;
 };
@@ -110,7 +111,7 @@ void RenderSystem::onCreate(aka::World& world)
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 8, 8);
 
 	// --- Skybox pass
-	uint8_t data[] = { 
+	uint8_t data[] = {
 		255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
 		200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255,
 		170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255, 170, 170, 170, 255,
@@ -249,7 +250,7 @@ void RenderSystem::onDestroy(aka::World& world)
 	// program and shaders self destroyed
 }
 
-void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
+void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	Application* app = Application::app();
 	GraphicDevice* device = app->graphic();
@@ -324,7 +325,7 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 
 	// --- G-Buffer pass
 	// TODO depth prepass
-	CommandList* cmd = frame->commandList;
+	gfx::CommandList* cmd = frame->commandList;
 	cmd->bindPipeline(m_gbufferPipeline);
 	cmd->beginRenderPass(m_gbuffer, ClearState{ ClearMask::None, {0.f}, 1.f, 0 });
 	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const OpaqueMaterialComponent& material, const RenderComponent& rendering) {
@@ -386,7 +387,7 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 	device->update(m_dirDescriptorSet);
 
 	cmd->bindPipeline(m_dirPipeline);
-	
+
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light){
 
@@ -606,7 +607,11 @@ void RenderSystem::onRender(aka::World& world, aka::Frame* frame)
 
 void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
 {
-	createRenderTargets(e.width, e.height);
+	if (e.width != 0 && e.height != 0)
+	{
+		destroyRenderTargets();
+		createRenderTargets(e.width, e.height);
+	}
 }
 
 void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
@@ -614,19 +619,36 @@ void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 	Application* app = Application::app();
 	GraphicDevice* device = app->graphic();
 
-	// TODO fix hot reload
 	if (e.name == "gbuffer")
+	{
 		m_gbufferProgram = e.program;
+		reloadPipeline(device, m_gbufferPipeline, e.program);
+	}
 	else if (e.name == "point")
+	{
 		m_pointProgram = e.program;
+		reloadPipeline(device, m_pointPipeline, e.program);
+	}
 	else if (e.name == "directional")
+	{
 		m_dirProgram = e.program;
+		reloadPipeline(device, m_dirPipeline, e.program);
+	}
 	else if (e.name == "ambient")
+	{
 		m_ambientProgram = e.program;
+		reloadPipeline(device, m_ambientPipeline, e.program);
+	}
 	else if (e.name == "skybox")
+	{
 		m_skyboxProgram = e.program;
+		reloadPipeline(device, m_skyboxPipeline, e.program);
+	}
 	else if (e.name == "postProcess")
+	{
 		m_postprocessProgram = e.program;
+		reloadPipeline(device, m_postPipeline, e.program);
+	}
 	//else if (e.name == "text")
 	//	m_textDescriptorSet = e.program;
 }
@@ -636,23 +658,23 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 	Application* app = Application::app();
 	GraphicDevice* device = app->graphic();
 
-	ViewportState viewport{ Rect{0, 0, app->width(), app->height()}, Rect{0, 0, app->width(), app->height()} };
+	ViewportState viewport{ Rect{0, 0, width, height}, Rect{0, 0, width, height} };
 
 	{
 		// --- G-Buffer pass
 		//
 		// Depth | Stencil
-		// D     | S  
-		// 
+		// D     | S
+		//
 		// position | _
 		// R G B    | A
-		// 
+		//
 		// albedo | opacity
 		// R G B  | A
-		// 
+		//
 		// normal | _
 		// R G B  | A
-		// 
+		//
 		// ao | roughness | metalness | _
 		// R  | G         | B         | A
 		FramebufferState fbDesc;
@@ -686,21 +708,17 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_gbufferVertices.offsets[2] = offsetof(Vertex, texcoord);
 		m_gbufferVertices.offsets[3] = offsetof(Vertex, color);
 
-		Shader* shaders[2] = { m_gbufferProgram->vertex, m_gbufferProgram->fragment };
 		m_gbufferPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_gbufferProgram,
 			PrimitiveType::Triangles,
 			fbDesc,
 			m_gbufferVertices,
-			m_gbufferProgram->bindings,
-			m_gbufferProgram->setCount,
 			viewport,
 			DepthState{ DepthOp::Less, true },
 			StencilState{ StencilState::Face { StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, StencilState::Face {StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, 0xff, 0xff },
 			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff }, 
-			FillState{ FillMode::Fill, 1.f } 
+			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
+			FillState{ FillMode::Fill, 1.f }
 		);
 	}
 	{
@@ -715,15 +733,11 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 	}
 	{
 		// --- Ambient
-		Shader* shaders[2] = { m_ambientProgram->vertex, m_ambientProgram->fragment };
 		m_ambientPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_ambientProgram,
 			PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_quad->bindings,
-			m_ambientProgram->bindings,
-			m_ambientProgram->setCount,
 			viewport,
 			DepthState{},
 			StencilState{},
@@ -735,15 +749,11 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 
 	{
 		// --- Directional
-		Shader* shaders[2] = { m_dirProgram->vertex, m_dirProgram->fragment };
 		m_dirPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_dirProgram,
 			PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_quad->bindings,
-			m_dirProgram->bindings,
-			m_dirProgram->setCount,
 			viewport,
 			DepthState{},
 			StencilState{},
@@ -755,15 +765,11 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 
 	{
 		// --- Point
-		Shader* shaders[2] = { m_pointProgram->vertex, m_pointProgram->fragment };
 		m_pointPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_pointProgram,
 			PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_sphere->bindings,
-			m_pointProgram->bindings,
-			m_pointProgram->setCount,
 			viewport,
 			DepthState{},
 			StencilState{},
@@ -775,21 +781,17 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 
 	{
 		// --- Skybox
-		Shader* shaders[2] = { m_skyboxProgram->vertex, m_skyboxProgram->fragment };
 		m_skyboxPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_skyboxProgram,
 			PrimitiveType::Triangles,
 			m_storageDepthFramebuffer->framebuffer,
 			m_cube->bindings,
-			m_skyboxProgram->bindings,
-			1,
 			viewport,
 			DepthState{ DepthOp::LessOrEqual, false },
 			StencilState{},
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, 
-			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff }, 
-			FillState{ FillMode::Fill, 1.f } 
+			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
+			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
+			FillState{ FillMode::Fill, 1.f }
 		);
 	}
 
@@ -804,15 +806,11 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		fbDesc.depth.loadOp = AttachmentLoadOp::Load;
 		fbDesc.count = 1;
 
-		Shader* shaders[2] = { m_postprocessProgram->vertex, m_postprocessProgram->fragment};
 		m_postPipeline = device->createPipeline(
-			shaders,
-			2,
+			m_postprocessProgram,
 			PrimitiveType::Triangles,
 			fbDesc,
 			m_quad->bindings,
-			m_postprocessProgram->bindings,
-			1,
 			viewport,
 			DepthState{},
 			StencilState{},
@@ -821,6 +819,27 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 			FillState{ FillMode::Fill, 1.f }
 		);
 	}
+}
+
+void RenderSystem::destroyRenderTargets()
+{
+	Application* app = Application::app();
+	GraphicDevice* device = app->graphic();
+	device->destroy(m_gbufferPipeline);
+	device->destroy(m_ambientPipeline);
+	device->destroy(m_dirPipeline);
+	device->destroy(m_pointPipeline);
+	device->destroy(m_skyboxPipeline);
+	device->destroy(m_postPipeline);
+	device->destroy(m_albedo);
+	device->destroy(m_depth);
+	device->destroy(m_normal);
+	device->destroy(m_gbuffer);
+	device->destroy(m_material);
+	device->destroy(m_position);
+	device->destroy(m_storage) ;
+	device->destroy(m_storageFramebuffer);
+	device->destroy(m_storageDepthFramebuffer);
 }
 
 };

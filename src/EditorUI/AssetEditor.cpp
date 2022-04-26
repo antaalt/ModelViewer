@@ -87,7 +87,7 @@ static void drawResource(const char* type, AssetViewerEditor<T>* viewer)
 		viewer->set(pair.first, pair.second);
 }
 
-void AssetEditor::onRender(aka::World& world, aka::Frame* frame)
+void AssetEditor::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	Application* app = Application::app();
 	ResourceManager* resources = app->resource();
@@ -134,7 +134,7 @@ void AssetEditor::onRender(aka::World& world, aka::Frame* frame)
 					openImportWindow = true;
 					import([&](const aka::Path& path) -> bool {
 						aka::Logger::info("Image : ", path);
-						return Importer::importTexture2D(OS::File::basename(path), path, TextureFlag::ShaderResource);
+						return Importer::importTexture2D(OS::File::basename(path), path, gfx::TextureFlag::ShaderResource);
 					});
 				}
 				if (ImGui::MenuItem("Cubemap"))
@@ -188,11 +188,11 @@ void AssetEditor::onRender(aka::World& world, aka::Frame* frame)
 			ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 40.f);
 			ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 90.f);
 			ImGui::TableHeadersRow();
-			drawResource<Texture>("textures", &m_textureEditor);
+			drawResource<gfx::Texture>("textures", &m_textureEditor);
 			drawResource<AudioStream>("audios", &m_audioEditor);
 			drawResource<Mesh>("meshes", &m_meshEditor);
 			drawResource<Font>("fonts", &m_fontEditor);
-			drawResource<Buffer>("buffers", &m_bufferEditor);
+			drawResource<gfx::Buffer>("buffers", &m_bufferEditor);
 			// TODO support other resources
 			ImGui::EndTable();
 		}

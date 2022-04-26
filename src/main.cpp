@@ -61,16 +61,16 @@ void parse(int argc, char* argv[], Settings& settings)
 }
 
 // Pick a graphic API
-aka::GraphicAPI pick()
+aka::gfx::GraphicAPI pick()
 {
 #if   defined(AKA_USE_OPENGL)
-	return aka::GraphicAPI::OpenGL3;
+	return aka::gfx::GraphicAPI::OpenGL3;
 #elif defined(AKA_USE_D3D11)
-	return aka::GraphicAPI::DirectX11;
+	return aka::gfx::GraphicAPI::DirectX11;
 #elif defined(AKA_USE_VULKAN)
-	return aka::GraphicAPI::Vulkan;
+	return aka::gfx::GraphicAPI::Vulkan;
 #else
-	return aka::GraphicAPI::None;
+	return aka::gfx::GraphicAPI::None;
 #endif
 }
 

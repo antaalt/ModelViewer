@@ -22,8 +22,8 @@ struct StaticMeshComponent {
 
 struct OpaqueMaterialComponent {
 	struct SampledTexture {
-		Texture* texture;
-		Sampler* sampler;
+		gfx::Texture* texture;
+		gfx::Sampler* sampler;
 	};
 	color4f color;
 	bool doubleSided;
@@ -46,13 +46,13 @@ struct DirectionalLightComponent {
 	static constexpr size_t cascadeCount = 3;
 	static constexpr size_t cascadeResolution = 4096;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
-	Framebuffer* framebuffer[cascadeCount];
-	DescriptorSet* descriptorSet[cascadeCount];
-	Texture* shadowMap;
+	gfx::Framebuffer* framebuffer[cascadeCount];
+	gfx::DescriptorSet* descriptorSet[cascadeCount];
+	gfx::Texture* shadowMap;
 	float cascadeEndClipSpace[cascadeCount];
-	Buffer* ubo[cascadeCount];
-	DescriptorSet* renderDescriptorSet;
-	Buffer* renderUBO;
+	gfx::Buffer* ubo[cascadeCount];
+	gfx::DescriptorSet* renderDescriptorSet;
+	gfx::Buffer* renderUBO;
 };
 
 struct PointLightComponent {
@@ -61,20 +61,20 @@ struct PointLightComponent {
 	// Rendering
 	static constexpr size_t faceResolution = 1024;
 	mat4f worldToLightSpaceMatrix[6];
-	Framebuffer* framebuffer[6];
-	Texture* shadowMap;
+	gfx::Framebuffer* framebuffer[6];
+	gfx::Texture* shadowMap;
 	float radius;
-	Buffer* ubo[6];
-	DescriptorSet* descriptorSet[6];
-	Buffer* renderUBO;
-	DescriptorSet* renderDescriptorSet;
+	gfx::Buffer* ubo[6];
+	gfx::DescriptorSet* descriptorSet[6];
+	gfx::Buffer* renderUBO;
+	gfx::DescriptorSet* renderDescriptorSet;
 };
 
 // with a preetham component or something, we can emulate sky
 // a system read all preetham skybox and draw on the the sky if update.
 // it also control a directional light attached to it that render the sun with it.
 struct SkyboxComponent {
-	Texture* skybox;
+	gfx::Texture* skybox;
 };
 
 struct Camera3DComponent {
@@ -87,7 +87,7 @@ struct Camera3DComponent {
 struct TextComponent
 {
 	Font* font;
-	Sampler* sampler;
+	gfx::Sampler* sampler;
 	String text;
 	color4f color;
 };

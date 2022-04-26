@@ -43,6 +43,10 @@
 			"vertex" : "text.vert",
 			"fragment" : "text.frag"
 		},
+		"batch3D" : {
+			"vertex" : "batch3D.vert",
+			"fragment" : "batch3D.frag"
+		},
 		"editor.basic" : {
 			"vertex" : "editor.basic.vert",
 			"fragment" : "editor.basic.frag"
@@ -119,10 +123,10 @@
 				{"semantic": 0, "format": 0, "type": 1 }
 			]
 		},
-		"skybox.frag":  {
+		"skybox.frag": {
 			"path":"asset/shaders/renderer/skybox.frag"
 		},
-		"text.vert":  {
+		"text.vert": {
 			"path":"asset/shaders/renderer/text.vert",
 			"attributes" : [
 				{"semantic": 0, "format": 0, "type": 0 },
@@ -132,10 +136,22 @@
 		"text.frag":  {
 			"path":"asset/shaders/renderer/text.frag"
 		},
-		"editor.basic.frag":  {
+		"batch3D.vert": {
+			"path": "asset/shaders/renderer/batch/batch.vert",
+			"attributes" : [
+				{"semantic": 0, "format": 0, "type": 1 },
+				{"semantic": 1, "format": 0, "type": 1 },
+				{"semantic": 3, "format": 0, "type": 0 },
+				{"semantic": 7, "format": 0, "type": 2 }
+			]
+		},
+		"batch3D.frag": {
+			"path":"asset/shaders/renderer/batch/batch.frag"
+		},
+		"editor.basic.frag": {
 			"path":"asset/shaders/editor/basic.frag"
 		},
-		"editor.basic.vert":  {
+		"editor.basic.vert": {
 			"path":"asset/shaders/editor/basic.vert",
 			"attributes" : [
 				{"semantic": 0, "format": 0, "type": 1 },
@@ -144,7 +160,7 @@
 				{"semantic": 7, "format": 0, "type": 2 }
 			]
 		},
-		"editor.wireframe.frag":  {
+		"editor.wireframe.frag": {
 			"path":"asset/shaders/editor/wireframe.frag"
 		},
 		"editor.wireframe.vert":  {
