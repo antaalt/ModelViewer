@@ -18,9 +18,9 @@ private:
 	entt::entity m_currentEntity;
 	uint32_t m_gizmoOperation;
 	char m_entityName[256];
-	aka::gfx::Program* m_wireframeProgram;
-	aka::gfx::DescriptorSet* m_wireframeDescriptorSet;
-	aka::gfx::Buffer* m_wireFrameUniformBuffer;
+	const aka::gfx::Program* m_wireframeProgram;
+	aka::gfx::DescriptorSetHandle m_wireframeDescriptorSet;
+	const aka::gfx::Buffer* m_wireFrameUniformBuffer;
 };
 
 };

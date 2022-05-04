@@ -188,11 +188,11 @@ void AssetEditor::onRender(aka::World& world, aka::gfx::Frame* frame)
 			ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 40.f);
 			ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 90.f);
 			ImGui::TableHeadersRow();
-			drawResource<gfx::Texture>("textures", &m_textureEditor);
+			drawResource<Texture>("textures", &m_textureEditor);
 			drawResource<AudioStream>("audios", &m_audioEditor);
 			drawResource<Mesh>("meshes", &m_meshEditor);
 			drawResource<Font>("fonts", &m_fontEditor);
-			drawResource<gfx::Buffer>("buffers", &m_bufferEditor);
+			drawResource<Buffer>("buffers", &m_bufferEditor);
 			// TODO support other resources
 			ImGui::EndTable();
 		}

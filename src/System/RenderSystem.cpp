@@ -5,7 +5,6 @@
 namespace app {
 
 using namespace aka;
-using namespace gfx;
 
 // Array of type are aligned as 16 in std140 (???)
 struct alignas(16) Aligned16Float {
@@ -54,7 +53,7 @@ struct alignas(16) MatricesUniformBuffer {
 void RenderSystem::onCreate(aka::World& world)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
 	ProgramManager* program = app->program();
 	m_gbufferProgram = program->get("gbuffer");
@@ -67,28 +66,28 @@ void RenderSystem::onCreate(aka::World& world)
 	m_viewDescriptorSet = device->createDescriptorSet(m_gbufferProgram->bindings[0]);
 
 	// --- Uniforms
-	m_cameraUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(CameraUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-	m_viewportUniformBuffer = device->createBuffer(BufferType::Uniform, sizeof(ViewportUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
+	m_cameraUniformBuffer = device->createBuffer(gfx::BufferType::Uniform, sizeof(CameraUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
+	m_viewportUniformBuffer = device->createBuffer(gfx::BufferType::Uniform, sizeof(ViewportUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 
 	// --- Lighting pass
 	m_defaultSampler = device->createSampler(
-		Filter::Nearest,
-		Filter::Nearest,
-		SamplerMipMapMode::None,
+		gfx::Filter::Nearest,
+		gfx::Filter::Nearest,
+		gfx::SamplerMipMapMode::None,
 		1,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
 		1.f
 	);
 	m_shadowSampler = device->createSampler(
-		Filter::Nearest,
-		Filter::Nearest,
-		SamplerMipMapMode::None,
+		gfx::Filter::Nearest,
+		gfx::Filter::Nearest,
+		gfx::SamplerMipMapMode::None,
 		1,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
 		1.f
 	);
 
@@ -100,12 +99,12 @@ void RenderSystem::onCreate(aka::World& world)
 	};
 	uint16_t quadIndices[] = { 0,1,2,0,2,3 };
 	m_quad = Mesh::create();
-	m_quad->bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 };
+	m_quad->bindings.attributes[0] = gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec2 };
 	m_quad->bindings.offsets[0] = 0;
 	m_quad->bindings.count = 1;
-	m_quad->vertices[0] = device->createBuffer(BufferType::Vertex, sizeof(quadVertices), BufferUsage::Default, BufferCPUAccess::None, quadVertices);
-	m_quad->indices = device->createBuffer(BufferType::Index, sizeof(quadIndices), BufferUsage::Default, BufferCPUAccess::None, quadIndices);
-	m_quad->format = IndexFormat::UnsignedShort;
+	m_quad->vertices[0] = device->createBuffer(gfx::BufferType::Vertex, sizeof(quadVertices), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, quadVertices);
+	m_quad->indices = device->createBuffer(gfx::BufferType::Index, sizeof(quadIndices), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, quadIndices);
+	m_quad->format = gfx::IndexFormat::UnsignedShort;
 	m_quad->count = 6;
 
 	m_sphere = Scene::createSphereMesh(point3f(0.f), 1.f, 8, 8);
@@ -124,17 +123,17 @@ void RenderSystem::onCreate(aka::World& world)
 	void* datas[6];
 	for (int i = 0; i < 6; i++)
 		datas[i] = data;
-	m_skybox = Texture::createCubemap(8, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, datas);
-	//Texture* equirectangularMap = Texture::create2D(4, 8, TextureFormat::RGBA8, TextureFlag::ShaderResource, data);
-	//m_skybox = Texture::generate(512, 512, TextureFormat::RGBA8, TextureFlag::ShaderResource, equirectangularMap, Filter::Linear);
+	m_skybox = gfx::Texture::createCubemap(8, 8, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, datas);
+	//Texture* equirectangularMap = Texture::create2D(4, 8, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, data);
+	//m_skybox = Texture::generate(512, 512, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, equirectangularMap, gfx::Filter::Linear);
 	m_skyboxSampler = device->createSampler(
-		Filter::Linear,
-		Filter::Linear,
-		SamplerMipMapMode::None,
+		gfx::Filter::Linear,
+		gfx::Filter::Linear,
+		gfx::SamplerMipMapMode::None,
 		1,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
-		SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
+		gfx::SamplerAddressMode::ClampToEdge,
 		1.f
 	);
 
@@ -182,12 +181,12 @@ void RenderSystem::onCreate(aka::World& world)
 		 1.0f, -1.0f,  1.0f
 	};
 	m_cube = Mesh::create();
-	m_cube->bindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
+	m_cube->bindings.attributes[0] = gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec3 };
 	m_cube->bindings.offsets[0] = 0;
 	m_cube->bindings.count = 1;
-	m_cube->vertices[0] = device->createBuffer(BufferType::Vertex, sizeof(skyboxVertices), BufferUsage::Default, BufferCPUAccess::None, skyboxVertices);
+	m_cube->vertices[0] = device->createBuffer(gfx::BufferType::Vertex, sizeof(skyboxVertices), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, skyboxVertices);
 	m_cube->indices = nullptr;
-	m_cube->format = IndexFormat::UnsignedShort;
+	m_cube->format = gfx::IndexFormat::UnsignedShort;
 	m_cube->count = 36;
 
 	createRenderTargets(app->width(), app->height());
@@ -196,7 +195,7 @@ void RenderSystem::onCreate(aka::World& world)
 void RenderSystem::onDestroy(aka::World& world)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
 	auto renderableView = world.registry().view<RenderComponent>();
 	for (entt::entity e : renderableView)
@@ -253,9 +252,9 @@ void RenderSystem::onDestroy(aka::World& world)
 void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
-	Framebuffer* backbuffer = device->backbuffer(frame); // TODO retrieve frame (check if is in render thread)
+	const gfx::Framebuffer* backbuffer = device->backbuffer(frame); // TODO retrieve frame (check if is in render thread)
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -263,9 +262,10 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	mat4f projection = camera.projection->projection();
 
 	// --- Update Uniforms
-	m_postprocessDescriptorSet->setSampledImage(0, m_storage, m_shadowSampler);
-	m_postprocessDescriptorSet->setUniformBuffer(1, m_viewportUniformBuffer);
-	device->update(m_postprocessDescriptorSet);
+	gfx::DescriptorSetData postProcessData{};
+	postProcessData.setSampledImage(0, m_storage, m_shadowSampler);
+	postProcessData.setUniformBuffer(1, m_viewportUniformBuffer);
+	device->update(m_postprocessDescriptorSet, postProcessData);
 
 	// TODO only update on camera move / update
 	CameraUniformBuffer cameraUBO;
@@ -278,14 +278,12 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	viewportUBO.viewport = vec2f(app->width(), app->height());
 	device->upload(m_viewportUniformBuffer , &viewportUBO, 0, sizeof(ViewportUniformBuffer));
 
-	// Samplers
-	Sampler* samplers[] = { m_shadowSampler , m_shadowSampler , m_shadowSampler };
-
 	// Add render data to every component
 	// View
-	m_viewDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
-	m_viewDescriptorSet->setUniformBuffer(1, m_viewportUniformBuffer);
-	device->update(m_viewDescriptorSet);
+	gfx::DescriptorSetData viewData{};
+	viewData.setUniformBuffer(0, m_cameraUniformBuffer);
+	viewData.setUniformBuffer(1, m_viewportUniformBuffer);
+	device->update(m_viewDescriptorSet, viewData);
 
 	auto notRenderSetView = world.registry().view<Transform3DComponent, MeshComponent, OpaqueMaterialComponent>(entt::exclude<RenderComponent>);
 	for (entt::entity e : notRenderSetView)
@@ -304,21 +302,23 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		matricesUBO.normalMatrix1 = vec3f(normalMatrix[1]);
 		matricesUBO.normalMatrix2 = vec3f(normalMatrix[2]);
 		r.matrices = device->createDescriptorSet(m_gbufferProgram->bindings[2]);
-		r.ubo[0] = device->createBuffer(BufferType::Uniform, sizeof(MatricesUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &matricesUBO);
-		r.matrices->setUniformBuffer(0, r.ubo[0]);
-		device->update(r.matrices);
+		r.ubo[0] = device->createBuffer(gfx::BufferType::Uniform, sizeof(MatricesUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, &matricesUBO);
+		gfx::DescriptorSetData matricesData{};
+		matricesData.setUniformBuffer(0, r.ubo[0]);
+		device->update(r.matrices, matricesData);
 
 
 		// DescriptorSet
 		MaterialUniformBuffer materialUBO;
 		materialUBO.color = material.color;
-		r.ubo[1] = device->createBuffer(BufferType::Uniform, sizeof(MaterialUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, &materialUBO);
+		r.ubo[1] = device->createBuffer(gfx::BufferType::Uniform, sizeof(MaterialUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, &materialUBO);
 		r.material = device->createDescriptorSet(m_gbufferProgram->bindings[1]);
-		r.material->setUniformBuffer(0, r.ubo[1]);
-		r.material->setSampledImage(1, material.albedo.texture, material.albedo.sampler);
-		r.material->setSampledImage(2, material.normal.texture, material.normal.sampler);
-		r.material->setSampledImage(3, material.material.texture, material.material.sampler);
-		device->update(r.material);
+		gfx::DescriptorSetData materialData{};
+		materialData.setUniformBuffer(0, r.ubo[1]);
+		materialData.setSampledImage(1, material.albedo.texture.texture, material.albedo.sampler);
+		materialData.setSampledImage(2, material.normal.texture.texture, material.normal.sampler);
+		materialData.setSampledImage(3, material.material.texture.texture, material.material.sampler);
+		device->update(r.material, materialData);
 	}
 
 	auto renderableView = world.registry().view<Transform3DComponent, MeshComponent, OpaqueMaterialComponent, RenderComponent>();
@@ -327,7 +327,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	// TODO depth prepass
 	gfx::CommandList* cmd = frame->commandList;
 	cmd->bindPipeline(m_gbufferPipeline);
-	cmd->beginRenderPass(m_gbuffer, ClearState{ ClearMask::None, {0.f}, 1.f, 0 });
+	cmd->beginRenderPass(m_gbuffer, gfx::ClearState{ gfx::ClearMask::None, {0.f}, 1.f, 0 });
 	renderableView.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const OpaqueMaterialComponent& material, const RenderComponent& rendering) {
 		frustum<>::planes p = frustum<>::extract(projection * view);
 		// Check intersection in camera space
@@ -335,7 +335,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		if (!p.intersect(transform.transform * mesh.bounds))
 			return;
 
-		DescriptorSet* materials[3] = { m_viewDescriptorSet, rendering.material, rendering.matrices };
+		gfx::DescriptorSetHandle materials[3] = { m_viewDescriptorSet, rendering.material, rendering.matrices };
 		cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
 		cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
 		cmd->bindDescriptorSets(materials, 3);
@@ -360,45 +360,48 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	);
 
 	// --- Ambient light
-	m_ambientDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
-	m_ambientDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
-	m_ambientDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
-	m_ambientDescriptorSet->setSampledImage(3, m_skybox, m_defaultSampler);
-	m_ambientDescriptorSet->setUniformBuffer(4, m_cameraUniformBuffer);
-	device->update(m_ambientDescriptorSet);
+	gfx::DescriptorSetData ambiantData{};
+	ambiantData.setSampledImage(0, m_position, m_defaultSampler);
+	ambiantData.setSampledImage(1, m_albedo, m_defaultSampler);
+	ambiantData.setSampledImage(2, m_normal, m_defaultSampler);
+	ambiantData.setSampledImage(3, m_skybox, m_defaultSampler);
+	ambiantData.setUniformBuffer(4, m_cameraUniformBuffer);
+	device->update(m_ambientDescriptorSet, ambiantData);
 
 	cmd->bindPipeline(m_ambientPipeline);
 	cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
 	cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
 	cmd->bindDescriptorSet(0, m_ambientDescriptorSet);
 
-	cmd->beginRenderPass(m_storageFramebuffer, ClearState{ ClearMask::None, {0.f, 0.f, 0.f, 1.f}, 1.f, 1 });
+	cmd->beginRenderPass(m_storageFramebuffer, gfx::ClearState{ gfx::ClearMask::None, {0.f, 0.f, 0.f, 1.f}, 1.f, 1 });
 
 	cmd->drawIndexed(m_quad->count, 0, 0, 1);
 
 
 	// --- Directional lights
-	m_dirDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
-	m_dirDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
-	m_dirDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
-	m_dirDescriptorSet->setSampledImage(3, m_depth, m_defaultSampler);
-	m_dirDescriptorSet->setSampledImage(4, m_material, m_defaultSampler);
-	m_dirDescriptorSet->setUniformBuffer(5, m_cameraUniformBuffer);
-	device->update(m_dirDescriptorSet);
+	gfx::DescriptorSetData directionalData{};
+	directionalData.setSampledImage(0, m_position, m_defaultSampler);
+	directionalData.setSampledImage(1, m_albedo, m_defaultSampler);
+	directionalData.setSampledImage(2, m_normal, m_defaultSampler);
+	directionalData.setSampledImage(3, m_depth, m_defaultSampler);
+	directionalData.setSampledImage(4, m_material, m_defaultSampler);
+	directionalData.setUniformBuffer(5, m_cameraUniformBuffer);
+	device->update(m_dirDescriptorSet, directionalData);
 
 	cmd->bindPipeline(m_dirPipeline);
 
 	auto directionalShadows = world.registry().view<Transform3DComponent, DirectionalLightComponent>();
 	directionalShadows.each([&](const Transform3DComponent& transform, DirectionalLightComponent& light){
 
-		if (light.renderDescriptorSet == nullptr)
+		if (light.renderDescriptorSet.data == nullptr)
 		{
 			// Init is here because we dont have access to DirectionalLightUniformBuffer in shadowMapSystem
 			light.renderDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[1]);
-			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);
-			light.renderDescriptorSet->setSampledImage(1, light.shadowMap, m_defaultSampler);
-			device->update(light.renderDescriptorSet);
+			light.renderUBO = device->createBuffer(gfx::BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
+			gfx::DescriptorSetData lightData{};
+			lightData.setUniformBuffer(0, light.renderUBO);
+			lightData.setSampledImage(1, light.shadowMap, m_defaultSampler);
+			device->update(light.renderDescriptorSet, lightData);
 		}
 		//if (dirty)
 		{
@@ -415,7 +418,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 			device->upload(light.renderUBO, &directionalUBO, 0, sizeof(DirectionalLightUniformBuffer));
 		}
 
-		DescriptorSet* materials[2] = { m_dirDescriptorSet, light.renderDescriptorSet };
+		gfx::DescriptorSetHandle materials[2] = { m_dirDescriptorSet, light.renderDescriptorSet };
 		cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
 		cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
 		cmd->bindDescriptorSets(materials, 2);
@@ -425,14 +428,15 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 
 	// --- Point lights
 	// Using light volumes
-	m_pointDescriptorSet->setSampledImage(0, m_position, m_defaultSampler);
-	m_pointDescriptorSet->setSampledImage(1, m_albedo, m_defaultSampler);
-	m_pointDescriptorSet->setSampledImage(2, m_normal, m_defaultSampler);
-	m_pointDescriptorSet->setSampledImage(3, m_depth, m_defaultSampler);
-	m_pointDescriptorSet->setSampledImage(4, m_material, m_defaultSampler);
-	m_pointDescriptorSet->setUniformBuffer(5, m_cameraUniformBuffer);
-	m_pointDescriptorSet->setUniformBuffer(6, m_viewportUniformBuffer);
-	device->update(m_pointDescriptorSet);
+	gfx::DescriptorSetData lightData{};
+	lightData.setSampledImage(0, m_position, m_defaultSampler);
+	lightData.setSampledImage(1, m_albedo, m_defaultSampler);
+	lightData.setSampledImage(2, m_normal, m_defaultSampler);
+	lightData.setSampledImage(3, m_depth, m_defaultSampler);
+	lightData.setSampledImage(4, m_material, m_defaultSampler);
+	lightData.setUniformBuffer(5, m_cameraUniformBuffer);
+	lightData.setUniformBuffer(6, m_viewportUniformBuffer);
+	device->update(m_pointDescriptorSet, lightData);
 
 	cmd->bindPipeline(m_pointPipeline);
 
@@ -444,14 +448,15 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		if (!p.intersect(bounds))
 			return;
 
-		if (light.renderDescriptorSet == nullptr)
+		if (light.renderDescriptorSet.data == nullptr)
 		{
 			// Init is here because we dont have access to PointLightUniformBuffer in shadowMapSystem
 			light.renderDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[1]);
-			light.renderUBO = device->createBuffer(BufferType::Uniform, sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None);
-			light.renderDescriptorSet->setUniformBuffer(0, light.renderUBO);
-			light.renderDescriptorSet->setSampledImage(1, light.shadowMap, m_defaultSampler);
-			device->update(light.renderDescriptorSet);
+			light.renderUBO = device->createBuffer(gfx::BufferType::Uniform, sizeof(PointLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
+			gfx::DescriptorSetData lightData{};
+			lightData.setUniformBuffer(0, light.renderUBO);
+			lightData.setSampledImage(1, light.shadowMap, m_defaultSampler);
+			device->update(light.renderDescriptorSet, lightData);
 		}
 		//if (dirty)
 		{
@@ -464,7 +469,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 			device->upload(light.renderUBO, &pointUBO, 0, sizeof(PointLightUniformBuffer));
 		}
 
-		DescriptorSet* materials[2] = { m_pointDescriptorSet, light.renderDescriptorSet };
+		gfx::DescriptorSetHandle materials[2] = { m_pointDescriptorSet, light.renderDescriptorSet };
 		cmd->bindIndexBuffer(m_sphere->indices, m_sphere->format, 0);
 		cmd->bindVertexBuffer(m_sphere->vertices, 0, 1, m_sphere->bindings.offsets);
 		cmd->bindDescriptorSets(materials, 2);
@@ -474,11 +479,12 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	cmd->endRenderPass();
 
 	// --- Skybox pass
-	m_skyboxDescriptorSet->setUniformBuffer(0, m_cameraUniformBuffer);
-	m_skyboxDescriptorSet->setSampledImage(1, m_skybox, m_skyboxSampler);
-	device->update(m_skyboxDescriptorSet);
+	gfx::DescriptorSetData skyboxData{};
+	skyboxData.setUniformBuffer(0, m_cameraUniformBuffer);
+	skyboxData.setSampledImage(1, m_skybox, m_skyboxSampler);
+	device->update(m_skyboxDescriptorSet, skyboxData);
 
-	cmd->beginRenderPass(m_storageDepthFramebuffer, ClearState{});
+	cmd->beginRenderPass(m_storageDepthFramebuffer, gfx::ClearState{});
 	cmd->bindPipeline(m_skyboxPipeline);
 	cmd->bindVertexBuffer(m_cube->vertices, 0, 1, m_cube->bindings.offsets);
 	cmd->bindDescriptorSet(0, m_skyboxDescriptorSet);
@@ -491,7 +497,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	// Text should generate a mesh with its UV & co. This way, it will be easier to handle it.
 	// Dirty rendering for now, close your eyes.
 	RenderPass textPass;
-	textPass.framebuffer = m_storageFramebuffer;
+	textPass.framebuffer = m_storagegfx::Framebuffer;
 	textPass.material = m_textDescriptorSet;
 	textPass.clear = Clear::none;
 	textPass.blend = Blending::none;
@@ -515,16 +521,16 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		1.f, 1.f,
 		0.f, 1.f,
 	};
-	Buffer::Ptr textVertices = Buffer::create(BufferType::Vertex, 4 * sizeof(float) * 2 * 2, BufferUsage::Dynamic, BufferCPUAccess::Write, vertices);
-	Buffer::Ptr textIndices  = Buffer::create(BufferType::Index, sizeof(quadIndices), BufferUsage::Default, BufferCPUAccess::None, quadIndices);
+	Buffer::Ptr textVertices = Buffer::create(gfx::BufferType::Vertex, 4 * sizeof(float) * 2 * 2, gfx::BufferUsage::Dynamic, gfx::BufferCPUAccess::Write, vertices);
+	Buffer::Ptr textIndices  = Buffer::create(gfx::BufferType::Index, sizeof(quadIndices), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, quadIndices);
 	VertexAccessor accessors[2] = {
 		VertexAccessor{
-			VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec2 },
+			gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec2 },
 			VertexBufferView{ textVertices, 0, 4 * sizeof(float) * 2, 0 },
 			0, 4
 		},
 		VertexAccessor{
-			VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 },
+			gfx::VertexAttribute{ gfx::VertexSemantic::TexCoord0, gfx::VertexFormat::Float, gfx::VertexType::Vec2 },
 			VertexBufferView{ textVertices, 0, 4 * sizeof(float) * 2, 0 },
 			4 * sizeof(float) * 2, // offset
 			4 // count
@@ -532,11 +538,11 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	};
 	IndexAccessor indexAccessor{};
 	indexAccessor.bufferView = IndexBufferView{ textIndices, 0, sizeof(quadIndices) };
-	indexAccessor.format = IndexFormat::UnsignedShort;
+	indexAccessor.format = gfx::IndexFormat::UnsignedShort;
 	indexAccessor.count = 6;
 	Mesh::Ptr textMesh = Mesh::create();
 	textMesh->upload(accessors, 2, indexAccessor);
-	textPass.submesh.type = PrimitiveType::Triangles;
+	textPass.submesh.type = gfx::PrimitiveType::Triangles;
 	textPass.submesh.offset = 0;
 	textPass.submesh.count = textMesh->getIndexCount();
 	textPass.submesh.mesh = textMesh;
@@ -597,12 +603,12 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	cmd->bindVertexBuffer(m_quad->vertices, 0, 1, m_quad->bindings.offsets);
 	cmd->bindIndexBuffer(m_quad->indices, m_quad->format, 0);
 
-	cmd->beginRenderPass(backbuffer, ClearState{});
+	cmd->beginRenderPass(backbuffer, gfx::ClearState{});
 	cmd->drawIndexed(m_quad->count, 0, 0, 1);
 	cmd->endRenderPass();
 
 	// Set depth for UI elements
-	//backbuffer->blit(m_storageDepth, TextureFilter::Nearest);
+	//backbuffer->blit(m_storageDepth, Texturegfx::Filter::Nearest);
 }
 
 void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
@@ -617,7 +623,7 @@ void RenderSystem::onReceive(const aka::BackbufferResizeEvent& e)
 void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
 	if (e.name == "gbuffer")
 	{
@@ -656,9 +662,9 @@ void RenderSystem::onReceive(const aka::ProgramReloadedEvent& e)
 void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
-	ViewportState viewport{ Rect{0, 0, width, height}, Rect{0, 0, width, height} };
+	gfx::ViewportState viewport{ Rect{0, 0, width, height}, Rect{0, 0, width, height} };
 
 	{
 		// --- G-Buffer pass
@@ -677,31 +683,31 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		//
 		// ao | roughness | metalness | _
 		// R  | G         | B         | A
-		FramebufferState fbDesc;
-		fbDesc.colors[0].format = TextureFormat::RGBA16F;
-		fbDesc.colors[1].format = TextureFormat::RGBA8;
-		fbDesc.colors[2].format = TextureFormat::RGBA16F;
-		fbDesc.colors[3].format = TextureFormat::RGBA16F;
-		fbDesc.depth.format = TextureFormat::DepthStencil;
+		gfx::FramebufferState fbDesc;
+		fbDesc.colors[0].format = gfx::TextureFormat::RGBA16F;
+		fbDesc.colors[1].format = gfx::TextureFormat::RGBA8;
+		fbDesc.colors[2].format = gfx::TextureFormat::RGBA16F;
+		fbDesc.colors[3].format = gfx::TextureFormat::RGBA16F;
+		fbDesc.depth.format = gfx::TextureFormat::DepthStencil;
 		fbDesc.count = 4;
-		m_depth = Texture::create2D(width, height, fbDesc.depth.format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		m_position = Texture::create2D(width, height, fbDesc.colors[0].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		m_albedo = Texture::create2D(width, height, fbDesc.colors[1].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		m_normal = Texture::create2D(width, height, fbDesc.colors[2].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		m_material = Texture::create2D(width, height, fbDesc.colors[3].format, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		Attachment colorAttachments[] = {
-			Attachment{ m_position, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
-			Attachment{ m_albedo, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
-			Attachment{ m_normal, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 },
-			Attachment{ m_material, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 }
+		m_depth = gfx::Texture::create2D(width, height, fbDesc.depth.format, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		m_position = gfx::Texture::create2D(width, height, fbDesc.colors[0].format, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		m_albedo = gfx::Texture::create2D(width, height, fbDesc.colors[1].format, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		m_normal = gfx::Texture::create2D(width, height, fbDesc.colors[2].format, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		m_material = gfx::Texture::create2D(width, height, fbDesc.colors[3].format, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		gfx::Attachment colorAttachments[] = {
+			gfx::Attachment{ m_position, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, 0, 0 },
+			gfx::Attachment{ m_albedo, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, 0, 0 },
+			gfx::Attachment{ m_normal, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, 0, 0 },
+			gfx::Attachment{ m_material, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, 0, 0 }
 		};
-		Attachment depthAttachment = Attachment{ m_depth, AttachmentFlag::None, AttachmentLoadOp::Clear,  0, 0 };
-		m_gbuffer = device->createFramebuffer(colorAttachments, sizeof(colorAttachments) / sizeof(Attachment), &depthAttachment);
+		gfx::Attachment depthAttachment = gfx::Attachment{ m_depth, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear,  0, 0 };
+		m_gbuffer = device->createFramebuffer(colorAttachments, sizeof(colorAttachments) / sizeof(gfx::Attachment), &depthAttachment);
 
-		m_gbufferVertices.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
-		m_gbufferVertices.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
-		m_gbufferVertices.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
-		m_gbufferVertices.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+		m_gbufferVertices.attributes[0] = gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec3 };
+		m_gbufferVertices.attributes[1] = gfx::VertexAttribute{ gfx::VertexSemantic::Normal, gfx::VertexFormat::Float, gfx::VertexType::Vec3 };
+		m_gbufferVertices.attributes[2] = gfx::VertexAttribute{ gfx::VertexSemantic::TexCoord0, gfx::VertexFormat::Float, gfx::VertexType::Vec2 };
+		m_gbufferVertices.attributes[3] = gfx::VertexAttribute{ gfx::VertexSemantic::Color0, gfx::VertexFormat::Float, gfx::VertexType::Vec4 };
 		m_gbufferVertices.count = 4;
 		m_gbufferVertices.offsets[0] = offsetof(Vertex, position);
 		m_gbufferVertices.offsets[1] = offsetof(Vertex, normal);
@@ -710,40 +716,40 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 
 		m_gbufferPipeline = device->createPipeline(
 			m_gbufferProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			fbDesc,
 			m_gbufferVertices,
 			viewport,
-			DepthState{ DepthOp::Less, true },
-			StencilState{ StencilState::Face { StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, StencilState::Face {StencilMode::Keep, StencilMode::Keep, StencilMode::Keep, StencilOp::None }, 0xff, 0xff },
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{ gfx::DepthOp::Less, true },
+			gfx::StencilState{ gfx::StencilState::Face { gfx::StencilMode::Keep, gfx::StencilMode::Keep, gfx::StencilMode::Keep, gfx::StencilOp::None }, gfx::StencilState::Face {gfx::StencilMode::Keep, gfx::StencilMode::Keep, gfx::StencilMode::Keep, gfx::StencilOp::None }, 0xff, 0xff },
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise },
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add,gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgba, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 	{
 		// --- Storage
-		//m_storageDepth = Texture::create2D(width, height, TextureFormat::DepthStencil, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		m_storage = Texture::create2D(width, height, TextureFormat::RGBA16F, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
-		Attachment depth = Attachment{ m_depth, AttachmentFlag::None, AttachmentLoadOp::Load, 0, 0 };
-		Attachment color = Attachment{ m_storage, AttachmentFlag::None, AttachmentLoadOp::Clear, 0, 0 };
+		//m_storageDepth = Texture::create2D(width, height, gfx::TextureFormat::DepthStencil, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		m_storage = gfx::Texture::create2D(width, height, gfx::TextureFormat::RGBA16F, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
+		gfx::Attachment depth = gfx::Attachment{ m_depth, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Load, 0, 0 };
+		gfx::Attachment color = gfx::Attachment{ m_storage, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, 0, 0 };
 		m_storageFramebuffer = device->createFramebuffer(&color, 1, nullptr);
-		color.loadOp = AttachmentLoadOp::Load;
+		color.loadOp = gfx::AttachmentLoadOp::Load;
 		m_storageDepthFramebuffer = device->createFramebuffer(&color, 1, &depth);
 	}
 	{
 		// --- Ambient
 		m_ambientPipeline = device->createPipeline(
 			m_ambientProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_quad->bindings,
 			viewport,
-			DepthState{},
-			StencilState{},
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{},
+			gfx::StencilState{},
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise },
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::One, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgb, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 
@@ -751,15 +757,15 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// --- Directional
 		m_dirPipeline = device->createPipeline(
 			m_dirProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_quad->bindings,
 			viewport,
-			DepthState{},
-			StencilState{},
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{},
+			gfx::StencilState{},
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise },
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::One, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgb, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 
@@ -767,15 +773,15 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// --- Point
 		m_pointPipeline = device->createPipeline(
 			m_pointProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			m_storageFramebuffer->framebuffer,
 			m_sphere->bindings,
 			viewport,
-			DepthState{},
-			StencilState{},
-			CullState{ CullMode::FrontFace, CullOrder::CounterClockWise }, // Important to avoid rendering 2 times or clipping
-			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{},
+			gfx::StencilState{},
+			gfx::CullState{ gfx::CullMode::FrontFace, gfx::CullOrder::CounterClockWise }, // Important to avoid rendering 2 times or clipping
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::One, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgb, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 
@@ -783,15 +789,15 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// --- Skybox
 		m_skyboxPipeline = device->createPipeline(
 			m_skyboxProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			m_storageDepthFramebuffer->framebuffer,
 			m_cube->bindings,
 			viewport,
-			DepthState{ DepthOp::LessOrEqual, false },
-			StencilState{},
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{ gfx::DepthOp::LessOrEqual, false },
+			gfx::StencilState{},
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise },
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgba, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 
@@ -799,24 +805,24 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		// --- Post process
 		// TODO get backbuffer fbDesc.
 		// TODO blit as it is for storage
-		FramebufferState fbDesc{};
-		fbDesc.colors[0].format = TextureFormat::BGRA8;
-		fbDesc.colors[0].loadOp = AttachmentLoadOp::Load;
-		fbDesc.depth.format = TextureFormat::Depth32F;
-		fbDesc.depth.loadOp = AttachmentLoadOp::Load;
+		gfx::FramebufferState fbDesc{};
+		fbDesc.colors[0].format = gfx::TextureFormat::BGRA8;
+		fbDesc.colors[0].loadOp = gfx::AttachmentLoadOp::Load;
+		fbDesc.depth.format = gfx::TextureFormat::Depth32F;
+		fbDesc.depth.loadOp = gfx::AttachmentLoadOp::Load;
 		fbDesc.count = 1;
 
 		m_postPipeline = device->createPipeline(
 			m_postprocessProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			fbDesc,
 			m_quad->bindings,
 			viewport,
-			DepthState{},
-			StencilState{},
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise },
-			BlendState{ BlendMode::One, BlendMode::Zero, BlendOp::Add,BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgba, 0xff },
-			FillState{ FillMode::Fill, 1.f }
+			gfx::DepthState{},
+			gfx::StencilState{},
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise },
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add,gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgba, 0xff },
+			gfx::FillState{ gfx::FillMode::Fill, 1.f }
 		);
 	}
 }
@@ -824,7 +830,7 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 void RenderSystem::destroyRenderTargets()
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 	device->destroy(m_gbufferPipeline);
 	device->destroy(m_ambientPipeline);
 	device->destroy(m_dirPipeline);

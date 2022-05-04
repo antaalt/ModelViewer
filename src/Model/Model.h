@@ -22,8 +22,8 @@ struct StaticMeshComponent {
 
 struct OpaqueMaterialComponent {
 	struct SampledTexture {
-		gfx::Texture* texture;
-		gfx::Sampler* sampler;
+		Texture texture;
+		const gfx::Sampler* sampler;
 	};
 	color4f color;
 	bool doubleSided;
@@ -46,13 +46,13 @@ struct DirectionalLightComponent {
 	static constexpr size_t cascadeCount = 3;
 	static constexpr size_t cascadeResolution = 4096;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
-	gfx::Framebuffer* framebuffer[cascadeCount];
-	gfx::DescriptorSet* descriptorSet[cascadeCount];
-	gfx::Texture* shadowMap;
+	const gfx::Framebuffer* framebuffer[cascadeCount];
+	gfx::DescriptorSetHandle descriptorSet[cascadeCount];
+	gfx::TextureHandle shadowMap;
 	float cascadeEndClipSpace[cascadeCount];
-	gfx::Buffer* ubo[cascadeCount];
-	gfx::DescriptorSet* renderDescriptorSet;
-	gfx::Buffer* renderUBO;
+	const gfx::Buffer* ubo[cascadeCount];
+	gfx::DescriptorSetHandle renderDescriptorSet;
+	const gfx::Buffer* renderUBO;
 };
 
 struct PointLightComponent {
@@ -61,13 +61,13 @@ struct PointLightComponent {
 	// Rendering
 	static constexpr size_t faceResolution = 1024;
 	mat4f worldToLightSpaceMatrix[6];
-	gfx::Framebuffer* framebuffer[6];
-	gfx::Texture* shadowMap;
+	const gfx::Framebuffer* framebuffer[6];
+	gfx::TextureHandle shadowMap;
 	float radius;
-	gfx::Buffer* ubo[6];
-	gfx::DescriptorSet* descriptorSet[6];
-	gfx::Buffer* renderUBO;
-	gfx::DescriptorSet* renderDescriptorSet;
+	const gfx::Buffer* ubo[6];
+	gfx::DescriptorSetHandle descriptorSet[6];
+	const gfx::Buffer* renderUBO;
+	gfx::DescriptorSetHandle renderDescriptorSet;
 };
 
 // with a preetham component or something, we can emulate sky
@@ -87,7 +87,7 @@ struct Camera3DComponent {
 struct TextComponent
 {
 	Font* font;
-	gfx::Sampler* sampler;
+	const gfx::Sampler* sampler;
 	String text;
 	color4f color;
 };

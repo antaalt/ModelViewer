@@ -18,13 +18,10 @@ public:
 
 	void onReceive(const aka::ProgramReloadedEvent& e) override;
 private:
-	aka::gfx::Program* m_shadowProgram;
-	aka::gfx::Program* m_shadowPointProgram;
-	aka::gfx::Pipeline* m_shadowPipeline;
-	aka::gfx::Pipeline* m_shadowPointPipeline;
-	//aka::Buffer* m_modelUniformBuffer;
-	//aka::Buffer* m_pointLightUniformBuffer;
-	//aka::Buffer* m_directionalLightUniformBuffer;
+	const aka::gfx::Program* m_shadowProgram;
+	const aka::gfx::Program* m_shadowPointProgram;
+	const aka::gfx::Pipeline* m_shadowPipeline;
+	const aka::gfx::Pipeline* m_shadowPointPipeline;
 };
 
 };

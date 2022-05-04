@@ -215,10 +215,10 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 {
 	Mesh* m = createSphereMesh(point3f(0.f), 1.f, segmentCount, ringCount);
 	uint8_t data[4]{ 255, 255, 255, 255 };
-	gfx::Texture* blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, data);
+	gfx::TextureHandle blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
-	gfx::Texture* normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, n);
-	gfx::Sampler* s = gfx::Sampler::create(
+	gfx::TextureHandle normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, n);
+	const gfx::Sampler* s = gfx::Sampler::create(
 		gfx::Filter::Linear, gfx::Filter::Linear,
 		gfx::SamplerMipMapMode::Nearest,
 		1,
@@ -238,10 +238,10 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 Entity Scene::createCubeEntity(World& world)
 {
 	uint8_t colorData[4]{ 255, 255, 255, 255 };
-	gfx::Texture* blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, colorData);
+	gfx::TextureHandle blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
-	gfx::Texture* normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, normalData);
-	gfx::Sampler* s = gfx::Sampler::create(
+	gfx::TextureHandle normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, normalData);
+	const gfx::Sampler* s = gfx::Sampler::create(
 		gfx::Filter::Linear, gfx::Filter::Linear,
 		gfx::SamplerMipMapMode::Nearest,
 		1,
@@ -388,7 +388,7 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["color"] = { m.color.r, m.color.g, m.color.b, m.color.a };
 	json["doublesided"] = m.doubleSided;
 
-	json["albedo"]["texture"] = resource->name<gfx::Texture>(m.albedo.texture).cstr();
+	json["albedo"]["texture"] = resource->name<Texture>(&m.albedo.texture).cstr();
 	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler->anisotropy;
 	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler->filterMin;
 	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler->filterMag;
@@ -397,7 +397,7 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler->wrapW;
 	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler->mipmapMode;
 
-	json["normal"]["texture"] = resource->name<gfx::Texture>(m.normal.texture).cstr();
+	json["normal"]["texture"] = resource->name<Texture>(&m.normal.texture).cstr();
 	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler->anisotropy;
 	json["normal"]["sampler"]["filterMin"] = m.normal.sampler->filterMin;
 	json["normal"]["sampler"]["filterMag"] = m.normal.sampler->filterMag;
@@ -406,7 +406,7 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["normal"]["sampler"]["wrapW"] = m.normal.sampler->wrapW;
 	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler->mipmapMode;
 
-	json["material"]["texture"] = resource->name<gfx::Texture>(m.material.texture).cstr();
+	json["material"]["texture"] = resource->name<Texture>(&m.material.texture).cstr();
 	json["material"]["sampler"]["anisotropy"] = m.material.sampler->anisotropy;
 	json["material"]["sampler"]["filterMin"] = m.material.sampler->filterMin;
 	json["material"]["sampler"]["filterMag"] = m.material.sampler->filterMag;
@@ -632,36 +632,36 @@ void Scene::load(World& world, const Path& path)
 						component["color"][3].get<float>()
 					);
 					material.doubleSided = component["doublesided"].get<bool>();
-					material.albedo.texture = resource->get<gfx::Texture>(component["albedo"]["texture"].get<std::string>());
+					material.albedo.texture = *resource->get<Texture>(component["albedo"]["texture"].get<std::string>());
 					material.albedo.sampler = gfx::Sampler::create(
 						(gfx::Filter)component["albedo"]["sampler"]["filterMin"].get<int>(),
 						(gfx::Filter)component["albedo"]["sampler"]["filterMag"].get<int>(),
 						(gfx::SamplerMipMapMode)component["albedo"]["sampler"]["mipmapMode"].get<int>(),
-						gfx::Sampler::mipLevelCount(material.albedo.texture->width, material.albedo.texture->height),
+						gfx::Sampler::mipLevelCount(material.albedo.texture.texture.data->width, material.albedo.texture.texture.data->height),
 						(gfx::SamplerAddressMode)component["albedo"]["sampler"]["wrapU"].get<int>(),
 						(gfx::SamplerAddressMode)component["albedo"]["sampler"]["wrapV"].get<int>(),
 						(gfx::SamplerAddressMode)component["albedo"]["sampler"]["wrapW"].get<int>(),
 						component["albedo"]["sampler"]["anisotropy"].get<float>()
 					);
 
-					material.normal.texture = resource->get<gfx::Texture>(component["normal"]["texture"].get<std::string>());
+					material.normal.texture = *resource->get<Texture>(component["normal"]["texture"].get<std::string>());
 					material.normal.sampler = gfx::Sampler::create(
 						(gfx::Filter)component["normal"]["sampler"]["filterMin"].get<int>(),
 						(gfx::Filter)component["normal"]["sampler"]["filterMag"].get<int>(),
 						(gfx::SamplerMipMapMode)component["normal"]["sampler"]["mipmapMode"].get<int>(),
-						gfx::Sampler::mipLevelCount(material.normal.texture->width, material.normal.texture->height),
+						gfx::Sampler::mipLevelCount(material.normal.texture.texture.data->width, material.normal.texture.texture.data->height),
 						(gfx::SamplerAddressMode)component["normal"]["sampler"]["wrapU"].get<int>(),
 						(gfx::SamplerAddressMode)component["normal"]["sampler"]["wrapV"].get<int>(),
 						(gfx::SamplerAddressMode)component["normal"]["sampler"]["wrapW"].get<int>(),
 						component["normal"]["sampler"]["anisotropy"].get<float>()
 					);
 
-					material.material.texture = resource->get<gfx::Texture>(component["material"]["texture"].get<std::string>());
+					material.material.texture = *resource->get<Texture>(component["material"]["texture"].get<std::string>());
 					material.material.sampler = gfx::Sampler::create(
 						(gfx::Filter)component["material"]["sampler"]["filterMin"].get<int>(),
 						(gfx::Filter)component["material"]["sampler"]["filterMag"].get<int>(),
 						(gfx::SamplerMipMapMode)component["material"]["sampler"]["mipmapMode"].get<int>(),
-						gfx::Sampler::mipLevelCount(material.material.texture->width, material.material.texture->height),
+						gfx::Sampler::mipLevelCount(material.material.texture.texture.data->width, material.material.texture.texture.data->height),
 						(gfx::SamplerAddressMode)component["material"]["sampler"]["wrapU"].get<int>(),
 						(gfx::SamplerAddressMode)component["material"]["sampler"]["wrapV"].get<int>(),
 						(gfx::SamplerAddressMode)component["material"]["sampler"]["wrapW"].get<int>(),
@@ -757,7 +757,7 @@ void Scene::load(World& world, const Path& path)
 						(gfx::Filter)component["sampler"]["filterMin"].get<int>(),
 						(gfx::Filter)component["sampler"]["filterMag"].get<int>(),
 						(gfx::SamplerMipMapMode)component["sampler"]["mipmapMode"].get<int>(),
-						gfx::Sampler::mipLevelCount(text.font->atlas()->width, text.font->atlas()->height),
+						gfx::Sampler::mipLevelCount(text.font->atlas().data->width, text.font->atlas().data->height),
 						(gfx::SamplerAddressMode)component["sampler"]["wrapU"].get<int>(),
 						(gfx::SamplerAddressMode)component["sampler"]["wrapV"].get<int>(),
 						(gfx::SamplerAddressMode)component["sampler"]["wrapW"].get<int>(),
@@ -781,15 +781,17 @@ void Scene::destroy(World& world)
 	gfx::GraphicDevice* device = app->graphic();
 	world.registry().view<MeshComponent>().each([&](const MeshComponent& mesh)
 	{
-		resource->unload<gfx::Buffer>(resource->name<gfx::Buffer>(mesh.mesh->indices));
-		resource->unload<gfx::Buffer>(resource->name<gfx::Buffer>(mesh.mesh->vertices[0]));
+		Buffer b0{ mesh.mesh->indices };
+		Buffer b1{ mesh.mesh->vertices[0] };
+		resource->unload<Buffer>(resource->name<Buffer>(&b0));
+		resource->unload<Buffer>(resource->name<Buffer>(&b1));
 		resource->unload<Mesh>(resource->name<Mesh>(mesh.mesh));
 	});
 	world.registry().view<MaterialComponent>().each([&](const MaterialComponent& mat)
 	{
-		resource->unload<gfx::Texture>(resource->name<gfx::Texture>(mat.albedo.texture));
-		resource->unload<gfx::Texture>(resource->name<gfx::Texture>(mat.normal.texture));
-		resource->unload<gfx::Texture>(resource->name<gfx::Texture>(mat.material.texture));
+		resource->unload<Texture>(resource->name<Texture>(&mat.albedo.texture));
+		resource->unload<Texture>(resource->name<Texture>(&mat.normal.texture));
+		resource->unload<Texture>(resource->name<Texture>(&mat.material.texture));
 		device->destroy(mat.albedo.sampler);
 		device->destroy(mat.normal.sampler);
 		device->destroy(mat.material.sampler);

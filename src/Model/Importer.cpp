@@ -15,16 +15,16 @@ struct AssimpImporter {
 	void processNode(Entity parent, aiNode* node);
 	Entity processMesh(aiMesh* mesh);
 
-	gfx::Texture* loadTexture(const Path& path, gfx::TextureFlag flags);
+	gfx::TextureHandle loadTexture(const Path& path, gfx::TextureFlag flags);
 private:
 	Path m_directory;
 	const aiScene* m_assimpScene;
 	aka::World& m_world;
 private:
-	gfx::Texture* m_missingColorTexture;
-	gfx::Texture* m_blankColorTexture;
-	gfx::Texture* m_missingNormalTexture;
-	gfx::Texture* m_missingRoughnessTexture;
+	gfx::TextureHandle m_missingColorTexture;
+	gfx::TextureHandle m_blankColorTexture;
+	gfx::TextureHandle m_missingNormalTexture;
+	gfx::TextureHandle m_missingRoughnessTexture;
 };
 
 AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world) :
@@ -173,7 +173,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!indexBuffer.save(indexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		gfx::Buffer* indexBuffer = resource->load<gfx::Buffer>(indexBufferName, indexBufferPath).resource.get();
+		const gfx::Buffer* indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource.get()->buffer;
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
@@ -189,7 +189,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!vertexBuffer.save(vertexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		gfx::Buffer* vertexBuffer = resource->load<gfx::Buffer>(vertexBufferName, vertexBufferPath).resource.get();
+		const gfx::Buffer* vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource.get()->buffer;
 
 		// Mesh
 		String meshFileName = meshName + ".mesh";
@@ -268,9 +268,9 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.albedo.texture == nullptr)
-					materialComponent.albedo.texture = m_missingColorTexture;
+				materialComponent.albedo.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.albedo.texture.texture.data == nullptr)
+					materialComponent.albedo.texture.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -281,20 +281,20 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.albedo.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.albedo.texture == nullptr)
-					materialComponent.albedo.texture = m_missingColorTexture;
+				materialComponent.albedo.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.albedo.texture.texture.data == nullptr)
+					materialComponent.albedo.texture.texture = m_missingColorTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.albedo.texture = m_blankColorTexture;
+			materialComponent.albedo.texture.texture = m_blankColorTexture;
 		}
 		materialComponent.albedo.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture.texture.data->width, materialComponent.albedo.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -305,9 +305,9 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.normal.texture == nullptr)
-					materialComponent.normal.texture = m_missingNormalTexture;
+				materialComponent.normal.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.normal.texture.texture.data == nullptr)
+					materialComponent.normal.texture.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -318,20 +318,20 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.normal.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.normal.texture == nullptr)
-					materialComponent.normal.texture = m_missingNormalTexture;
+				materialComponent.normal.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.normal.texture.texture.data == nullptr)
+					materialComponent.normal.texture.texture = m_missingNormalTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.normal.texture = m_missingNormalTexture;
+			materialComponent.normal.texture.texture = m_missingNormalTexture;
 		}
 		materialComponent.normal.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.normal.texture.texture.data->width, materialComponent.normal.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -343,9 +343,9 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, 0, &str);
-				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.material.texture == nullptr)
-					materialComponent.material.texture = m_missingRoughnessTexture;
+				materialComponent.material.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.material.texture.texture.data == nullptr)
+					materialComponent.material.texture.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
 			}
 		}
@@ -356,20 +356,20 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			{
 				aiString str;
 				material->GetTexture(type, i, &str);
-				materialComponent.material.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
-				if (materialComponent.material.texture == nullptr)
-					materialComponent.material.texture = m_missingRoughnessTexture;
+				materialComponent.material.texture.texture = loadTexture(Path(m_directory + str.C_Str()), flags);
+				if (materialComponent.material.texture.texture.data == nullptr)
+					materialComponent.material.texture.texture = m_missingRoughnessTexture;
 				break; // Ignore others textures for now.
 			}
 		}
 		else
 		{
-			materialComponent.material.texture = m_missingRoughnessTexture;
+			materialComponent.material.texture.texture = m_missingRoughnessTexture;
 		}
 		materialComponent.material.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.material.texture.texture.data->width, materialComponent.material.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -379,27 +379,27 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 		// No material !
 		materialComponent.color = color4f(1.f);
 		materialComponent.doubleSided = true;
-		materialComponent.albedo.texture = m_blankColorTexture;
+		materialComponent.albedo.texture.texture = m_blankColorTexture;
 		materialComponent.albedo.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture->width, materialComponent.albedo.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.albedo.texture.texture.data->width, materialComponent.albedo.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
-		materialComponent.normal.texture = m_missingNormalTexture;
+		materialComponent.normal.texture.texture = m_missingNormalTexture;
 		materialComponent.normal.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.normal.texture->width, materialComponent.normal.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.normal.texture.texture.data->width, materialComponent.normal.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
-		materialComponent.material.texture = m_missingRoughnessTexture;
+		materialComponent.material.texture.texture = m_missingRoughnessTexture;
 		materialComponent.material.sampler = device->createSampler(
 			gfx::Filter::Linear, gfx::Filter::Linear,
 			gfx::SamplerMipMapMode::Linear,
-			gfx::Sampler::mipLevelCount(materialComponent.material.texture->width, materialComponent.material.texture->height),
+			gfx::Sampler::mipLevelCount(materialComponent.material.texture.texture.data->width, materialComponent.material.texture.texture.data->height),
 			gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat, gfx::SamplerAddressMode::Repeat,
 			1.f
 		);
@@ -407,21 +407,21 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 	return e;
 }
 
-gfx::Texture* AssimpImporter::loadTexture(const Path& path, gfx::TextureFlag flags)
+gfx::TextureHandle AssimpImporter::loadTexture(const Path& path, gfx::TextureFlag flags)
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
 	String name = OS::File::name(path);
-	if (resource->has<gfx::Texture>(name))
-		return resource->get<gfx::Texture>(name);
+	if (resource->has<Texture>(name))
+		return resource->get<Texture>(name)->texture;
 	if (Importer::importTexture2D(name, path, flags))
 	{
-		return resource->get<gfx::Texture>(name);
+		return resource->get<Texture>(name)->texture;
 	}
 	else
 	{
 		Logger::error("Failed to import texture2D");
-		return nullptr;
+		return gfx::TextureHandle{};
 	}
 }
 
@@ -518,7 +518,7 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, g
 	// Or a library that include aka, assimp, devil...
 	// Use it as library for a project. 
 	// AkaImporter.h
-	if (!resource->has<gfx::Texture>(name))
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -538,7 +538,7 @@ bool Importer::importTexture2D(const aka::String& name, const aka::Path& path, g
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -552,7 +552,7 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
-	if (!resource->has<gfx::Texture>(name))
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -572,7 +572,7 @@ bool Importer::importTexture2DHDR(const aka::String& name, const aka::Path& path
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else
@@ -586,7 +586,7 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 {
 	Application* app = Application::app();
 	ResourceManager* resource = app->resource();
-	if (!resource->has<gfx::Texture>(name))
+	if (!resource->has<Texture>(name))
 	{
 		String directory = "library/texture/";
 		if (!OS::Directory::exist(directory))
@@ -611,7 +611,7 @@ bool Importer::importTextureCubemap(const aka::String& name, const aka::Path& px
 		if (!storage.save(libPath))
 			return false;
 		// Load
-		if (resource->load<gfx::Texture>(name, libPath).resource == nullptr)
+		if (resource->load<Texture>(name, libPath).resource == nullptr)
 			return false;
 	}
 	else

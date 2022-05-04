@@ -5,7 +5,6 @@
 namespace app {
 
 using namespace aka;
-using namespace gfx;
 
 struct alignas(16) DirectionalLightUniformBuffer {
 	alignas(16) mat4f light;
@@ -20,21 +19,23 @@ struct alignas(16) PointLightUniformBuffer {
 void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	DirectionalLightComponent& l = registry.get<DirectionalLightComponent>(entity);
-	l.shadowMap = Texture::create2DArray(
+	l.shadowMap = gfx::Texture::create2DArray(
 		DirectionalLightComponent::cascadeResolution, 
 		DirectionalLightComponent::cascadeResolution, 
 		DirectionalLightComponent::cascadeCount, 
-		TextureFormat::Depth, 
-		TextureFlag::RenderTarget | TextureFlag::ShaderResource
+		gfx::TextureFormat::Depth,
+		gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource
 	);
 	for (uint32_t iLayer = 0; iLayer < DirectionalLightComponent::cascadeCount; iLayer++)
 	{
 		// TODO use push constant to send cascade index instead.
-		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
-		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, AttachmentLoadOp::Clear, iLayer, 0 };
-		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowDirectional")->bindings[0]);
-		l.descriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
+		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
+		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
+		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowDirectional")->bindings[0]);
+		gfx::DescriptorSetData data{};
+		data.setUniformBuffer(0, l.ubo[iLayer]);
+		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
 	}
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
@@ -45,27 +46,29 @@ void onDirectionalLightDestroy(entt::registry& registry, entt::entity entity)
 	DirectionalLightComponent& l = registry.get<DirectionalLightComponent>(entity);
 	for (uint32_t i = 0; i < DirectionalLightComponent::cascadeCount; i++)
 	{
-		Buffer::destroy(l.ubo[i]);
-		Framebuffer::destroy(l.framebuffer[i]);
-		DescriptorSet::destroy(l.descriptorSet[i]);
+		gfx::Buffer::destroy(l.ubo[i]);
+		gfx::Framebuffer::destroy(l.framebuffer[i]);
+		gfx::DescriptorSet::destroy(l.descriptorSet[i]);
 	}
-	DescriptorSet::destroy(l.renderDescriptorSet);
-	Buffer::destroy(l.renderUBO);
-	Texture::destroy(l.shadowMap);
+	gfx::DescriptorSet::destroy(l.renderDescriptorSet);
+	gfx::Buffer::destroy(l.renderUBO);
+	gfx::Texture::destroy(l.shadowMap);
 }
 
 void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 {
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
-	l.shadowMap = Texture::createCubemap(PointLightComponent::faceResolution, PointLightComponent::faceResolution, TextureFormat::Depth, TextureFlag::RenderTarget | TextureFlag::ShaderResource);
+	l.shadowMap = gfx::Texture::createCubemap(PointLightComponent::faceResolution, PointLightComponent::faceResolution, gfx::TextureFormat::Depth, gfx::TextureFlag::RenderTarget | gfx::TextureFlag::ShaderResource);
 
 	for (uint32_t iLayer = 0; iLayer < 6; iLayer++)
 	{
-		l.ubo[iLayer] = Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), BufferUsage::Default, BufferCPUAccess::None, nullptr);
-		Attachment shadowAttachment = { l.shadowMap, AttachmentFlag::None, AttachmentLoadOp::Clear, iLayer, 0 };
-		l.framebuffer[iLayer] = Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
-		l.descriptorSet[iLayer]->setUniformBuffer(0, l.ubo[iLayer]);
+		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
+		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
+		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
+		gfx::DescriptorSetData data{};
+		data.setUniformBuffer(0, l.ubo[iLayer]);
+		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
 	}
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
@@ -76,32 +79,32 @@ void onPointLightDestroy(entt::registry& registry, entt::entity entity)
 	PointLightComponent& l = registry.get<PointLightComponent>(entity);
 	for (uint32_t iLayer = 0; iLayer < 6; iLayer++)
 	{
-		Buffer::destroy(l.ubo[iLayer]);
-		Framebuffer::destroy(l.framebuffer[iLayer]);
-		DescriptorSet::destroy(l.descriptorSet[iLayer]);
+		gfx::Buffer::destroy(l.ubo[iLayer]);
+		gfx::Framebuffer::destroy(l.framebuffer[iLayer]);
+		gfx::DescriptorSet::destroy(l.descriptorSet[iLayer]);
 	}
-	DescriptorSet::destroy(l.renderDescriptorSet);
-	Buffer::destroy(l.renderUBO);
-	Texture::destroy(l.shadowMap);
+	gfx::DescriptorSet::destroy(l.renderDescriptorSet);
+	gfx::Buffer::destroy(l.renderUBO);
+	gfx::Texture::destroy(l.shadowMap);
 }
 
 void ShadowMapSystem::onCreate(aka::World& world)
 {
 	Application* app = Application::app();
 	ProgramManager* program = app->program();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
-	FramebufferState fbDesc;
-	fbDesc.colors[0].format = TextureFormat::Unknown;
-	fbDesc.depth.format = TextureFormat::Depth;
+	gfx::FramebufferState fbDesc;
+	fbDesc.colors[0].format = gfx::TextureFormat::Unknown;
+	fbDesc.depth.format = gfx::TextureFormat::Depth;
 	fbDesc.count = 0;
 
 	// TODO do not need as many bindings
-	VertexBindingState vertexBindings{};
-	vertexBindings.attributes[0] = VertexAttribute{ VertexSemantic::Position, VertexFormat::Float, VertexType::Vec3 };
-	vertexBindings.attributes[1] = VertexAttribute{ VertexSemantic::Normal, VertexFormat::Float, VertexType::Vec3 };
-	vertexBindings.attributes[2] = VertexAttribute{ VertexSemantic::TexCoord0, VertexFormat::Float, VertexType::Vec2 };
-	vertexBindings.attributes[3] = VertexAttribute{ VertexSemantic::Color0, VertexFormat::Float, VertexType::Vec4 };
+	gfx::VertexBindingState vertexBindings{};
+	vertexBindings.attributes[0] = gfx::VertexAttribute{ gfx::VertexSemantic::Position, gfx::VertexFormat::Float, gfx::VertexType::Vec3 };
+	vertexBindings.attributes[1] = gfx::VertexAttribute{ gfx::VertexSemantic::Normal, gfx::VertexFormat::Float, gfx::VertexType::Vec3 };
+	vertexBindings.attributes[2] = gfx::VertexAttribute{ gfx::VertexSemantic::TexCoord0, gfx::VertexFormat::Float, gfx::VertexType::Vec2 };
+	vertexBindings.attributes[3] = gfx::VertexAttribute{ gfx::VertexSemantic::Color0, gfx::VertexFormat::Float, gfx::VertexType::Vec4 };
 	vertexBindings.count = 4;
 	vertexBindings.offsets[0] = offsetof(Vertex, position);
 	vertexBindings.offsets[1] = offsetof(Vertex, normal);
@@ -111,36 +114,36 @@ void ShadowMapSystem::onCreate(aka::World& world)
 	{
 		m_shadowProgram = program->get("shadowDirectional");
 		Rect rectDir = Rect{ 0, 0, DirectionalLightComponent::cascadeResolution, DirectionalLightComponent::cascadeResolution };
-		ViewportState viewportDir{ rectDir, rectDir };
+		gfx::ViewportState viewportDir{ rectDir, rectDir };
 		m_shadowPipeline = device->createPipeline(
 			m_shadowProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			fbDesc,
 			vertexBindings,
 			viewportDir,
-			DepthState{ DepthOp::Less, true },
-			StencilState{}, // TODO None
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, // TODO None
-			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff }, // TODO None
-			FillState{ FillMode::Fill, 1.f } // TODO None
+			gfx::DepthState{ gfx::DepthOp::Less, true },
+			gfx::StencilState{}, // TODO None
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise }, // TODO None
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::One, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgb, 0xff }, // TODO None
+			gfx::FillState{ gfx::FillMode::Fill, 1.f } // TODO None
 		);
 	}
 
 	{
 		m_shadowPointProgram = program->get("shadowPoint");
 		Rect rectPoint = Rect{ 0, 0, PointLightComponent::faceResolution, PointLightComponent::faceResolution };
-		ViewportState viewportPoint{ rectPoint, rectPoint };
+		gfx::ViewportState viewportPoint{ rectPoint, rectPoint };
 		m_shadowPointPipeline = device->createPipeline(
 			m_shadowPointProgram,
-			PrimitiveType::Triangles,
+			gfx::PrimitiveType::Triangles,
 			fbDesc,
 			vertexBindings,
 			viewportPoint,
-			DepthState{ DepthOp::Less, true },
-			StencilState{}, // TODO None
-			CullState{ CullMode::BackFace, CullOrder::CounterClockWise }, // TODO None
-			BlendState{ BlendMode::One, BlendMode::One, BlendOp::Add, BlendMode::One, BlendMode::Zero, BlendOp::Add, BlendMask::Rgb, 0xff }, // TODO None
-			FillState{ FillMode::Fill, 1.f } // TODO None
+			gfx::DepthState{ gfx::DepthOp::Less, true },
+			gfx::StencilState{}, // TODO None
+			gfx::CullState{ gfx::CullMode::BackFace, gfx::CullOrder::CounterClockWise }, // TODO None
+			gfx::BlendState{ gfx::BlendMode::One, gfx::BlendMode::One, gfx::BlendOp::Add, gfx::BlendMode::One, gfx::BlendMode::Zero, gfx::BlendOp::Add, gfx::BlendMask::Rgb, 0xff }, // TODO None
+			gfx::FillState{ gfx::FillMode::Fill, 1.f } // TODO None
 		);
 	}
 
@@ -153,7 +156,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 void ShadowMapSystem::onDestroy(aka::World& world)
 {
 	Application* app = Application::app();
-	GraphicDevice* device = app->graphic();
+	gfx::GraphicDevice* device = app->graphic();
 
 	world.registry().on_construct<DirectionalLightComponent>().disconnect<&onDirectionalLightConstruct>();
 	world.registry().on_destroy<DirectionalLightComponent>().disconnect<&onDirectionalLightDestroy>();
@@ -206,7 +209,7 @@ mat4f computeShadowViewProjectionMatrix(const mat4f& view, const mat4f& projecti
 
 void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
-	GraphicDevice* device = Application::app()->graphic();
+	gfx::GraphicDevice* device = Application::app()->graphic();
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -216,7 +219,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	CameraPerspective* perspective = dynamic_cast<CameraPerspective*>(camera.projection.get());
 	AKA_ASSERT(perspective != nullptr, "Only support perspective camera for now.");
 
-	CommandList* cmd = frame->commandList;
+	gfx::CommandList* cmd = frame->commandList;
 
 	// --- Shadow map system
 	auto pointLightUpdate = world.registry().view<DirtyLightComponent, PointLightComponent>();
@@ -262,11 +265,10 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		for (uint32_t iLayer = 0; iLayer < 6; ++iLayer) // for each faces
 		{
 			// Set output target and clear it.
-			device->update(light.descriptorSet[iLayer]); // TODO only once
-			cmd->beginRenderPass(light.framebuffer[iLayer], ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
+			cmd->beginRenderPass(light.framebuffer[iLayer], gfx::ClearState{ gfx::ClearMask::Depth, { 0.f }, 1.f, 0 });
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
 
-				DescriptorSet* sets[2] = { light.descriptorSet[iLayer], render.matrices };
+				gfx::DescriptorSetHandle sets[2] = { light.descriptorSet[iLayer], render.matrices };
 				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
 				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
 				cmd->bindDescriptorSets(sets, 2);
@@ -293,7 +295,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 			float n = offset[i];
 			float f = offset[i + 1];
 			mat4f p = mat4f::perspective(perspective->hFov, w / h, n, f);
-			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, light.shadowMap->width, light.direction);
+			light.worldToLightSpaceMatrix[i] = computeShadowViewProjectionMatrix(view, p, DirectionalLightComponent::cascadeResolution, light.direction);
 			vec4f clipSpace = projection * vec4f(0.f, 0.f, -offset[i + 1], 1.f);
 			light.cascadeEndClipSpace[i] = clipSpace.z / clipSpace.w;
 		}
@@ -304,9 +306,8 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 			DirectionalLightUniformBuffer lightUBO{};
 			lightUBO.light = light.worldToLightSpaceMatrix[i];
 			device->upload(light.ubo[i], &lightUBO, 0, light.ubo[i]->size);
-			device->update(light.descriptorSet[i]); // TODO only once
 
-			cmd->beginRenderPass(light.framebuffer[i], ClearState{ ClearMask::Depth, { 0.f }, 1.f, 0 });
+			cmd->beginRenderPass(light.framebuffer[i], gfx::ClearState{ gfx::ClearMask::Depth, { 0.f }, 1.f, 0 });
 
 			auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
 			view.each([&](const Transform3DComponent& transform, const MeshComponent& mesh, const RenderComponent& render) {
@@ -314,7 +315,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 				if (!p.intersect(transform.transform * mesh.bounds))
 					return;
 
-				DescriptorSet* descriptorSets[2] = { render.matrices, light.descriptorSet[i] };
+				gfx::DescriptorSetHandle descriptorSets[2] = { render.matrices, light.descriptorSet[i] };
 				cmd->bindIndexBuffer(mesh.mesh->indices, mesh.mesh->format, 0);
 				cmd->bindVertexBuffer(mesh.mesh->vertices, 0, 1, mesh.mesh->bindings.offsets);
 				cmd->bindDescriptorSets(descriptorSets, 2);

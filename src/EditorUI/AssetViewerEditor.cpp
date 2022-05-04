@@ -8,8 +8,8 @@ namespace app {
 
 using namespace aka;
 
-template class AssetViewerEditor<gfx::Buffer>;
-template class AssetViewerEditor<gfx::Texture>;
+template class AssetViewerEditor<Buffer>;
+template class AssetViewerEditor<Texture>;
 template class AssetViewerEditor<Mesh>;
 template class AssetViewerEditor<AudioStream>;
 template class AssetViewerEditor<Font>;
@@ -245,12 +245,12 @@ const char* toString(gfx::BufferCPUAccess access)
 	}
 }
 
-void BufferViewerEditor::draw(const String& name, Resource<gfx::Buffer>& resource)
+void BufferViewerEditor::draw(const String& name, Resource<Buffer>& resource)
 {
 	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
 	ImGui::TextColored(color, name.cstr());
 
-	auto buffer = resource.resource;
+	auto buffer = resource.resource->buffer;
 	ImGui::Text("Type : %s", toString(buffer->type));
 	ImGui::Text("Usage : %s", toString(buffer->usage));
 	ImGui::Text("Access : %s", toString(buffer->access));
@@ -267,10 +267,11 @@ void MeshViewerEditor::onCreate(World& world)
 	m_target = gfx::Framebuffer::create(&color, 1, &depth);
 	
 	ProgramManager* program = Application::app()->program();
-	gfx::Program* p = program->get("editor.basic");
+	const gfx::Program* p = program->get("editor.basic");
 	m_descriptorSet = gfx::DescriptorSet::create(p->bindings[0]);
 	m_uniform = gfx::Buffer::createUniformBuffer(sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
-	m_descriptorSet->setUniformBuffer(0, m_uniform);
+	//m_descriptorSet->setUniformBuffer(0, m_uniform);
+	// TODO update set
 	m_arcball.set(aabbox<>(point3f(-20.f), point3f(20.f)));
 	m_projection = mat4f::perspective(anglef::degree(90.f), m_width / (float)m_height, 0.1f, 100.f);
 }
@@ -323,20 +324,22 @@ void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 		snprintf(buffer, 256, "Attribute %u", i);
 		if (ImGui::TreeNode(buffer))
 		{
+			Buffer b{ mesh->vertices[i] };
 			ImGui::BulletText("Format : %s", toString(mesh->bindings.attributes[i].format));
 			ImGui::BulletText("Semantic : %s", toString(mesh->bindings.attributes[i].semantic));
 			ImGui::BulletText("Type : %s", toString(mesh->bindings.attributes[i].type));
 			ImGui::BulletText("Count : %u", 0);
 			ImGui::BulletText("Offset : %u", mesh->bindings.offsets[i]);
-			ImGui::BulletText("Buffer : %s", resources->name<gfx::Buffer>(mesh->vertices[i]).cstr());
+			ImGui::BulletText("Buffer : %s", resources->name<Buffer>(&b).cstr());
 			ImGui::TreePop();
 		}
 	}
+	Buffer b{ mesh->indices };
 	ImGui::Separator();
 	ImGui::Text("Indices");
 	ImGui::BulletText("Format : %s", toString(mesh->format));
 	ImGui::BulletText("Count : %u", mesh->count);
-	ImGui::BulletText("Buffer : %s", resources->name<gfx::Buffer>(mesh->indices).cstr());
+	ImGui::BulletText("Buffer : %s", resources->name<Buffer>(&b).cstr());
 	ImGui::Separator();
 
 	// Mesh viewer
@@ -356,15 +359,15 @@ void MeshViewerEditor::draw(const String& name, Resource<Mesh>& resource)
 	ImGui::PopStyleVar();
 }
 
-void TextureViewerEditor::draw(const String& name, Resource<gfx::Texture>& resource)
+void TextureViewerEditor::draw(const String& name, Resource<Texture>& resource)
 {
 	static const ImVec4 color = ImVec4(0.93f, 0.04f, 0.26f, 1.f);
 	ImGui::TextColored(color, name.cstr());
-	gfx::Texture* texture = resource.resource.get();
-	bool isRenderTarget = (texture->flags & gfx::TextureFlag::RenderTarget) == gfx::TextureFlag::RenderTarget;
-	bool isShaderResource = (texture->flags & gfx::TextureFlag::ShaderResource) == gfx::TextureFlag::ShaderResource;
-	bool hasMips = (texture->flags & gfx::TextureFlag::GenerateMips) == gfx::TextureFlag::GenerateMips;
-	ImGui::Text("%s - %u x %u (%s)", toString(texture->type), texture->width, texture->height, toString(texture->format));
+	gfx::TextureHandle texture = resource.resource.get()->texture;
+	bool isRenderTarget = (texture.data->flags & gfx::TextureFlag::RenderTarget) == gfx::TextureFlag::RenderTarget;
+	bool isShaderResource = (texture.data->flags & gfx::TextureFlag::ShaderResource) == gfx::TextureFlag::ShaderResource;
+	bool hasMips = (texture.data->flags & gfx::TextureFlag::GenerateMips) == gfx::TextureFlag::GenerateMips;
+	ImGui::Text("%s - %u x %u (%s)", toString(texture.data->type), texture.data->width, texture.data->height, toString(texture.data->format));
 	ImGui::Checkbox("Render target", &isRenderTarget); ImGui::SameLine();
 	ImGui::Checkbox("Shader resource", &isShaderResource); ImGui::SameLine();
 	ImGui::Checkbox("Mips", &hasMips);
@@ -404,8 +407,8 @@ void TextureViewerEditor::draw(const String& name, Resource<gfx::Texture>& resou
 		{
 			ImVec2 windowSize = ImGui::GetWindowSize();
 			ImVec2 maxScroll(
-				zoom * texture->width - windowSize.x,
-				zoom * texture->height - windowSize.y
+				zoom * texture.data->width - windowSize.x,
+				zoom * texture.data->height - windowSize.y
 			);
 			scrollPosition.x = fminf(fmaxf(scrollPosition.x - ImGui::GetIO().MouseDelta.x, 0.f), maxScroll.x);
 			scrollPosition.y = fminf(fmaxf(scrollPosition.y - ImGui::GetIO().MouseDelta.y, 0.f), maxScroll.y);

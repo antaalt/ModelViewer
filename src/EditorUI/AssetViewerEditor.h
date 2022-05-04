@@ -54,27 +54,27 @@ private:
 	const uint32_t m_width = 512;
 	const uint32_t m_height = 512;
 	aka::mat4f m_projection;
-	aka::gfx::Texture* m_renderTarget;
-	aka::gfx::Texture* m_depthTarget;
-	aka::gfx::Framebuffer* m_target;
-	aka::gfx::DescriptorSet* m_descriptorSet;
-	aka::gfx::Buffer* m_uniform;
+	aka::gfx::TextureHandle m_renderTarget;
+	aka::gfx::TextureHandle m_depthTarget;
+	const aka::gfx::Framebuffer* m_target;
+	aka::gfx::DescriptorSetHandle m_descriptorSet;
+	const aka::gfx::Buffer* m_uniform;
 	aka::CameraArcball m_arcball;
 };
-class BufferViewerEditor : public AssetViewerEditor<aka::gfx::Buffer>
+class BufferViewerEditor : public AssetViewerEditor<aka::Buffer>
 {
 public:
 	BufferViewerEditor();
 protected:
-	void draw(const aka::String& name, aka::Resource<aka::gfx::Buffer>& resource) override;
+	void draw(const aka::String& name, aka::Resource<aka::Buffer>& resource) override;
 };
 
-class TextureViewerEditor : public AssetViewerEditor<aka::gfx::Texture>
+class TextureViewerEditor : public AssetViewerEditor<aka::Texture>
 {
 public:
 	TextureViewerEditor();
 protected:
-	void draw(const aka::String& name, aka::Resource<aka::gfx::Texture>& resource) override;
+	void draw(const aka::String& name, aka::Resource<aka::Texture>& resource) override;
 };
 
 class AudioViewerEditor : public AssetViewerEditor<aka::AudioStream>

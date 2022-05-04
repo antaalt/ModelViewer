@@ -10,22 +10,22 @@
 
 namespace app {
 
-void TextureDisplay(const String& name, const gfx::Texture* texture, const ImVec2& size)
+void TextureDisplay(const String& name, gfx::TextureHandle texture, const ImVec2& size)
 {
 	// TODO open a window on click for a complete texture inspector ?
-	if (texture == nullptr)
+	if (texture.data == nullptr)
 	{
 		// TODO add texture loading here ?
 		ImGui::Text("Missing texture : %s.", name.cstr());
 	}
 	else
 	{
-		ImTextureID textureID = (ImTextureID)(uintptr_t)texture->native;
+		ImTextureID textureID = (ImTextureID)(uintptr_t)texture.data->native;
 		ImGui::Text("%s", name.cstr());
 		ImGui::Image(textureID, size);
 	}
 }
-gfx::Sampler* TextureSamplerDisplay(gfx::Sampler* sampler)
+const gfx::Sampler* TextureSamplerDisplay(const gfx::Sampler* sampler)
 {
 	static const char* filters[] = {
 		"Nearest",
@@ -45,6 +45,7 @@ gfx::Sampler* TextureSamplerDisplay(gfx::Sampler* sampler)
 	char buffer[256];
 	int error = snprintf(buffer, 256, "Sampler##%p", &sampler);
 	bool updated = false;
+	gfx::Sampler newSamplerData;
 	if (ImGui::TreeNode(buffer))
 	{
 		// Filters
@@ -52,59 +53,58 @@ gfx::Sampler* TextureSamplerDisplay(gfx::Sampler* sampler)
 		if (ImGui::Combo("Filter min", &current, filters, 2))
 		{
 			updated = true;
-			sampler->filterMin = (gfx::Filter)current;
+			newSamplerData.filterMin = (gfx::Filter)current;
 		}
 		current = (int)sampler->filterMag;
 		if (ImGui::Combo("Filter mag", &current, filters, 2))
 		{
 			updated = true;
-			sampler->filterMag = (gfx::Filter)current;
+			newSamplerData.filterMag = (gfx::Filter)current;
 		}
 		// Mips
 		current = (int)sampler->mipmapMode;
 		if (ImGui::Combo("Mips", &current, mipmaps, 3))
 		{
 			updated = true;
-			sampler->mipmapMode = (gfx::SamplerMipMapMode)current;
+			newSamplerData.mipmapMode = (gfx::SamplerMipMapMode)current;
 		}
 		// Wraps
 		current = (int)sampler->wrapU;
 		if (ImGui::Combo("WrapU", &current, wraps, 4))
 		{
 			updated = true;
-			sampler->wrapU = (gfx::SamplerAddressMode)current;
+			newSamplerData.wrapU = (gfx::SamplerAddressMode)current;
 		}
 		current = (int)sampler->wrapV;
 		if (ImGui::Combo("WrapV", &current, wraps, 4))
 		{
 			updated = true;
-			sampler->wrapV = (gfx::SamplerAddressMode)current;
+			newSamplerData.wrapV = (gfx::SamplerAddressMode)current;
 		}
 		current = (int)sampler->wrapW;
 		if (ImGui::Combo("WrapW", &current, wraps, 4))
 		{
 			updated = true;
-			sampler->wrapW = (gfx::SamplerAddressMode)current;
+			newSamplerData.wrapW = (gfx::SamplerAddressMode)current;
 		}
 		// Anisotropy
-		ImGui::SliderFloat("Anisotropy", &sampler->anisotropy, 1.f, 16.f);
+		ImGui::SliderFloat("Anisotropy", &newSamplerData.anisotropy, 1.f, 16.f);
 
 		ImGui::TreePop();
 	}
 	if (updated)
 	{
-		gfx::Sampler* old = sampler;
+		Application::app()->graphic()->destroy(sampler);
 		sampler = Application::app()->graphic()->createSampler(
-			old->filterMin,
-			old->filterMag,
-			old->mipmapMode,
-			old->mipLevels,
-			old->wrapU,
-			old->wrapV,
-			old->wrapW,
-			old->anisotropy
+			newSamplerData.filterMin,
+			newSamplerData.filterMag,
+			newSamplerData.mipmapMode,
+			newSamplerData.mipLevels,
+			newSamplerData.wrapU,
+			newSamplerData.wrapV,
+			newSamplerData.wrapW,
+			newSamplerData.anisotropy
 		);
-		Application::app()->graphic()->destroy(old);
 	}
 	return sampler;
 }
@@ -314,11 +314,11 @@ template <> bool ComponentNode<MaterialComponent>::draw(MaterialComponent& mater
 	bool updated = false;
 	updated |= ImGui::ColorEdit4("Color", material.color.data);
 	updated |= ImGui::Checkbox("Double sided", &material.doubleSided);
-	TextureDisplay("Color", material.albedo.texture, ImVec2(100, 100));
+	TextureDisplay("Color", material.albedo.texture.texture, ImVec2(100, 100));
 	material.albedo.sampler = TextureSamplerDisplay(material.albedo.sampler);
-	TextureDisplay("Normal", material.normal.texture, ImVec2(100, 100));
+	TextureDisplay("Normal", material.normal.texture.texture, ImVec2(100, 100));
 	material.normal.sampler = TextureSamplerDisplay(material.normal.sampler);
-	TextureDisplay("Material", material.material.texture, ImVec2(100, 100));
+	TextureDisplay("Material", material.material.texture.texture, ImVec2(100, 100));
 	material.material.sampler = TextureSamplerDisplay(material.material.sampler);
 	return updated; 
 }
