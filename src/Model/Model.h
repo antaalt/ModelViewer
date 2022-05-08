@@ -23,7 +23,7 @@ struct StaticMeshComponent {
 struct OpaqueMaterialComponent {
 	struct SampledTexture {
 		Texture texture;
-		const gfx::Sampler* sampler;
+		gfx::SamplerHandle sampler;
 	};
 	color4f color;
 	bool doubleSided;
@@ -46,13 +46,13 @@ struct DirectionalLightComponent {
 	static constexpr size_t cascadeCount = 3;
 	static constexpr size_t cascadeResolution = 4096;
 	mat4f worldToLightSpaceMatrix[cascadeCount];
-	const gfx::Framebuffer* framebuffer[cascadeCount];
+	gfx::FramebufferHandle framebuffer[cascadeCount];
 	gfx::DescriptorSetHandle descriptorSet[cascadeCount];
 	gfx::TextureHandle shadowMap;
 	float cascadeEndClipSpace[cascadeCount];
-	const gfx::Buffer* ubo[cascadeCount];
+	gfx::BufferHandle ubo[cascadeCount];
 	gfx::DescriptorSetHandle renderDescriptorSet;
-	const gfx::Buffer* renderUBO;
+	gfx::BufferHandle renderUBO;
 };
 
 struct PointLightComponent {
@@ -61,12 +61,12 @@ struct PointLightComponent {
 	// Rendering
 	static constexpr size_t faceResolution = 1024;
 	mat4f worldToLightSpaceMatrix[6];
-	const gfx::Framebuffer* framebuffer[6];
+	gfx::FramebufferHandle framebuffer[6];
 	gfx::TextureHandle shadowMap;
 	float radius;
-	const gfx::Buffer* ubo[6];
+	gfx::BufferHandle ubo[6];
 	gfx::DescriptorSetHandle descriptorSet[6];
-	const gfx::Buffer* renderUBO;
+	gfx::BufferHandle renderUBO;
 	gfx::DescriptorSetHandle renderDescriptorSet;
 };
 
@@ -87,7 +87,7 @@ struct Camera3DComponent {
 struct TextComponent
 {
 	Font* font;
-	const gfx::Sampler* sampler;
+	gfx::SamplerHandle sampler;
 	String text;
 	color4f color;
 };

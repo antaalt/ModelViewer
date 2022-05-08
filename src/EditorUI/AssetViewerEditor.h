@@ -56,9 +56,9 @@ private:
 	aka::mat4f m_projection;
 	aka::gfx::TextureHandle m_renderTarget;
 	aka::gfx::TextureHandle m_depthTarget;
-	const aka::gfx::Framebuffer* m_target;
+	aka::gfx::FramebufferHandle m_target;
 	aka::gfx::DescriptorSetHandle m_descriptorSet;
-	const aka::gfx::Buffer* m_uniform;
+	aka::gfx::BufferHandle m_uniform;
 	aka::CameraArcball m_arcball;
 };
 class BufferViewerEditor : public AssetViewerEditor<aka::Buffer>

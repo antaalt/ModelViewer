@@ -48,9 +48,9 @@ void Editor::onCreate(int argc, char* argv[])
 
 	// --- Model
 	ResourceManager* resource = Application::resource();
-	resource->parse("library/library.json");
-	Scene::load(m_world, "library/scene.json");
-	//Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
+	//resource->parse("library/library.json");
+	//Scene::load(m_world, "library/scene.json");
+	Importer::importScene("asset/glTF-Sample-Models/2.0/Lantern/glTF/Lantern.glTF", m_world);
 	//Importer::importScene("asset/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.glTF", m_world);
 	//Importer::importScene("D:/Bibliotheque/Download/Bistro_v5_2/Bistro_v5_2/BistroExterior.fbx", m_world);
 	//resource->serialize("");

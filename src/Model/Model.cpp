@@ -218,7 +218,7 @@ Entity Scene::createSphereEntity(World& world, uint32_t segmentCount, uint32_t r
 	gfx::TextureHandle blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, data);
 	uint8_t n[4]{ 128, 128, 255, 255 };
 	gfx::TextureHandle normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, n);
-	const gfx::Sampler* s = gfx::Sampler::create(
+	gfx::SamplerHandle s = gfx::Sampler::create(
 		gfx::Filter::Linear, gfx::Filter::Linear,
 		gfx::SamplerMipMapMode::Nearest,
 		1,
@@ -241,7 +241,7 @@ Entity Scene::createCubeEntity(World& world)
 	gfx::TextureHandle blank = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, colorData);
 	uint8_t normalData[4]{ 128, 128, 255, 255 };
 	gfx::TextureHandle normal = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::None, normalData);
-	const gfx::Sampler* s = gfx::Sampler::create(
+	gfx::SamplerHandle s = gfx::Sampler::create(
 		gfx::Filter::Linear, gfx::Filter::Linear,
 		gfx::SamplerMipMapMode::Nearest,
 		1,
@@ -389,31 +389,31 @@ nlohmann::json serialize<MaterialComponent>(const entt::registry& r, entt::entit
 	json["doublesided"] = m.doubleSided;
 
 	json["albedo"]["texture"] = resource->name<Texture>(&m.albedo.texture).cstr();
-	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler->anisotropy;
-	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler->filterMin;
-	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler->filterMag;
-	json["albedo"]["sampler"]["wrapU"] = m.albedo.sampler->wrapU;
-	json["albedo"]["sampler"]["wrapV"] = m.albedo.sampler->wrapV;
-	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler->wrapW;
-	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler->mipmapMode;
+	json["albedo"]["sampler"]["anisotropy"] = m.albedo.sampler.data->anisotropy;
+	json["albedo"]["sampler"]["filterMin"] = m.albedo.sampler.data->filterMin;
+	json["albedo"]["sampler"]["filterMag"] = m.albedo.sampler.data->filterMag;
+	json["albedo"]["sampler"]["wrapU"] = m.albedo.sampler.data->wrapU;
+	json["albedo"]["sampler"]["wrapV"] = m.albedo.sampler.data->wrapV;
+	json["albedo"]["sampler"]["wrapW"] = m.albedo.sampler.data->wrapW;
+	json["albedo"]["sampler"]["mipmapMode"] = m.albedo.sampler.data->mipmapMode;
 
 	json["normal"]["texture"] = resource->name<Texture>(&m.normal.texture).cstr();
-	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler->anisotropy;
-	json["normal"]["sampler"]["filterMin"] = m.normal.sampler->filterMin;
-	json["normal"]["sampler"]["filterMag"] = m.normal.sampler->filterMag;
-	json["normal"]["sampler"]["wrapU"] = m.normal.sampler->wrapU;
-	json["normal"]["sampler"]["wrapV"] = m.normal.sampler->wrapV;
-	json["normal"]["sampler"]["wrapW"] = m.normal.sampler->wrapW;
-	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler->mipmapMode;
+	json["normal"]["sampler"]["anisotropy"] = m.normal.sampler.data->anisotropy;
+	json["normal"]["sampler"]["filterMin"] = m.normal.sampler.data->filterMin;
+	json["normal"]["sampler"]["filterMag"] = m.normal.sampler.data->filterMag;
+	json["normal"]["sampler"]["wrapU"] = m.normal.sampler.data->wrapU;
+	json["normal"]["sampler"]["wrapV"] = m.normal.sampler.data->wrapV;
+	json["normal"]["sampler"]["wrapW"] = m.normal.sampler.data->wrapW;
+	json["normal"]["sampler"]["mipmapMode"] = m.normal.sampler.data->mipmapMode;
 
 	json["material"]["texture"] = resource->name<Texture>(&m.material.texture).cstr();
-	json["material"]["sampler"]["anisotropy"] = m.material.sampler->anisotropy;
-	json["material"]["sampler"]["filterMin"] = m.material.sampler->filterMin;
-	json["material"]["sampler"]["filterMag"] = m.material.sampler->filterMag;
-	json["material"]["sampler"]["wrapU"] = m.material.sampler->wrapU;
-	json["material"]["sampler"]["wrapV"] = m.material.sampler->wrapV;
-	json["material"]["sampler"]["wrapW"] = m.material.sampler->wrapW;
-	json["material"]["sampler"]["mipmapMode"] = m.material.sampler->mipmapMode;
+	json["material"]["sampler"]["anisotropy"] = m.material.sampler.data->anisotropy;
+	json["material"]["sampler"]["filterMin"] = m.material.sampler.data->filterMin;
+	json["material"]["sampler"]["filterMag"] = m.material.sampler.data->filterMag;
+	json["material"]["sampler"]["wrapU"] = m.material.sampler.data->wrapU;
+	json["material"]["sampler"]["wrapV"] = m.material.sampler.data->wrapV;
+	json["material"]["sampler"]["wrapW"] = m.material.sampler.data->wrapW;
+	json["material"]["sampler"]["mipmapMode"] = m.material.sampler.data->mipmapMode;
 	return json;
 }
 template <>
@@ -481,13 +481,13 @@ nlohmann::json serialize<TextComponent>(const entt::registry& r, entt::entity e)
 	json["font"] = resource->name<Font>(t.font).cstr();
 	json["text"] = t.text.cstr();
 	json["color"] = { t.color.r, t.color.g, t.color.b, t.color.a };
-	json["sampler"]["anisotropy"] = t.sampler->anisotropy;
-	json["sampler"]["filterMin"] = t.sampler->filterMin;
-	json["sampler"]["filterMag"] = t.sampler->filterMag;
-	json["sampler"]["wrapU"] = t.sampler->wrapU;
-	json["sampler"]["wrapV"] = t.sampler->wrapV;
-	json["sampler"]["wrapW"] = t.sampler->wrapW;
-	json["sampler"]["mipmapMode"] = t.sampler->mipmapMode;
+	json["sampler"]["anisotropy"] = t.sampler.data->anisotropy;
+	json["sampler"]["filterMin"] = t.sampler.data->filterMin;
+	json["sampler"]["filterMag"] = t.sampler.data->filterMag;
+	json["sampler"]["wrapU"] = t.sampler.data->wrapU;
+	json["sampler"]["wrapV"] = t.sampler.data->wrapV;
+	json["sampler"]["wrapW"] = t.sampler.data->wrapW;
+	json["sampler"]["mipmapMode"] = t.sampler.data->mipmapMode;
 	return json;
 }
 

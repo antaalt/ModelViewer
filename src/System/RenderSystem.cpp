@@ -57,13 +57,13 @@ void RenderSystem::onCreate(aka::World& world)
 
 	ProgramManager* program = app->program();
 	m_gbufferProgram = program->get("gbuffer");
-	m_pointProgram = program->get("point"); m_pointDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[0]);
-	m_dirProgram = program->get("directional"); m_dirDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[0]);
-	m_ambientProgram = program->get("ambient"); m_ambientDescriptorSet = device->createDescriptorSet(m_ambientProgram->bindings[0]);
-	m_skyboxProgram = program->get("skybox"); m_skyboxDescriptorSet = device->createDescriptorSet(m_skyboxProgram->bindings[0]);
-	m_postprocessProgram = program->get("postProcess"); m_postprocessDescriptorSet = device->createDescriptorSet(m_postprocessProgram->bindings[0]);
+	m_pointProgram = program->get("point"); m_pointDescriptorSet = device->createDescriptorSet(m_pointProgram.data->bindings[0]);
+	m_dirProgram = program->get("directional"); m_dirDescriptorSet = device->createDescriptorSet(m_dirProgram.data->bindings[0]);
+	m_ambientProgram = program->get("ambient"); m_ambientDescriptorSet = device->createDescriptorSet(m_ambientProgram.data->bindings[0]);
+	m_skyboxProgram = program->get("skybox"); m_skyboxDescriptorSet = device->createDescriptorSet(m_skyboxProgram.data->bindings[0]);
+	m_postprocessProgram = program->get("postProcess"); m_postprocessDescriptorSet = device->createDescriptorSet(m_postprocessProgram.data->bindings[0]);
 	//m_textDescriptorSet = device->createDescriptorSet(0, program->get("text"));
-	m_viewDescriptorSet = device->createDescriptorSet(m_gbufferProgram->bindings[0]);
+	m_viewDescriptorSet = device->createDescriptorSet(m_gbufferProgram.data->bindings[0]);
 
 	// --- Uniforms
 	m_cameraUniformBuffer = device->createBuffer(gfx::BufferType::Uniform, sizeof(CameraUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
@@ -185,7 +185,7 @@ void RenderSystem::onCreate(aka::World& world)
 	m_cube->bindings.offsets[0] = 0;
 	m_cube->bindings.count = 1;
 	m_cube->vertices[0] = device->createBuffer(gfx::BufferType::Vertex, sizeof(skyboxVertices), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, skyboxVertices);
-	m_cube->indices = nullptr;
+	m_cube->indices = gfx::BufferHandle::null;
 	m_cube->format = gfx::IndexFormat::UnsignedShort;
 	m_cube->count = 36;
 
@@ -216,6 +216,7 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_viewDescriptorSet);
 	device->destroy(m_defaultSampler);
 	device->destroy(m_shadowSampler);
+	device->destroy(m_gbufferPipeline);
 
 	// Lighing pass
 	device->destroy(m_quad->indices);
@@ -235,12 +236,14 @@ void RenderSystem::onDestroy(aka::World& world)
 	device->destroy(m_skybox);
 	device->destroy(m_skyboxDescriptorSet);
 	device->destroy(m_skyboxSampler);
+	device->destroy(m_skyboxPipeline);
 
 	// Post process pass
 	device->destroy(m_storage);
 	device->destroy(m_storageFramebuffer);
 	device->destroy(m_storageDepthFramebuffer);
 	device->destroy(m_postprocessDescriptorSet);
+	device->destroy(m_postPipeline);
 
 	// Uniforms
 	device->destroy(m_cameraUniformBuffer);
@@ -254,7 +257,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 	Application* app = Application::app();
 	gfx::GraphicDevice* device = app->graphic();
 
-	const gfx::Framebuffer* backbuffer = device->backbuffer(frame); // TODO retrieve frame (check if is in render thread)
+	gfx::FramebufferHandle backbuffer = device->backbuffer(frame); // TODO retrieve frame (check if is in render thread)
 
 	Entity cameraEntity = Scene::getMainCamera(world);
 	Camera3DComponent& camera = cameraEntity.get<Camera3DComponent>();
@@ -301,7 +304,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		matricesUBO.normalMatrix0 = vec3f(normalMatrix[0]);
 		matricesUBO.normalMatrix1 = vec3f(normalMatrix[1]);
 		matricesUBO.normalMatrix2 = vec3f(normalMatrix[2]);
-		r.matrices = device->createDescriptorSet(m_gbufferProgram->bindings[2]);
+		r.matrices = device->createDescriptorSet(m_gbufferProgram.data->bindings[2]);
 		r.ubo[0] = device->createBuffer(gfx::BufferType::Uniform, sizeof(MatricesUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, &matricesUBO);
 		gfx::DescriptorSetData matricesData{};
 		matricesData.setUniformBuffer(0, r.ubo[0]);
@@ -312,7 +315,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		MaterialUniformBuffer materialUBO;
 		materialUBO.color = material.color;
 		r.ubo[1] = device->createBuffer(gfx::BufferType::Uniform, sizeof(MaterialUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, &materialUBO);
-		r.material = device->createDescriptorSet(m_gbufferProgram->bindings[1]);
+		r.material = device->createDescriptorSet(m_gbufferProgram.data->bindings[1]);
 		gfx::DescriptorSetData materialData{};
 		materialData.setUniformBuffer(0, r.ubo[1]);
 		materialData.setSampledImage(1, material.albedo.texture.texture, material.albedo.sampler);
@@ -396,7 +399,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		if (light.renderDescriptorSet.data == nullptr)
 		{
 			// Init is here because we dont have access to DirectionalLightUniformBuffer in shadowMapSystem
-			light.renderDescriptorSet = device->createDescriptorSet(m_dirProgram->bindings[1]);
+			light.renderDescriptorSet = device->createDescriptorSet(m_dirProgram.data->bindings[1]);
 			light.renderUBO = device->createBuffer(gfx::BufferType::Uniform, sizeof(DirectionalLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 			gfx::DescriptorSetData lightData{};
 			lightData.setUniformBuffer(0, light.renderUBO);
@@ -451,7 +454,7 @@ void RenderSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		if (light.renderDescriptorSet.data == nullptr)
 		{
 			// Init is here because we dont have access to PointLightUniformBuffer in shadowMapSystem
-			light.renderDescriptorSet = device->createDescriptorSet(m_pointProgram->bindings[1]);
+			light.renderDescriptorSet = device->createDescriptorSet(m_pointProgram.data->bindings[1]);
 			light.renderUBO = device->createBuffer(gfx::BufferType::Uniform, sizeof(PointLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 			gfx::DescriptorSetData lightData{};
 			lightData.setUniformBuffer(0, light.renderUBO);
@@ -742,7 +745,7 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_ambientPipeline = device->createPipeline(
 			m_ambientProgram,
 			gfx::PrimitiveType::Triangles,
-			m_storageFramebuffer->framebuffer,
+			m_storageFramebuffer.data->framebuffer,
 			m_quad->bindings,
 			viewport,
 			gfx::DepthState{},
@@ -758,7 +761,7 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_dirPipeline = device->createPipeline(
 			m_dirProgram,
 			gfx::PrimitiveType::Triangles,
-			m_storageFramebuffer->framebuffer,
+			m_storageFramebuffer.data->framebuffer,
 			m_quad->bindings,
 			viewport,
 			gfx::DepthState{},
@@ -774,7 +777,7 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_pointPipeline = device->createPipeline(
 			m_pointProgram,
 			gfx::PrimitiveType::Triangles,
-			m_storageFramebuffer->framebuffer,
+			m_storageFramebuffer.data->framebuffer,
 			m_sphere->bindings,
 			viewport,
 			gfx::DepthState{},
@@ -790,7 +793,7 @@ void RenderSystem::createRenderTargets(uint32_t width, uint32_t height)
 		m_skyboxPipeline = device->createPipeline(
 			m_skyboxProgram,
 			gfx::PrimitiveType::Triangles,
-			m_storageDepthFramebuffer->framebuffer,
+			m_storageDepthFramebuffer.data->framebuffer,
 			m_cube->bindings,
 			viewport,
 			gfx::DepthState{ gfx::DepthOp::LessOrEqual, false },

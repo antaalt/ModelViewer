@@ -9,8 +9,8 @@ void InfoEditor::onRender(aka::World& world, aka::gfx::Frame* frame)
 {
 	aka::Application* app = aka::Application::app();
 	aka::gfx::GraphicDevice* graphic = app->graphic();
-	uint32_t width = graphic->backbuffer(frame)->width;
-	uint32_t height = graphic->backbuffer(frame)->height;
+	uint32_t width = graphic->backbuffer(frame).data->width;
+	uint32_t height = graphic->backbuffer(frame).data->height;
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
 	ImGui::SetNextWindowPos(ImVec2((float)(width - 5), 25.f), ImGuiCond_Always, ImVec2(1.f, 0.f));
 	if (ImGui::Begin("Info", nullptr, flags))

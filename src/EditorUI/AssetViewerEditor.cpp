@@ -251,10 +251,10 @@ void BufferViewerEditor::draw(const String& name, Resource<Buffer>& resource)
 	ImGui::TextColored(color, name.cstr());
 
 	auto buffer = resource.resource->buffer;
-	ImGui::Text("Type : %s", toString(buffer->type));
-	ImGui::Text("Usage : %s", toString(buffer->usage));
-	ImGui::Text("Access : %s", toString(buffer->access));
-	ImGui::Text("Size : %u", buffer->size);
+	ImGui::Text("Type : %s", toString(buffer.data->type));
+	ImGui::Text("Usage : %s", toString(buffer.data->usage));
+	ImGui::Text("Access : %s", toString(buffer.data->access));
+	ImGui::Text("Size : %u", buffer.data->size);
 }
 void MeshViewerEditor::onCreate(World& world)
 {
@@ -267,8 +267,8 @@ void MeshViewerEditor::onCreate(World& world)
 	m_target = gfx::Framebuffer::create(&color, 1, &depth);
 	
 	ProgramManager* program = Application::app()->program();
-	const gfx::Program* p = program->get("editor.basic");
-	m_descriptorSet = gfx::DescriptorSet::create(p->bindings[0]);
+	gfx::ProgramHandle p = program->get("editor.basic");
+	m_descriptorSet = gfx::DescriptorSet::create(p.data->bindings[0]);
 	m_uniform = gfx::Buffer::createUniformBuffer(sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 	//m_descriptorSet->setUniformBuffer(0, m_uniform);
 	// TODO update set

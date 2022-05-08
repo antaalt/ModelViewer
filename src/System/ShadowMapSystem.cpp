@@ -32,11 +32,13 @@ void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
 		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowDirectional")->bindings[0]);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowDirectional").data->bindings[0]);
 		gfx::DescriptorSetData data{};
 		data.setUniformBuffer(0, l.ubo[iLayer]);
 		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
 	}
+	l.renderDescriptorSet = gfx::DescriptorSetHandle::null;
+	l.renderUBO = gfx::BufferHandle::null;
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
 }
@@ -65,11 +67,13 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
 		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowPoint")->bindings[0]);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowPoint").data->bindings[0]);
 		gfx::DescriptorSetData data{};
 		data.setUniformBuffer(0, l.ubo[iLayer]);
 		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
 	}
+	l.renderDescriptorSet = gfx::DescriptorSetHandle::null;
+	l.renderUBO = gfx::BufferHandle::null;
 	if (!registry.has<DirtyLightComponent>(entity))
 		registry.emplace<DirtyLightComponent>(entity);
 }
@@ -158,6 +162,10 @@ void ShadowMapSystem::onDestroy(aka::World& world)
 	Application* app = Application::app();
 	gfx::GraphicDevice* device = app->graphic();
 
+	// Trigger destruct events
+	world.registry().clear<DirectionalLightComponent>();
+	world.registry().clear<PointLightComponent>();
+	// Then disconnect events.
 	world.registry().on_construct<DirectionalLightComponent>().disconnect<&onDirectionalLightConstruct>();
 	world.registry().on_destroy<DirectionalLightComponent>().disconnect<&onDirectionalLightDestroy>();
 	world.registry().on_construct<PointLightComponent>().disconnect<&onPointLightConstruct>();
@@ -256,8 +264,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		for (uint32_t i = 0; i < 6; ++i)
 		{
 			pointUBO.lightView = light.worldToLightSpaceMatrix[i];
-			device->upload(light.ubo[i], &pointUBO, 0, light.ubo[i]->size);
-			AKA_ASSERT(light.ubo[i]->size == sizeof(PointLightUniformBuffer), "Invalid sizes");
+			device->upload(light.ubo[i], &pointUBO, 0, sizeof(PointLightUniformBuffer));
 		}
 
 		auto view = world.registry().view<Transform3DComponent, MeshComponent, RenderComponent>();
@@ -305,7 +312,7 @@ void ShadowMapSystem::onRender(aka::World& world, aka::gfx::Frame* frame)
 		{
 			DirectionalLightUniformBuffer lightUBO{};
 			lightUBO.light = light.worldToLightSpaceMatrix[i];
-			device->upload(light.ubo[i], &lightUBO, 0, light.ubo[i]->size);
+			device->upload(light.ubo[i], &lightUBO, 0, sizeof(DirectionalLightUniformBuffer));
 
 			cmd->beginRenderPass(light.framebuffer[i], gfx::ClearState{ gfx::ClearMask::Depth, { 0.f }, 1.f, 0 });
 

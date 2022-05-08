@@ -25,7 +25,7 @@ void TextureDisplay(const String& name, gfx::TextureHandle texture, const ImVec2
 		ImGui::Image(textureID, size);
 	}
 }
-const gfx::Sampler* TextureSamplerDisplay(const gfx::Sampler* sampler)
+gfx::SamplerHandle TextureSamplerDisplay(gfx::SamplerHandle sampler)
 {
 	static const char* filters[] = {
 		"Nearest",
@@ -49,39 +49,39 @@ const gfx::Sampler* TextureSamplerDisplay(const gfx::Sampler* sampler)
 	if (ImGui::TreeNode(buffer))
 	{
 		// Filters
-		int current = (int)sampler->filterMin;
+		int current = (int)sampler.data->filterMin;
 		if (ImGui::Combo("Filter min", &current, filters, 2))
 		{
 			updated = true;
 			newSamplerData.filterMin = (gfx::Filter)current;
 		}
-		current = (int)sampler->filterMag;
+		current = (int)sampler.data->filterMag;
 		if (ImGui::Combo("Filter mag", &current, filters, 2))
 		{
 			updated = true;
 			newSamplerData.filterMag = (gfx::Filter)current;
 		}
 		// Mips
-		current = (int)sampler->mipmapMode;
+		current = (int)sampler.data->mipmapMode;
 		if (ImGui::Combo("Mips", &current, mipmaps, 3))
 		{
 			updated = true;
 			newSamplerData.mipmapMode = (gfx::SamplerMipMapMode)current;
 		}
 		// Wraps
-		current = (int)sampler->wrapU;
+		current = (int)sampler.data->wrapU;
 		if (ImGui::Combo("WrapU", &current, wraps, 4))
 		{
 			updated = true;
 			newSamplerData.wrapU = (gfx::SamplerAddressMode)current;
 		}
-		current = (int)sampler->wrapV;
+		current = (int)sampler.data->wrapV;
 		if (ImGui::Combo("WrapV", &current, wraps, 4))
 		{
 			updated = true;
 			newSamplerData.wrapV = (gfx::SamplerAddressMode)current;
 		}
-		current = (int)sampler->wrapW;
+		current = (int)sampler.data->wrapW;
 		if (ImGui::Combo("WrapW", &current, wraps, 4))
 		{
 			updated = true;
@@ -280,8 +280,8 @@ template <> bool ComponentNode<MeshComponent>::draw(MeshComponent& mesh)
 	{
 		uint32_t sizeOfVertex = 0;
 		for (uint32_t i = 0; i < mesh.mesh->bindings.count; i++)
-			sizeOfVertex += mesh.mesh->vertices[i]->size;
-		ImGui::Text("Vertices : %u", mesh.mesh->vertices[0]->size / sizeOfVertex);
+			sizeOfVertex += mesh.mesh->vertices[i].data->size;
+		ImGui::Text("Vertices : %u", mesh.mesh->vertices[0].data->size / sizeOfVertex);
 		ImGui::Text("Index count : %u", mesh.mesh->count);
 		ImGui::Text("Index offset : %u", 0);// mesh.mesh->offset);
 		/*String type = "Undefined";
@@ -403,7 +403,7 @@ void SceneEditor::onCreate(World& world)
 	ProgramManager* program = app->program();
 	gfx::GraphicDevice* graphic = app->graphic();
 	m_wireframeProgram = program->get("editor.wireframe");
-	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram->bindings[0]);
+	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram.data->bindings[0]);
 	m_wireFrameUniformBuffer = graphic->createBuffer(gfx::BufferType::Uniform, sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 	//m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
 }

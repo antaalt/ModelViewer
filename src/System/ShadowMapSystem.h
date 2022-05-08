@@ -18,10 +18,10 @@ public:
 
 	void onReceive(const aka::ProgramReloadedEvent& e) override;
 private:
-	const aka::gfx::Program* m_shadowProgram;
-	const aka::gfx::Program* m_shadowPointProgram;
-	const aka::gfx::Pipeline* m_shadowPipeline;
-	const aka::gfx::Pipeline* m_shadowPointPipeline;
+	aka::gfx::ProgramHandle m_shadowProgram;
+	aka::gfx::ProgramHandle m_shadowPointProgram;
+	aka::gfx::PipelineHandle m_shadowPipeline;
+	aka::gfx::PipelineHandle m_shadowPointPipeline;
 };
 
 };

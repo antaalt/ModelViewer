@@ -27,19 +27,43 @@ private:
 	gfx::TextureHandle m_missingRoughnessTexture;
 };
 
+static const char* DefaultBlankColorTexture = "Aka.Default.BlankColorTexture";
+static const char* DefaultMissingColorTexture = "Aka.Default.MissingColorTexture";
+static const char* DefaultMissingNormalTexture = "Aka.Default.MissingNormalTexture";
+static const char* DefaultMissingMaterialTexture = "Aka.Default.MissingMaterialTexture";
+
 AssimpImporter::AssimpImporter(const Path& directory, const aiScene* scene, aka::World& world) :
 	m_directory(directory),
 	m_assimpScene(scene),
 	m_world(world)
 {
-	uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
-	uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
-	uint8_t bytesNormal[4] = { 128,128,255,255 };
-	uint8_t bytesRoughness[4] = { 255,255,255,255 };
-	m_missingColorTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesMissingColor);
-	m_blankColorTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesBlankColor);
-	m_missingNormalTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesNormal);
-	m_missingRoughnessTexture = gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesRoughness);
+	Application* app = Application::app();
+	ResourceManager* resource = app->resource();
+	// Store default texture in resource storage
+	if (!resource->has<Texture>(DefaultBlankColorTexture))
+	{
+		uint8_t bytesBlankColor[4] = { 255, 255, 255, 255 };
+		resource->load<Texture>(DefaultBlankColorTexture, new Texture{ gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesBlankColor) });
+	}
+	if (!resource->has<Texture>(DefaultMissingColorTexture))
+	{
+		uint8_t bytesMissingColor[4] = { 255, 0, 255, 255 };
+		resource->load<Texture>(DefaultMissingColorTexture, new Texture{ gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesMissingColor) });
+	}
+	if (!resource->has<Texture>(DefaultMissingNormalTexture))
+	{
+		uint8_t bytesNormal[4] = { 128,128,255,255 };
+		resource->load<Texture>(DefaultMissingNormalTexture, new Texture{ gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesNormal) });
+	}
+	if (!resource->has<Texture>(DefaultMissingMaterialTexture))
+	{
+		uint8_t bytesRoughness[4] = { 255,255,255,255 };
+		resource->load<Texture>(DefaultMissingMaterialTexture, new Texture{ gfx::Texture::create2D(1, 1, gfx::TextureFormat::RGBA8, gfx::TextureFlag::ShaderResource, bytesRoughness) });
+	}
+	m_missingColorTexture = resource->get<Texture>(DefaultMissingColorTexture)->texture;
+	m_blankColorTexture = resource->get<Texture>(DefaultMissingColorTexture)->texture;
+	m_missingNormalTexture = resource->get<Texture>(DefaultMissingColorTexture)->texture;
+	m_missingRoughnessTexture = resource->get<Texture>(DefaultMissingColorTexture)->texture;
 }
 
 void AssimpImporter::process()
@@ -173,7 +197,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!indexBuffer.save(indexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		const gfx::Buffer* indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource.get()->buffer;
+		gfx::BufferHandle indexBuffer = resource->load<Buffer>(indexBufferName, indexBufferPath).resource.get()->buffer;
 		
 		// Vertex buffer
 		String vertexBufferName = meshName + "-vertices";
@@ -189,7 +213,7 @@ Entity AssimpImporter::processMesh(aiMesh* mesh)
 			if (!vertexBuffer.save(vertexBufferPath))
 				Logger::error("Failed to save buffer");
 		}
-		const gfx::Buffer* vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource.get()->buffer;
+		gfx::BufferHandle vertexBuffer = resource->load<Buffer>(vertexBufferName, vertexBufferPath).resource.get()->buffer;
 
 		// Mesh
 		String meshFileName = meshName + ".mesh";
