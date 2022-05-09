@@ -32,7 +32,7 @@ void onDirectionalLightConstruct(entt::registry& registry, entt::entity entity)
 		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(DirectionalLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
 		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowDirectional").data->bindings[0]);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowDirectional").data->sets[0]);
 		gfx::DescriptorSetData data{};
 		data.setUniformBuffer(0, l.ubo[iLayer]);
 		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
@@ -67,7 +67,7 @@ void onPointLightConstruct(entt::registry& registry, entt::entity entity)
 		l.ubo[iLayer] = gfx::Buffer::createUniformBuffer(sizeof(PointLightUniformBuffer), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None, nullptr);
 		gfx::Attachment shadowAttachment = { l.shadowMap, gfx::AttachmentFlag::None, gfx::AttachmentLoadOp::Clear, iLayer, 0 };
 		l.framebuffer[iLayer] = gfx::Framebuffer::create(nullptr, 0, &shadowAttachment);
-		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowPoint").data->bindings[0]);
+		l.descriptorSet[iLayer] = gfx::DescriptorSet::create(Application::app()->program()->get("shadowPoint").data->sets[0]);
 		gfx::DescriptorSetData data{};
 		data.setUniformBuffer(0, l.ubo[iLayer]);
 		Application::app()->graphic()->update(l.descriptorSet[iLayer], data);
@@ -119,7 +119,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 		m_shadowProgram = program->get("shadowDirectional");
 		Rect rectDir = Rect{ 0, 0, DirectionalLightComponent::cascadeResolution, DirectionalLightComponent::cascadeResolution };
 		gfx::ViewportState viewportDir{ rectDir, rectDir };
-		m_shadowPipeline = device->createPipeline(
+		m_shadowPipeline = device->createGraphicPipeline(
 			m_shadowProgram,
 			gfx::PrimitiveType::Triangles,
 			fbDesc,
@@ -137,7 +137,7 @@ void ShadowMapSystem::onCreate(aka::World& world)
 		m_shadowPointProgram = program->get("shadowPoint");
 		Rect rectPoint = Rect{ 0, 0, PointLightComponent::faceResolution, PointLightComponent::faceResolution };
 		gfx::ViewportState viewportPoint{ rectPoint, rectPoint };
-		m_shadowPointPipeline = device->createPipeline(
+		m_shadowPointPipeline = device->createGraphicPipeline(
 			m_shadowPointProgram,
 			gfx::PrimitiveType::Triangles,
 			fbDesc,

@@ -20,8 +20,8 @@ public:
 private:
 	aka::gfx::ProgramHandle m_shadowProgram;
 	aka::gfx::ProgramHandle m_shadowPointProgram;
-	aka::gfx::PipelineHandle m_shadowPipeline;
-	aka::gfx::PipelineHandle m_shadowPointPipeline;
+	aka::gfx::GraphicPipelineHandle m_shadowPipeline;
+	aka::gfx::GraphicPipelineHandle m_shadowPointPipeline;
 };
 
 };

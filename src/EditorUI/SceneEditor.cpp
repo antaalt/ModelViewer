@@ -403,7 +403,7 @@ void SceneEditor::onCreate(World& world)
 	ProgramManager* program = app->program();
 	gfx::GraphicDevice* graphic = app->graphic();
 	m_wireframeProgram = program->get("editor.wireframe");
-	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram.data->bindings[0]);
+	m_wireframeDescriptorSet = graphic->createDescriptorSet(m_wireframeProgram.data->sets[0]);
 	m_wireFrameUniformBuffer = graphic->createBuffer(gfx::BufferType::Uniform, sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 	//m_wireframeMaterial->set("ModelUniformBuffer", m_wireFrameUniformBuffer);
 }

@@ -268,7 +268,7 @@ void MeshViewerEditor::onCreate(World& world)
 	
 	ProgramManager* program = Application::app()->program();
 	gfx::ProgramHandle p = program->get("editor.basic");
-	m_descriptorSet = gfx::DescriptorSet::create(p.data->bindings[0]);
+	m_descriptorSet = gfx::DescriptorSet::create(p.data->sets[0]);
 	m_uniform = gfx::Buffer::createUniformBuffer(sizeof(mat4f), gfx::BufferUsage::Default, gfx::BufferCPUAccess::None);
 	//m_descriptorSet->setUniformBuffer(0, m_uniform);
 	// TODO update set

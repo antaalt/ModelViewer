@@ -75,16 +75,16 @@ struct RenderComponent
 	aka::gfx::BufferHandle ubo[2]; // model buffer
 };
 
-inline aka::gfx::PipelineHandle resizePipeline(aka::gfx::GraphicDevice* device, aka::gfx::PipelineHandle pipeline, uint32_t w, uint32_t h)
+inline aka::gfx::GraphicPipelineHandle resizePipeline(aka::gfx::GraphicDevice* device, aka::gfx::GraphicPipelineHandle pipeline, uint32_t w, uint32_t h)
 {
-	const aka::gfx::Pipeline p = *pipeline.data;
+	const aka::gfx::GraphicPipeline p = *pipeline.data;
 	device->destroy(pipeline);
 	aka::gfx::ViewportState viewport = p.viewport;
 	viewport.viewport.w = w;
 	viewport.viewport.h = h;
 	viewport.scissor.w = w;
 	viewport.scissor.h = h;
-	return device->createPipeline(
+	return device->createGraphicPipeline(
 		p.program,
 		p.primitive,
 		p.framebuffer,
@@ -97,11 +97,11 @@ inline aka::gfx::PipelineHandle resizePipeline(aka::gfx::GraphicDevice* device, 
 		p.fill
 	);
 }
-inline aka::gfx::PipelineHandle reloadPipeline(aka::gfx::GraphicDevice* device, aka::gfx::PipelineHandle pipeline, aka::gfx::ProgramHandle program)
+inline aka::gfx::GraphicPipelineHandle reloadPipeline(aka::gfx::GraphicDevice* device, aka::gfx::GraphicPipelineHandle pipeline, aka::gfx::ProgramHandle program)
 {
-	const aka::gfx::Pipeline p = *pipeline.data;
+	const aka::gfx::GraphicPipeline p = *pipeline.data;
 	device->destroy(pipeline);
-	return device->createPipeline(
+	return device->createGraphicPipeline(
 		program,
 		p.primitive,
 		p.framebuffer,
@@ -114,7 +114,6 @@ inline aka::gfx::PipelineHandle reloadPipeline(aka::gfx::GraphicDevice* device, 
 		p.fill
 	);
 }
-
 class RenderSystem : 
 	public aka::System,
 	public aka::EventListener<aka::BackbufferResizeEvent>,
@@ -137,7 +136,7 @@ private:
 
 	// gbuffers pass
 	aka::gfx::VertexBindingState m_gbufferVertices;
-	aka::gfx::PipelineHandle m_gbufferPipeline;
+	aka::gfx::GraphicPipelineHandle m_gbufferPipeline;
 	aka::gfx::TextureHandle m_position;
 	aka::gfx::TextureHandle m_albedo;
 	aka::gfx::TextureHandle m_normal;
@@ -152,13 +151,13 @@ private:
 	aka::Mesh* m_sphere;
 	aka::gfx::SamplerHandle m_shadowSampler;
 	aka::gfx::SamplerHandle m_defaultSampler;
-	aka::gfx::PipelineHandle m_ambientPipeline;
+	aka::gfx::GraphicPipelineHandle m_ambientPipeline;
 	aka::gfx::DescriptorSetHandle m_ambientDescriptorSet;
 	aka::gfx::ProgramHandle m_ambientProgram;
-	aka::gfx::PipelineHandle m_pointPipeline;
+	aka::gfx::GraphicPipelineHandle m_pointPipeline;
 	aka::gfx::DescriptorSetHandle m_pointDescriptorSet;
 	aka::gfx::ProgramHandle m_pointProgram;
-	aka::gfx::PipelineHandle m_dirPipeline;
+	aka::gfx::GraphicPipelineHandle m_dirPipeline;
 	aka::gfx::DescriptorSetHandle m_dirDescriptorSet;
 	aka::gfx::ProgramHandle m_dirProgram;
 
@@ -168,14 +167,14 @@ private:
 	aka::gfx::SamplerHandle m_skyboxSampler;
 	aka::gfx::DescriptorSetHandle m_skyboxDescriptorSet;
 	aka::gfx::ProgramHandle m_skyboxProgram;
-	aka::gfx::PipelineHandle m_skyboxPipeline;
+	aka::gfx::GraphicPipelineHandle m_skyboxPipeline;
 
 	// Text pass
 	aka::gfx::DescriptorSetHandle m_textDescriptorSet;
 	//const aka::Program* m_textProgram;
 
 	// Post process pass
-	aka::gfx::PipelineHandle m_postPipeline;
+	aka::gfx::GraphicPipelineHandle m_postPipeline;
 	//const aka::Texture* m_storageDepth;
 	aka::gfx::TextureHandle m_storage;
 	aka::gfx::FramebufferHandle m_storageFramebuffer;
